@@ -253,8 +253,7 @@ function viewLab(){
   ${L.mode==='ask' && L.answer? `<div class="sec-title">클로드의 답</div><div class="card"><div class="answer">${esc(L.answer)}</div></div><p class="muted small" style="margin-top:8px">마음에 안 들면 위 글을 고쳐서 다시 보내 보세요. '더 짧게', '표로', '예를 들어' 같은 말을 덧붙이면 달라져요.</p>`:''}
   ${L.mode==='diag'? diag:''}`;
 }
-const stripFence=t=>String(t==null?'':t).replace(/```[a-zA-Z]*
-?/g,'');
+const stripFence=t=>String(t==null?'':t).replace(/```[a-zA-Z]*\n?/g,'');
 async function labSend(){ const L=ui.lab; if(L.busy||!AI.fn) return; const txt=($('#labIn')?$('#labIn').value:'').trim(); if(!txt){ toast('보낼 글을 먼저 쓰세요'); return; } L.prompt=txt; L.busy=true; L.err=''; L.answer=''; state.lab++; touchStreak(); commit(); render(); L.ctl=new AbortController();
   try{ const r=await AI.fn(txt, {signal:L.ctl.signal, cache:false, onText:({text})=>{ L.answer=stripFence(text); const el=document.querySelector('.answer'); if(el) el.textContent=text; else render(); }}); L.answer=stripFence(r.text); }
   catch(e){ L.err=labErr(e); if(e&&e.text) L.answer=e.text; }
