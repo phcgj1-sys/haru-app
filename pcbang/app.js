@@ -24,8 +24,12 @@ S.net = S.net || null;          // 브라우저 인터넷 측정
 S.native = S.native || null;    // 윈도우 점검 프로그램 결과 (불러온 뒤 sanitizeNative로 다시 정리)
 S.dev = S.dev || {};            // {hz, pollMax, pollAvg, chatter, kbMax, kbChat, react}
 S.seat = S.seat || '';
-S.opt = S.opt || { res: '1080', preset: 'mid', target: 'auto' };
-function save() { var c = {}; for (var k in S) if (k !== 'records') c[k] = S[k]; store.set(KEY, c); }
+S.opt = Object.assign({ res: '1080', preset: 'mid', target: 'auto' }, S.opt || {});
+if (['1080', '1440', '2160'].indexOf(S.opt.res) < 0) S.opt.res = '1080';
+if (['low', 'mid', 'high'].indexOf(S.opt.preset) < 0) S.opt.preset = 'mid';
+if (['auto', '60', '144', '240'].indexOf(String(S.opt.target)) < 0) S.opt.target = 'auto';
+var saveWarned = false;
+function save() { var c = {}; for (var k in S) if (k !== 'records') c[k] = S[k]; if (!store.set(KEY, c) && !saveWarned) { saveWarned = true; setTimeout(function () { toast('브라우저 저장 공간이 부족해 점검 결과를 저장하지 못했어요'); }, 0); } }
 
 /* ---------------- 테마 ---------------- */
 function applyTheme() {
@@ -278,7 +282,7 @@ function judge(game, sp, opt) {
     var need = game.min.os || 'win10';
     var osOk = sp.os === 'win11' || (sp.os === 'win10' && need !== 'win11') || (sp.os === 'win7' && need === 'win7');
     if (sp.os === 'win10-32') osOk = false;
-    if (!osOk) r.issues.push({ l: 'fail', t: '운영체제: ' + (need === 'win11' ? 'Windows 11' : 'Windows 10 64비트 이상') + ' 필요' });
+    if (!osOk) r.issues.push({ l: 'fail', spec: true, t: '운영체제: ' + (need === 'win11' ? 'Windows 11' : 'Windows 10 64비트 이상') + ' 필요' });
   }
   // 발로란트: Windows 11에서는 TPM 2.0 + 보안 부팅이 꺼져 있으면 실행 안 됨
   var nat = sp.nat || {};
@@ -289,7 +293,7 @@ function judge(game, sp, opt) {
   if ((game.id === 'lol' || game.id === 'val') && nat.osBuild && nat.osBuild < 19041) r.issues.push({ l: 'fail', t: 'Windows 10 빌드 ' + nat.osBuild + ' — 19041 이상으로 업데이트 필요(VAN 9004)' });
   (game.checks || []).forEach(function (c) { r.issues.push({ l: 'info', t: c }); });
   var ls = r.comps.map(function (c) { return c.l; });
-  if (ls.indexOf('fail') >= 0) r.level = 'fail';
+  if (ls.indexOf('fail') >= 0 || r.issues.some(function (i) { return i.l === 'fail' && i.spec; })) r.level = 'fail';
   else if (r.issues.some(function (i) { return i.l === 'fail'; })) r.level = 'block';
   else if (ls.indexOf('unk') >= 0 && !(sp.gpu)) r.level = 'unk';
   else if (ls.indexOf('min') >= 0) r.level = 'min';
@@ -481,7 +485,11 @@ function sanitizeNative(o) {
   o.disks = arr(o.disks).map(function (d) { return { name: str(d.name), size: num(d.size), free: num(d.free) }; });
   o.pings = arr(o.pings).map(function (p) { return { name: str(p.name), host: str(p.host), isGateway: p.isGateway === true, sent: num(p.sent), recv: num(p.recv) || 0, loss: num(p.loss) || 0, avg: num(p.avg), min: num(p.min), max: num(p.max), jitter: num(p.jitter) }; });
   o.tcp = arr(o.tcp).map(function (t) { return { name: str(t.name), host: str(t.host), port: num(t.port), ok: t.ok === true, n: num(t.n) || 0, fail: num(t.fail) || 0, avg: num(t.avg), min: num(t.min) }; });
-  return o;
+  // 배열은 길이를 제한(저장 공간 보호)
+  [['pings', 20], ['tcp', 20], ['disks', 20], ['gpus', 8], ['physDisks', 12], ['displays', 6]].forEach(function (x) { o[x[0]] = (Array.isArray(o[x[0]]) ? o[x[0]] : []).slice(0, x[1]); });
+  var KEEP = ['v', 'seat', 'computer', 'time', 'cpu', 'cores', 'threads', 'cpuMHz', 'cpuLoad', 'gpus', 'gpuLive', 'hz', 'monitorMaxHz', 'displays', 'monitors', 'ramGB', 'ramSpeed', 'ramSticks', 'ramRated', 'ramXmpOff', 'memUsedPct', 'os', 'osBuild', 'osName', 'uptimeH', 'power', 'secureBoot', 'tpm', 'disks', 'diskTypes', 'physDisks', 'diskless', 'disklessWhy', 'sysFreePct', 'lowDisk', 'adapter', 'pings', 'tcp', 'hvci', 'vgc', 'vgk', 'wuService', 'rebootPending', 'gameMode', 'hags', 'mouseAccel', 'mouseSens', 'mice', 'keyboards', 'audio', 'topProcs', 'warns'];
+  var out = {}; KEEP.forEach(function (k) { if (o[k] !== undefined) out[k] = o[k]; });
+  return out;
 }
 $('#nativeApply').addEventListener('click', function () {
   try {
@@ -653,15 +661,15 @@ function renderHz() {
   var pad = $('#mousePad');
   var BTN = [['왼쪽', 0], ['가운데(휠)', 1], ['오른쪽', 2], ['뒤로(4)', 3], ['앞으로(5)', 4]];
   var st;
-  function reset() {
-    delete S.dev.chatter; delete S.dev.pollMax; delete S.dev.pollAvg; delete S.dev.mBtns; delete S.dev.wheel; save();
+  function reset(keepSaved) {
+    if (!keepSaved) { delete S.dev.chatter; delete S.dev.pollMax; delete S.dev.pollAvg; delete S.dev.mBtns; delete S.dev.wheel; save(); }
     st = { cnt: [0, 0, 0, 0, 0], chat: [0, 0, 0, 0, 0], last: [0, 0, 0, 0, 0], up: [0, 0, 0, 0, 0], evts: [], max: 0, samples: [], clicks: [] };
     $('#mBtns').innerHTML = BTN.map(function (b) { return '<div id="mb' + b[1] + '">' + b[0] + '<b>0</b><span class="xs">채터링 0</span></div>'; }).join('') ;
     ['#mHz', '#mHzMax', '#mHzAvg', '#mCps'].forEach(function (i) { $(i).textContent = '-'; });
     $('#mouseVerdict').innerHTML = '';
   }
-  reset();
-  $('#mouseReset').addEventListener('click', reset);
+  reset(true);
+  $('#mouseReset').addEventListener('click', function () { reset(false); });
   var useRaw = 'onpointerrawupdate' in window;
   function onMove(e) {
     if (e.pointerType && e.pointerType !== 'mouse') return;
@@ -750,10 +758,18 @@ function buildKeyboard() {
       return '<span class="k" data-code="' + k[0] + '" style="width:' + w + 'px">' + esc(k[1]) + '</span>';
     }).join('') + '</div>';
   }).join('');
-  kbReset();
+  kbReset(true);
 }
- function kbReset() { delete S.dev.kbChat; delete S.dev.kbMax; delete S.dev.kbKeys; delete S.dev.kbMissing; save(); kb = { done: {}, down: {}, max: 0, lastUp: {}, chat: 0 }; $$('#kb .k').forEach(function (e) { e.className = 'k'; }); ['#kbCount', '#kbNow', '#kbMax', '#kbChat'].forEach(function (i) { $(i).textContent = '0'; }); $('#kbLast').textContent = '마지막 키: -'; }
-$('#kbReset').addEventListener('click', kbReset);
+function kbReset(keepSaved) {
+  if (keepSaved !== true) { delete S.dev.kbChat; delete S.dev.kbMax; delete S.dev.kbKeys; delete S.dev.kbMissing; save(); }
+  kb = { done: {}, down: {}, max: S.dev.kbMax || 0, lastUp: {}, chat: S.dev.kbChat || 0 };
+  $$('#kb .k').forEach(function (e) { e.className = 'k'; });
+  // 저장된 결과가 있으면 확인한 필수 키를 다시 초록색으로
+  if (S.dev.kbMissing) ESS_KEYS.forEach(function (k) { if (S.dev.kbMissing.indexOf(k) < 0) { kb.done[k] = 1; var el = kbEl(k); if (el) el.classList.add('done'); } });
+  $('#kbCount').textContent = S.dev.kbKeys || Object.keys(kb.done).length; $('#kbNow').textContent = '0'; $('#kbMax').textContent = kb.max; $('#kbChat').textContent = kb.chat;
+  $('#kbLast').textContent = '마지막 키: -';
+}
+$('#kbReset').addEventListener('click', function () { kbReset(false); });
 function kbEl(code) { return $('#kb .k[data-code="' + code + '"]'); }
 function kbActive() { return !$('[data-panel="dev"]').hidden && document.activeElement && document.activeElement.id === 'kb'; }
 document.addEventListener('keydown', function (e) {
@@ -791,7 +807,7 @@ function ac() { if (!actx) actx = new (window.AudioContext || window.webkitAudio
 // 버튼이 나중에 그려져도 동작하도록 문서 전체에서 받음
 document.addEventListener('click', function (e) {
   var b = e.target.closest && e.target.closest('[data-tone]'); if (!b) return;
-  (function () {
+  try { (function () {
     var c = ac(), v = b.dataset.tone, now = c.currentTime;
     var o = c.createOscillator(), g = c.createGain(), p = c.createStereoPanner ? c.createStereoPanner() : null;
     o.type = 'sine'; o.frequency.value = 520;
@@ -803,7 +819,7 @@ document.addEventListener('click', function (e) {
     o.start(now); o.stop(now + dur + 0.05);
     var where = v === '-1' ? '왼쪽' : v === '1' ? '오른쪽' : v === '0' ? '가운데' : '왼쪽에서 오른쪽으로';
     $('#toneAsk').innerHTML = '소리가 <b>' + where + '</b>에서 들렸나요? 반대쪽에서 들리면 헤드셋 좌우가 바뀐 거예요(윈도우 소리 설정의 모노 오디오·스피커 구성 확인). 위 체크리스트에 정상/불량을 눌러 주세요.';
-  })();
+  })(); } catch (err) { toast('소리를 낼 수 없어요: 소리 장치를 확인하세요'); }
 });
 (function () {
   var stream = null, raf = 0;
@@ -977,7 +993,7 @@ function problems(st) {
     add('chk-' + x.c.id, 'bad', x.c.n + ' 불량', fixes[x.c.id] || '', x.c.n + ' 불량');
   });
   if (dev.note) add('note', 'info', '메모: ' + dev.note, '', '메모');
-  if (dev.mic === 'none') add('mic', 'warn', '마이크가 연결되지 않았거나 권한 없음', '헤드셋 마이크 단자(분홍색)를 확인하고, 윈도우 소리 설정 → 입력 장치를 확인하세요.', '마이크 없음');
+  if (dev.mic === 'none' && !((dev.chk || {}).mic === 'bad')) add('mic', 'warn', '마이크가 연결되지 않았거나 권한 없음', '헤드셋 마이크 단자(분홍색)를 확인하고, 윈도우 소리 설정 → 입력 장치를 확인하세요.', '마이크 없음');
   // 인터넷(브라우저)
   if (st.net && st.net.targets) {
     var ok = st.net.targets.filter(function (r) { return r.med != null; });
@@ -1035,7 +1051,7 @@ function renderSummary() {
     '<div class="stat"><b>' + esc(sp.cpu ? sp.cpu.name : 'CPU 모름') + '</b><span>CPU · ' + esc(sp.src.cpu || '내 사양 탭에서 고르기') + '</span></div>' +
     '<div class="stat"><b>' + (sp.ram ? sp.ram + 'GB' : sp.ramAtLeast ? sp.ramAtLeast + 'GB+' : '-') + '</b><span>RAM</span></div>' +
     '<div class="stat"><b>' + (sp.hz ? sp.hz + 'Hz' : '-') + '</b><span>모니터</span></div></div>' +
-    '<div class="row"><span class="pill ok">권장 충족 ' + cnt.rec + '개</span><span class="pill warn">최소만 ' + cnt.min + '개</span><span class="pill bad">부족 ' + cnt.fail + '개</span></div>' +
+    '<div class="row"><span class="pill ok">권장 충족 ' + cnt.rec + '개</span><span class="pill warn">최소만 ' + cnt.min + '개</span><span class="pill bad">부족·실행 불가 ' + cnt.fail + '개</span></div>' +
     (pr.length ? '<div class="stack">' + pr.map(function (p) { return '<div class="' + (p.lv === 'bad' ? 'badbox' : p.lv === 'warn' ? 'warnbox' : 'note') + '">' + esc(p.t) + (p.fix ? '<div class="small" style="font-weight:500;margin-top:2px">' + esc(p.fix) + '</div>' : '') + '</div>'; }).join('') + '</div>' : '<div class="okbox">눈에 띄는 문제가 없어요.</div>') +
     '<div class="tblwrap"><table><thead><tr><th>게임</th><th>판정</th><th>예상 fps (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</th></tr></thead><tbody>' +
     games.map(function (x) { var lv = LV[x.j.level]; var fl = x.j.fps != null ? fpsLabel(x.j.fps, tgt) : null; return '<tr><td>' + x.g.rank + '. ' + esc(x.g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (x.j.fps != null ? (x.j.fps >= (x.g.fps.cap || 1e9) ? x.g.fps.cap + '+' : '약 ' + fmt(x.j.fps)) + ' <span class="pill ' + fl[0] + '">' + (fl[0] === 'ok' ? '쾌적' : fl[0] === 'warn' ? '보통' : '버벅임') + '</span>' : '-') + '</td></tr>'; }).join('') +
@@ -1080,18 +1096,21 @@ function chkState(d) {
     return { c: c, st: st, desc: chk[c.id] ? (chk[c.id] === 'ok' ? '직접 확인: 정상' : '직접 확인: 불량') + (a[1] && c.auto ? ' · ' + a[1] : '') : a[1] };
   });
 }
+var lastChkHtml = '';
 function renderChk() {
   var d = S.dev, list = chkState(d);
-  $('#chkList').innerHTML = list.map(function (x) {
+  var html = list.map(function (x) {
     var c = x.c, man = (d.chk || {})[c.id];
     var tool = c.tool === 'color' ? '<button class="btn sm" type="button" data-color-test>화면 색 검사</button>' : c.tool ? '<button class="btn sm" type="button" data-tone="' + (c.tool === 'L' ? '-1' : '1') + '">소리 내기</button>' : '';
     var pill = x.st === 'ok' ? '<span class="pill ok">정상</span>' : x.st === 'bad' ? '<span class="pill bad">불량</span>' : '<span class="pill">확인 전</span>';
     return '<div class="ci"><div><div class="cn">' + esc(c.n) + ' ' + pill + '</div><div class="cd">' + esc(x.desc || '') + '</div></div><div class="ca">' + tool +
       (c.manual ? '<button class="btn sm' + (man === 'ok' ? ' sel-ok' : '') + '" type="button" data-chk="' + c.id + '" data-v="ok" aria-pressed="' + (man === 'ok') + '">정상</button><button class="btn sm' + (man === 'bad' ? ' sel-bad' : '') + '" type="button" data-chk="' + c.id + '" data-v="bad" aria-pressed="' + (man === 'bad') + '">불량</button>' : '') + '</div></div>';
   }).join('');
+  if (html !== lastChkHtml) { lastChkHtml = html; $('#chkList').innerHTML = html; }
   var ok = list.filter(function (x) { return x.st === 'ok'; }).length, bad = list.filter(function (x) { return x.st === 'bad'; }).length;
-  var sum = $('#chkSum'); sum.textContent = ok + '/' + list.length + ' 정상' + (bad ? ' · 불량 ' + bad : '');
-  sum.className = 'pill ' + (bad ? 'bad' : ok === list.length ? 'ok' : '');
+  var sum = $('#chkSum'), txt = ok + '/' + list.length + ' 정상' + (bad ? ' · 불량 ' + bad : ''), cls = 'pill ' + (bad ? 'bad' : ok === list.length ? 'ok' : '');
+  if (sum.textContent !== txt) sum.textContent = txt;
+  if (sum.className !== cls) sum.className = cls;
   if (document.activeElement !== $('#chkNote')) $('#chkNote').value = d.note || '';
 }
 $('#chkList').addEventListener('click', function (e) {
@@ -1100,7 +1119,7 @@ $('#chkList').addEventListener('click', function (e) {
   if (e.target.closest('[data-color-test]')) colorTest();
 });
 $('#chkNote').addEventListener('input', function () { S.dev.note = this.value.trim().slice(0, 120); save(); });
-// 장비 테스트 값이 바뀌면 체크리스트도 갱신(가볍게 0.5초마다)
+// 장비 테스트 값이 바뀌면 체크리스트도 갱신(내용이 같으면 화면을 건드리지 않아 클릭·포커스가 유지됨)
 setInterval(function () { if (!$('[data-panel="dev"]').hidden) renderChk(); }, 500);
 
 /* 화면 색 검사: 전체 화면 단색 → 불량 화소·빛샘 확인 */
@@ -1111,14 +1130,16 @@ function colorTest() {
   if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
   var t = setTimeout(function () { hint.hidden = true; }, 2500);
   function next() { i++; hint.hidden = true; if (i >= colors.length) return end(); el.style.background = colors[i]; }
+  function fc() { if (!document.fullscreenElement && !el.hidden) end(); }
   function end() {
-    clearTimeout(t); el.hidden = true; el.removeEventListener('click', next); document.removeEventListener('keydown', key, true);
+    clearTimeout(t); el.hidden = true; el.removeEventListener('click', next); document.removeEventListener('keydown', key, true); document.removeEventListener('fullscreenchange', fc);
+    var opener = $('[data-color-test]'); if (opener) opener.focus();
     if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
     toast('화면에 이상이 있었으면 "불량", 없었으면 "정상"을 눌러 주세요');
   }
   function key(e) { if (el.hidden) return; e.preventDefault(); e.stopPropagation(); if (e.key === 'Escape') end(); else if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') next(); }
   el.addEventListener('click', next); document.addEventListener('keydown', key, true);
-  document.addEventListener('fullscreenchange', function fc() { if (!document.fullscreenElement) { document.removeEventListener('fullscreenchange', fc); if (!el.hidden) end(); } });
+  document.addEventListener('fullscreenchange', fc);
 }
 
 /* ---------------- 좌석 결과 코드·매장 현황 ---------------- */
@@ -1152,13 +1173,13 @@ function sanitizeWeb(o) {
     det: { renderer: str(d.renderer), threads: num(d.threads), memGB: num(d.memGB), win: ['win11', 'win10', 'win7'].indexOf(d.win) >= 0 ? d.win : null, osName: str(d.osName), at: 1 },
     manual: { cpu: str(m.cpu), gpu: str(m.gpu), ram: num(m.ram) ? String(num(m.ram)) : '', os: str(m.os) },
     bench: { cpuSingle: num(b.cpuSingle), cpuMulti: num(b.cpuMulti), gpu: num(b.gpu) },
-    dev: { chk: (function (c) { var o = {}; if (c && typeof c === 'object') CHK.forEach(function (x) { if (c[x.id] === 'ok' || c[x.id] === 'bad') o[x.id] = c[x.id]; }); return o; })(v.chk), note: str(v.note).slice(0, 120), mBtns: Array.isArray(v.mBtns) ? v.mBtns.slice(0, 5).map(function (n) { return num(n) || 0; }) : null, wheel: v.wheel === true, kbMissing: Array.isArray(v.kbMissing) ? v.kbMissing.filter(function (k) { return ESS_KEYS.indexOf(k) >= 0; }) : null, hz: num(v.hz), hzInfo: v.measuredHz ? { hz: num(v.hz) } : null, pollMax: num(v.pollMax), pollAvg: num(v.pollAvg), chatter: num(v.chatter) || 0, kbChat: num(v.kbChat) || 0, kbMax: num(v.kbMax), kbKeys: num(v.kbKeys), react: num(v.react), mic: ['ok', 'low', 'none'].indexOf(v.mic) >= 0 ? v.mic : null },
+    dev: { chk: (function (c) { var o = {}; if (c && typeof c === 'object') CHK.forEach(function (x) { if (c[x.id] === 'ok' || c[x.id] === 'bad') o[x.id] = c[x.id]; }); return o; })(v.chk), note: str(v.note).slice(0, 120), mBtns: Array.isArray(v.mBtns) ? v.mBtns.slice(0, 5).map(function (n) { return num(n) || 0; }) : null, wheel: v.wheel === true, kbMissing: Array.isArray(v.kbMissing) ? v.kbMissing.filter(function (k) { return ESS_KEYS.indexOf(k) >= 0; }) : null, hz: num(v.hz), hzInfo: (v.measuredHz || (v.hzInfo && v.hzInfo.hz)) ? { hz: num(v.hz) } : null, pollMax: num(v.pollMax), pollAvg: num(v.pollAvg), chatter: num(v.chatter) || 0, kbChat: num(v.kbChat) || 0, kbMax: num(v.kbMax), kbKeys: num(v.kbKeys), react: num(v.react), mic: ['ok', 'low', 'none'].indexOf(v.mic) >= 0 ? v.mic : null },
     net: n && Array.isArray(n.targets) ? { targets: n.targets.slice(0, 20).map(function (t) { return { name: str(t.name), med: num(t.med), min: num(t.min), jitter: num(t.jitter) || 0, loss: num(t.loss) || 0 }; }), down: num(n.down) } : null
   };
 }
 // 글 안의 모든 결과 코드를 찾아 [{kind, data}]로
 function parseCodes(text) {
-  var out = [], re = /(PCBANGW?1):([A-Za-z0-9+/=]+)/g, m;
+  var out = [], re = /(PCBANGW?1):([A-Za-z0-9+/=\s]+?)(?=PCBANG|[^A-Za-z0-9+/=\s]|$)/g, m;
   while ((m = re.exec(text))) {
     try {
       var o = b64dec(m[2]);
@@ -1171,31 +1192,36 @@ function parseCodes(text) {
 var STORE_KEY = 'pcbang_store_v1';
 var shop = store.get(STORE_KEY, {});
 function saveShop() { if (!store.set(STORE_KEY, shop)) toast('브라우저 저장 공간이 부족해 매장 현황을 저장하지 못했어요. 백업을 받고 오래된 좌석을 지우세요.'); }
-function seatKeyOf(seat, computer) { seat = String(seat || '').trim(); return seat ? 'seat:' + seat : computer ? 'pc:' + String(computer).trim().toUpperCase() : 'x:' + Date.now() + Math.random().toString(36).slice(2, 6); }
+function normSeat(v) { v = String(v == null ? '' : v).trim().slice(0, 20); return /^\d+$/.test(v) ? String(parseInt(v, 10)) : v; }
 function addToShop(items, fileSeat) {
-  var added = 0, errors = 0, lastKey = null, keys = {};
-  // 한 좌석이 내보낸 웹 결과 + 점검 프로그램 결과가 붙어 있으면, 좌석 번호가 있는 쪽을 따름
+  var errors = 0, keys = {};
+  items = items.filter(function (it) { if (it.kind === 'error') { errors++; return false; } return true; });
+  var seatOf = function (it) { return normSeat(it.kind === 'web' ? it.data.seat : it.data.seat); };
+  // 바로 붙어 있는 웹 결과 + 점검 프로그램 결과(순서 무관)는 같은 좌석으로 묶음. 좌석 번호가 서로 다르면 묶지 않음.
   items.forEach(function (it, i) {
+    if (it.pair != null) return;
     var nx = items[i + 1];
-    if (it.kind === 'web' && !it.data.seat && nx && nx.kind === 'native' && (nx.data.seat || nx.data.computer)) it.data.seat = nx.data.seat ? String(nx.data.seat) : '';
-    if (it.kind === 'web' && !it.data.seat && nx && nx.kind === 'native' && !nx.data.seat && nx.data.computer) it.pairComputer = nx.data.computer;
+    if (nx && nx.pair == null && nx.kind !== it.kind) { var a = seatOf(it), b = seatOf(nx); if (!a || !b || a === b) { it.pair = i + 1; nx.pair = i; } }
   });
-  items.forEach(function (it) {
-    if (it.kind === 'error') { errors++; return; }
-    var seat = it.kind === 'web' ? it.data.seat : (it.data.seat != null ? String(it.data.seat) : '');
-    if (!seat && fileSeat) seat = fileSeat;
-    var key = seatKeyOf(seat, it.kind === 'native' ? it.data.computer : it.pairComputer || '');
-    // 같은 글에 웹 결과 + 점검 프로그램 결과가 함께 있으면 같은 좌석으로 묶음
-    if (!seat && it.kind === 'native' && lastKey) key = lastKey;
-    var e = shop[key] || { key: key, seat: seat, computer: '', at: 0 };
-    if (it.kind === 'native') {
-      if (e.native && e.native.time !== it.data.time) { var ch = diffNative(e.native, it.data); if (ch.length) { e.history = (e.history || []).concat([{ at: it.data.time || '', from: e.native.time || '', ch: ch }]).slice(-10); } }
-      e.native = it.data; e.computer = it.data.computer || e.computer;
+  var groups = [];
+  items.forEach(function (it, i) { if (it.pair != null && it.pair < i) return; groups.push(it.pair != null ? [it, items[it.pair]] : [it]); });
+  groups.forEach(function (g) {
+    var w = g.filter(function (x) { return x.kind === 'web'; })[0], n = g.filter(function (x) { return x.kind === 'native'; })[0];
+    var seat = (w && seatOf(w)) || (n && seatOf(n)) || '';
+    var comp = n && n.data.computer ? String(n.data.computer).trim().toUpperCase().slice(0, 40) : '';
+    if (!seat && !comp && fileSeat && /^\d{1,4}$/.test(fileSeat)) seat = normSeat(fileSeat);
+    // 좌석·PC 이름이 모두 없으면 측정 시각+부품으로 고정 키(같은 파일을 다시 넣어도 중복 안 됨)
+    var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : 'x:' + String((w && w.data.at) || (n && n.data.time) || '') + ':' + String((w && w.data.det && w.data.det.renderer) || (n && n.data.cpu) || '').slice(0, 40);
+    var e = Object.prototype.hasOwnProperty.call(shop, key) ? shop[key] : { key: key, seat: seat, computer: '', at: 0 };
+    if (n) {
+      if (e.native && e.native.time !== n.data.time) { var ch = diffNative(e.native, n.data); if (ch.length) { e.history = (e.history || []).concat([{ at: n.data.time || '', from: e.native.time || '', ch: ch }]).slice(-10); } }
+      e.native = n.data; e.computer = comp || e.computer;
     }
-    else e.web = it.data;
+    if (w) e.web = w.data;
     e.seat = e.seat || seat;
-    e.at = Math.max(e.at || 0, (it.kind === 'web' ? it.data.at : Date.parse((it.data.time || '').replace(' ', 'T')) || Date.now()));
-    shop[key] = e; lastKey = key; keys[key] = 1;
+    var t = Math.max(w ? +w.data.at || 0 : 0, n ? Date.parse(String(n.data.time || '').replace(' ', 'T')) || 0 : 0);
+    e.at = Math.max(e.at || 0, t || Date.now());
+    shop[key] = e; keys[key] = 1;
   });
   saveShop();
   return { added: Object.keys(keys).length, errors: errors };
@@ -1239,7 +1265,9 @@ function shopRows() {
   all.forEach(function (r) {
     var slow = [];
     [['cpuB', 'CPU'], ['gpuB', '그래픽']].forEach(function (kk) {
-      var same = all.filter(function (x) { return x.gpu === r.gpu && x[kk[0]]; }).map(function (x) { return x[kk[0]]; });
+      var grp = kk[0] === 'cpuB' ? 'cpu' : 'gpu';
+      if (!r[grp] || r[grp] === '-' || r[grp] === '그래픽 가속 꺼짐' || /추정/.test(r[grp])) return;
+      var same = all.filter(function (x) { return x[grp] === r[grp] && x[kk[0]]; }).map(function (x) { return x[kk[0]]; });
       if (same.length >= 3 && r[kk[0]] && r[kk[0]] < median(same) * 0.8) slow.push(kk[1] + ' ' + Math.round((1 - r[kk[0]] / median(same)) * 100) + '%');
     });
     if (slow.length) { r.pr.push({ id: 'slow', lv: 'warn', t: '같은 사양 좌석보다 측정 점수 낮음 (' + slow.join(', ') + ')', short: '성능 저하', fix: '발열(먼지·팬), 전원 관리 옵션, 백그라운드 프로그램, 그래픽 드라이버, 램 XMP 설정을 확인하세요.' }); r.warn++; }
@@ -1266,7 +1294,9 @@ function renderShop() {
     '<div class="xs muted">그래픽카드 구성: ' + Object.keys(gpuDist).map(function (k) { return esc(k) + ' ' + gpuDist[k]; }).join(' · ') + '</div>';
   // 같은 그래픽 좌석 사이에서 중간값보다 20% 이상 낮으면 표시
   function low(r, key) {
-    var same = rows.filter(function (x) { return x.gpu === r.gpu && x[key]; }).map(function (x) { return x[key]; });
+    var grp = key === 'cpuB' ? 'cpu' : 'gpu';
+    if (!r[grp] || r[grp] === '-' || r[grp] === '그래픽 가속 꺼짐') return '';
+    var same = rows.filter(function (x) { return x[grp] === r[grp] && x[key]; }).map(function (x) { return x[key]; });
     if (same.length < 3 || !r[key]) return '';
     return r[key] < median(same) * 0.8 ? ' class="num lowv" title="같은 그래픽 좌석 중간값보다 20% 이상 낮음"' : '';
   }
@@ -1314,7 +1344,8 @@ function printHTML(html, title) {
   document.body.classList.add('printing');
   var done = function () { document.body.classList.remove('printing'); pa.innerHTML = ''; window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
-  window.print(); setTimeout(done, 1500);
+  window.print();
+  if (!('onafterprint' in window)) setTimeout(done, 1500);
 }
 // 가져오기
 async function importText(text, fileSeat) {
@@ -1330,7 +1361,7 @@ async function importFiles(files) {
   var added = 0, errors = 0;
   for (var i = 0; i < files.length; i++) {
     var f = files[i]; if (f.size > 2e6) { errors++; continue; }
-    var m = f.name.match(/seat[-_ ]?([0-9A-Za-z가-힣]+)/i);
+    var m = f.name.match(/seat[-_ ]?(\d{1,4})\b/i);
     var r = await importText(await f.text(), m ? m[1] : ''); added += r.added; errors += r.errors;
   }
   toast(added ? '좌석 ' + added + '개 결과를 불러왔어요' + (errors ? ' (' + errors + '개 실패)' : '') : '결과 코드를 찾지 못했어요');
@@ -1344,7 +1375,7 @@ $('#shopFile').addEventListener('change', function () { var f = Array.prototype.
   dz.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files.length) importFiles(Array.prototype.slice.call(e.dataTransfer.files)); });
 })();
 $('#shopAddThis').addEventListener('click', function () {
-  if (!S.det.at && !S.native) { toast('먼저 점검을 하세요'); return; }
+  if (!S.bench.cpuSingle && !S.bench.gpu && !S.dev.hzInfo && !S.native && !Object.keys(S.dev.chk || {}).length && !S.net) { toast('먼저 점검 시작이나 장비 테스트를 하세요'); return; }
   addToShop(parseCodes(seatCodes())); toast('이 PC 결과를 매장 현황에 넣었어요'); renderShop();
 });
 $('#shopFilter').addEventListener('change', function () { shopFilter = this.value; renderShop(); });
@@ -1361,9 +1392,10 @@ $('#shopBackup').addEventListener('click', function () {
 $('#shopRestore').addEventListener('change', async function () {
   var f = this.files[0]; this.value = ''; if (!f) return;
   try {
-    var o = JSON.parse(await f.text()); if (!o || o.kind !== 'pcbang-shop' || typeof o.shop !== 'object') throw new Error('매장 현황 백업 파일이 아니에요');
+    var o = JSON.parse(await f.text()); if (!o || o.kind !== 'pcbang-shop' || !o.shop || typeof o.shop !== 'object' || Array.isArray(o.shop)) throw new Error('매장 현황 백업 파일이 아니에요');
     var n = 0;
     Object.keys(o.shop).forEach(function (k) {
+      if (!/^(seat|pc|x):/.test(k)) return;
       var e = o.shop[k]; if (!e || typeof e !== 'object') return;
       var clean = { key: String(k).slice(0, 60), seat: String(e.seat || '').slice(0, 20), computer: String(e.computer || '').slice(0, 40), at: +e.at || Date.now(), native: e.native ? sanitizeNative(e.native) : undefined, web: e.web ? sanitizeWeb(e.web) : undefined,
         history: Array.isArray(e.history) ? e.history.slice(-10).map(function (h) { return { at: String(h.at || '').slice(0, 30), from: String(h.from || '').slice(0, 30), ch: Array.isArray(h.ch) ? h.ch.slice(0, 20).map(function (x) { return String(x).slice(0, 200); }) : [] }; }) : undefined };
@@ -1399,7 +1431,8 @@ $('#codeCopy').addEventListener('click', function () {
   (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('결과 코드를 복사했어요'); }, function () { prompt('아래 코드를 복사하세요', t); });
 });
 $('#codeSave').addEventListener('click', function () {
-  downloadText('seat-' + (S.seat || 'PC').replace(/[^0-9A-Za-z가-힣_-]/g, '') + '.txt', seatCodes() + '\r\n');
+  var nm = S.seat ? 'seat-' + S.seat.replace(/[^0-9A-Za-z가-힣_-]/g, '') : 'pcbang-result-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+  downloadText(nm + '.txt', seatCodes() + '\r\n');
 });
 $('#copyRep').addEventListener('click', function () {
   var st = S, sp = spec(), pr = problems();
