@@ -21,7 +21,7 @@ S.manual = S.manual || {};      // 직접 고른 값 {cpu, gpu, ram, os}
 S.det = S.det || {};            // 자동 감지
 S.bench = S.bench || {};        // {cpuSingle, cpuMulti, gpu}
 S.net = S.net || null;          // 브라우저 인터넷 측정
-S.native = S.native || null;    // 윈도우 점검 프로그램 결과
+S.native = S.native || null;    // 윈도우 점검 프로그램 결과 (불러온 뒤 sanitizeNative로 다시 정리)
 S.dev = S.dev || {};            // {hz, pollMax, pollAvg, chatter, kbMax, kbChat, react}
 S.seat = S.seat || '';
 S.opt = S.opt || { res: '1080', preset: 'mid', target: 'auto' };
@@ -94,6 +94,7 @@ function matchGpu(raw) {
   var best = null, bestLen = 0;
   GPUS.forEach(function (g) {
     g.keys.forEach(function (key) {
+      if (/^\d{3}m$/.test(key) && !/radeon/.test(lower)) return; // 'GTX 680M' 이 'Radeon 680M' 으로 잡히지 않게
       var i = k.indexOf(key);
       while (i >= 0) {
         var next = k.charAt(i + key.length);
@@ -121,9 +122,9 @@ function ckey(s) {
   s = s.replace(/라이젠/g, 'ryzen ').replace(/코어/g, 'core ').replace(/인텔/g, '').replace(/울트라/g, 'ultra ');
   var m;
   if ((m = s.match(/core\s*ultra\s*([3579])\s*(?:processor\s*)?(\d{3})([a-z]*)/)) || (m = s.match(/\bultra\s*([3579])\s*(\d{3})([a-z]*)/))) return 'ultra' + m[1] + m[2] + (m[3].indexOf('k') >= 0 ? 'k' : '');
-  if ((m = s.match(/\bi([3579])[\s-]*(\d{4,5})([a-z]*)/))) return 'i' + m[1] + m[2] + (m[3].indexOf('k') >= 0 ? 'k' : '');
+  if ((m = s.match(/\bi([3579])[\s-]*(\d{4,5})([a-z]*)/))) return 'i' + m[1] + m[2] + (/^(h|u|p|y|g\d)/.test(m[3]) ? 'm' + m[3] : m[3].indexOf('k') >= 0 ? 'k' : '');
   if ((m = s.match(/ryzen\s*([3579])?\s*(?:pro\s*)?(\d{4})([a-z0-9]*)/)) || (m = s.match(/^\s*()(\d{4})(x3d|xt|x|g|ge|f)?\s*$/))) {
-    var suf = m[3] || ''; suf = /x3d/.test(suf) ? 'x3d' : /xt/.test(suf) ? 'xt' : /x/.test(suf) ? 'x' : /g/.test(suf) ? 'g' : '';
+ var suf = m[3] || ''; if (/^(h|hs|hx|u|hk)/.test(suf)) return 'r' + m[2] + 'm' + suf; suf = /x3d/.test(suf) ? 'x3d' : /xt/.test(suf) ? 'xt' : /x/.test(suf) ? 'x' : /g/.test(suf) ? 'g' : '';
     return 'r' + m[2] + suf;
   }
   if ((m = s.match(/fx[\s-]*(\d{4})/))) return 'fx' + m[1];
@@ -140,7 +141,7 @@ function matchCpu(raw) {
   var hit = null;
   CPUS.forEach(function (c) { if (!hit && c.keys.indexOf(k) >= 0) hit = c; });
   if (!hit && /^r\d{4}/.test(k)) { // 접미사만 다른 라이젠(예: 5600G → 5600 근사)
-    var base = k.replace(/(x3d|xt|x|g)$/, '');
+    var base = k.replace(/(x3d|xt|x|g)$/, ''); if (/m/.test(k.slice(5))) base = '-';
     CPUS.forEach(function (c) { if (!hit && c.keys[0].replace(/(x3d|xt|x|g)$/, '') === base) hit = c; });
   }
   if (!hit && /^i\d\d{4,5}k$/.test(k)) { var nk = k.slice(0, -1); CPUS.forEach(function (c) { if (!hit && c.keys.indexOf(nk) >= 0) hit = c; }); }
@@ -257,7 +258,12 @@ function judge(game, sp, opt) {
   r.comps.push({ k: 'CPU', v: ci, mn: cmi, rc: cri, l: cL, est: sp.cpu && sp.cpu.estimated });
   // RAM
   var ram = sp.ram || null;
-  var rL = ram ? lvl(ram, game.min.ram, game.rec.ram) : (sp.ramAtLeast ? (sp.ramAtLeast >= game.min.ram ? (sp.ramAtLeast >= game.rec.ram ? 'rec' : 'min') : 'unk') : 'unk');
+  var rL = 'unk';
+  if (ram) rL = lvl(ram, game.min.ram, game.rec.ram);
+  else if (sp.ramAtLeast) { // 브라우저 값은 2의 거듭제곱으로 내림: 실제는 al 이상 al*2 미만(8 이상이면 상한 모름)
+    var al = sp.ramAtLeast, hi = al >= 8 ? Infinity : al * 2;
+    rL = al >= game.rec.ram ? 'rec' : al >= game.min.ram ? (hi > game.rec.ram ? 'unk' : 'min') : (hi <= game.min.ram ? 'fail' : 'unk');
+  }
   r.comps.push({ k: 'RAM', v: ram || sp.ramAtLeast, mn: game.min.ram, rc: game.rec.ram, l: rL, atLeast: !ram && sp.ramAtLeast });
   // VRAM
   if (game.rec.vram && sp.vram) {
@@ -305,7 +311,8 @@ var LV = { rec: ['ok', '권장 사양 충족'], min: ['warn', '최소 사양만 
 function targetFps(opt) { if (opt.target !== 'auto') return +opt.target; var hz = spec().hz; return hz ? Math.min(hz, 240) : 60; }
 function fpsLabel(fps, tgt) {
   if (fps >= tgt) return ['ok', tgt + 'fps 이상 유지 예상'];
-  if (fps >= Math.min(60, tgt) * 0.95) return ['warn', '60fps 이상, ' + tgt + 'fps는 어려움'];
+  if (tgt > 60 && fps >= 57) return ['warn', '60fps 이상, ' + tgt + 'fps는 어려움'];
+  if (fps >= 57) return ['warn', '60fps 근처'];
   if (fps >= 30) return ['warn', '30~60fps (옵션 낮춤 권장)'];
   return ['bad', '30fps 미만 (원활하지 않음)'];
 }
@@ -426,6 +433,20 @@ function decodeNative(txt) {
   if (!o || typeof o !== 'object') throw new Error('형식이 달라요');
   // 형 정리 (PowerShell 결과는 단일 항목이면 배열이 아닐 수 있음)
   ['gpus', 'pings', 'tcp', 'disks'].forEach(function (k) { if (o[k] && !Array.isArray(o[k])) o[k] = [o[k]]; });
+  return sanitizeNative(o);
+}
+// 숫자여야 하는 칸은 숫자로 바꿔 둠(이상한 코드가 화면에 HTML로 끼어들지 않게). 글자 칸은 화면에 넣을 때 esc() 처리.
+function sanitizeNative(o) {
+  if (!o || typeof o !== 'object') return null;
+  var num = function (v) { var n = +v; return v == null || v === '' || !isFinite(n) ? null : n; };
+  var str = function (v) { return v == null ? null : String(v).slice(0, 200); };
+  ['cores', 'threads', 'ramGB', 'ramSpeed', 'ramSticks', 'hz', 'osBuild', 'cpuMHz', 'cpuLoad', 'uptimeH'].forEach(function (k) { if (k in o) o[k] = num(o[k]); });
+  ['cpu', 'os', 'osName', 'power', 'adapter', 'time', 'secureBoot', 'tpm'].forEach(function (k) { if (k in o) o[k] = str(o[k]); });
+  var arr = function (a) { return Array.isArray(a) ? a.filter(function (x) { return x && typeof x === 'object'; }) : []; };
+  o.gpus = arr(o.gpus).map(function (g) { return { name: str(g.name), vram: num(g.vram), driver: str(g.driver), virtual: !!g.virtual }; });
+  o.disks = arr(o.disks).map(function (d) { return { name: str(d.name), size: num(d.size), free: num(d.free) }; });
+  o.pings = arr(o.pings).map(function (p) { return { name: str(p.name), host: str(p.host), isGateway: p.isGateway === true, sent: num(p.sent), recv: num(p.recv) || 0, loss: num(p.loss) || 0, avg: num(p.avg), min: num(p.min), max: num(p.max), jitter: num(p.jitter) }; });
+  o.tcp = arr(o.tcp).map(function (t) { return { name: str(t.name), host: str(t.host), port: num(t.port), ok: t.ok === true, n: num(t.n) || 0, fail: num(t.fail) || 0, avg: num(t.avg), min: num(t.min) }; });
   return o;
 }
 $('#nativeApply').addEventListener('click', function () {
@@ -437,14 +458,20 @@ $('#nativeApply').addEventListener('click', function () {
   } catch (e) { $('#nativeMsg').innerHTML = '<span class="pill bad">읽지 못했어요: ' + esc(e.message) + '</span>'; }
 });
 
+/* 측정은 한 번에 하나만 (동시에 돌면 서로 점수를 망침) */
+var testBusy = false;
+function lockTests(on) { testBusy = on; ['#cpuRun', '#gpuRun', '#hzRun', '#netRun', '#runAll'].forEach(function (id) { $(id).disabled = on; }); }
+
 /* ---------------- CPU 벤치마크 (Web Worker) ---------------- */
-var WORKER_SRC = 'onmessage=function(e){var dur=e.data.dur,t0=performance.now(),n=0,acc=0;' +
+// 워커마다 JIT가 따로라서, 같은 워커 안에서 0.3초 예열한 뒤 재기 시작
+var WORKER_SRC = 'onmessage=function(e){var dur=e.data.dur,t0,n=0,acc=0;' +
   'function work(){var a=new Float64Array(256),s=0,x=12345;for(var i=0;i<256;i++){x=(x*1103515245+12345)&0x7fffffff;a[i]=x/2147483647;}' +
   'for(var k=0;k<4;k++){for(var i=1;i<256;i++){s+=Math.sqrt(a[i]*a[i-1]+1)*Math.sin(a[i]);}}' +
   'var o={};for(var j=0;j<64;j++){o["k"+(j&15)]=(o["k"+(j&15)]||0)+j;}' +
   'var arr=[];for(var j=0;j<128;j++)arr.push((j*7919)%128);arr.sort(function(p,q){return p-q});' +
   'var str="";for(var j=0;j<16;j++)str+=String.fromCharCode(65+(j*7)%26);' +
   'return s+arr[5]+str.length+o.k3;}' +
+  'var w0=performance.now();while(performance.now()-w0<300){acc+=work();}t0=performance.now();' +
   'while(performance.now()-t0<dur){for(var r=0;r<20;r++){acc+=work();n++;}}' +
   'postMessage({n:n,ms:performance.now()-t0,acc:acc});};';
 function runWorkers(count, dur) {
@@ -457,12 +484,12 @@ function runWorkers(count, dur) {
       ps.push(new Promise(function (res, rej) { w.onmessage = function (e) { res(e.data); }; w.onerror = rej; w.postMessage({ dur: dur }); }));
     })();
   }
-  return Promise.all(ps).then(function (rs) { ws.forEach(function (w) { w.terminate(); }); URL.revokeObjectURL(url); return rs; });
+  var done = function () { ws.forEach(function (w) { w.terminate(); }); URL.revokeObjectURL(url); };
+  return Promise.all(ps).then(function (rs) { done(); return rs; }, function (e) { done(); throw e; });
 }
 async function benchCpu(onProg) {
   var prog = function (p) { if (onProg) onProg(p); };
   prog(5);
-  await runWorkers(1, 400); // 예열(JIT)
   prog(15);
   var single = [];
   for (var i = 0; i < 2; i++) { var r = await runWorkers(1, 1000); single.push(r[0].n / r[0].ms * 1000); prog(20 + i * 20); }
@@ -476,10 +503,10 @@ async function benchCpu(onProg) {
   return res;
 }
 $('#cpuRun').addEventListener('click', async function () {
-  var b = this; b.disabled = true; $('#cpuOut').innerHTML = '<span class="muted small">측정 중… 다른 창을 건드리지 마세요</span>';
+  var b = this; if (testBusy) { toast('다른 측정이 끝난 뒤 눌러 주세요'); return; } lockTests(true); $('#cpuOut').innerHTML = '<span class="muted small">측정 중… 다른 창을 건드리지 마세요</span>';
   try { var r = await benchCpu(function (p) { $('#cpuBar').style.width = p + '%'; }); Object.assign(S.bench, r); save(); renderCpuOut(); }
   catch (e) { $('#cpuOut').innerHTML = '<span class="pill bad">측정 실패: ' + esc(e.message) + '</span>'; }
-  b.disabled = false;
+  lockTests(false);
 });
 function renderCpuOut() {
   var b = S.bench; if (!b.cpuSingle) return;
@@ -495,7 +522,7 @@ var FS = 'precision highp float;uniform vec2 res;uniform float t;' +
   'vec3 p=ro+rd*d;vec2 e=vec2(.002,0.);vec3 n=normalize(vec3(map(p+e.xyy)-map(p-e.xyy),map(p+e.yxy)-map(p-e.yxy),map(p+e.yyx)-map(p-e.yyx)));' +
   'col=(.5+.5*n)*exp(-d*.12)*(.6+.4*dot(n,normalize(vec3(.4,.8,-.4))));gl_FragColor=vec4(col,1.);}';
 async function benchGpu(onProg) {
-  var cv = $('#gpuCanvas');
+  var old = $('#gpuCanvas'), cv = old.cloneNode(false); old.parentNode.replaceChild(cv, old);
   var W = 1280, H = 720; cv.width = W; cv.height = H;
   var gl = cv.getContext('webgl', { powerPreference: 'high-performance', antialias: false, preserveDrawingBuffer: false });
   if (!gl) throw new Error('WebGL을 쓸 수 없어요');
@@ -514,6 +541,7 @@ async function benchGpu(onProg) {
   var rates = [], start = performance.now(), dur = 6000;
   while (performance.now() - start < dur) {
     t += 0.05;
+    if (gl.isContextLost()) throw new Error('그래픽 연결이 끊겼어요(드라이버 재설정). 다시 측정하세요');
     var ms2 = batch(k, t);
     if (ms2 > 0) rates.push(k * W * H / ms2 / 1000); // 밀리초당 화소 → 초당 백만 화소
     if (onProg) onProg(Math.min(99, (performance.now() - start) / dur * 100));
@@ -521,14 +549,15 @@ async function benchGpu(onProg) {
   }
   var lose = gl.getExtension('WEBGL_lose_context');
   var score = Math.round(median(rates.slice(Math.floor(rates.length * 0.2))));
-  setTimeout(function () { if (lose) lose.loseContext(); }, 50);
+  if (lose) lose.loseContext();
+  if (!rates.length) throw new Error('측정값이 없어요');
   return { gpu: score, gpuFrames: rates.length, gpuK: k, at: Date.now() };
 }
 $('#gpuRun').addEventListener('click', async function () {
-  var b = this; b.disabled = true; $('#gpuOut').innerHTML = '<span class="muted small">측정 중…</span>';
+  var b = this; if (testBusy) { toast('다른 측정이 끝난 뒤 눌러 주세요'); return; } lockTests(true); $('#gpuOut').innerHTML = '<span class="muted small">측정 중…</span>';
   try { var r = await benchGpu(function (p) { $('#gpuBar').style.width = p + '%'; }); Object.assign(S.bench, r); save(); $('#gpuBar').style.width = '100%'; renderGpuOut(); }
   catch (e) { $('#gpuOut').innerHTML = '<span class="pill bad">측정 실패: ' + esc(e.message) + '</span>'; }
-  b.disabled = false;
+  lockTests(false);
 });
 function renderGpuOut() {
   var b = S.bench; if (!b.gpu) return;
@@ -556,8 +585,8 @@ function measureHz(ms) {
   });
 }
 $('#hzRun').addEventListener('click', async function () {
-  var b = this; b.disabled = true; $('#hzOut').innerHTML = '<span class="muted small">측정 중… 가만히 두세요</span>';
-  var r = await measureHz(3000); S.dev.hz = r.hz; S.dev.hzInfo = r; save(); renderHz(); b.disabled = false;
+  var b = this; if (testBusy) { toast('다른 측정이 끝난 뒤 눌러 주세요'); return; } lockTests(true); $('#hzOut').innerHTML = '<span class="muted small">측정 중… 가만히 두세요</span>';
+  var r = await measureHz(3000); S.dev.hz = r.hz; S.dev.hzInfo = r; save(); renderHz(); lockTests(false);
 });
 function renderHz() {
   var r = S.dev.hzInfo; if (!r) return;
@@ -591,6 +620,7 @@ function renderHz() {
   var BTN = [['왼쪽', 0], ['가운데(휠)', 1], ['오른쪽', 2], ['뒤로(4)', 3], ['앞으로(5)', 4]];
   var st;
   function reset() {
+    delete S.dev.chatter; delete S.dev.pollMax; delete S.dev.pollAvg; save();
     st = { cnt: [0, 0, 0, 0, 0], chat: [0, 0, 0, 0, 0], last: [0, 0, 0, 0, 0], up: [0, 0, 0, 0, 0], evts: [], max: 0, samples: [], clicks: [] };
     $('#mBtns').innerHTML = BTN.map(function (b) { return '<div id="mb' + b[1] + '">' + b[0] + '<b>0</b><span class="xs">채터링 0</span></div>'; }).join('') ;
     ['#mHz', '#mHzMax', '#mHzAvg', '#mCps'].forEach(function (i) { $(i).textContent = '-'; });
@@ -603,7 +633,7 @@ function renderHz() {
     if (e.pointerType && e.pointerType !== 'mouse') return;
     var now = performance.now();
     var n = 1;
-    if (!useRaw && e.getCoalescedEvents) { var c = e.getCoalescedEvents(); n = c.length || 1; }
+    if (e.getCoalescedEvents) { var c = e.getCoalescedEvents(); n = c.length || 1; }
     for (var i = 0; i < n; i++) st.evts.push(now);
   }
   pad.addEventListener(useRaw ? 'pointerrawupdate' : 'pointermove', onMove);
@@ -646,13 +676,14 @@ function renderHz() {
     var b = e.button; if (b < 0 || b > 4) return;
     var now = performance.now();
     // 직전 버튼 뗀 뒤 아주 짧은 시간(60ms 미만)에 다시 눌림 = 채터링
-    if (st.last[b] && now - st.last[b] < 80 && st.up[b] && now - st.up[b] < 60) { st.chat[b]++; }
+    // 진짜 스위치 튐: 뗀 지 20ms도 안 돼 다시 눌림(사람이 빠르게 연타해도 보통 40ms 이상 떨어져 있음)
+    if (st.last[b] && st.up[b] && st.up[b] > st.last[b] && now - st.up[b] < 20 && now - st.last[b] < 100) { st.chat[b]++; }
     st.last[b] = now; st.cnt[b]++; st.clicks.push(now);
     var el = $('#mb' + b); el.classList.add('on'); el.querySelector('b').textContent = st.cnt[b];
     el.querySelector('span').textContent = '채터링 ' + st.chat[b]; if (st.chat[b]) el.classList.add('chat');
     verdict();
   });
-  window.addEventListener('mouseup', function (e) { var b = e.button; if (b < 0 || b > 4 || !st) return; st.up[b] = performance.now(); var el = $('#mb' + b); if (el) el.classList.remove('on'); });
+  window.addEventListener('mouseup', function (e) { var b = e.button; if ((b === 3 || b === 4) && !$('[data-panel="dev"]').hidden) e.preventDefault(); if (b < 0 || b > 4 || !st) return; st.up[b] = performance.now(); var el = $('#mb' + b); if (el) el.classList.remove('on'); });
   pad.addEventListener('mouseleave', function () { pad.classList.remove('active'); });
   // 뒤로/앞으로 버튼이 페이지 이동을 일으키지 않게
   pad.addEventListener('mouseup', function (e) { if (e.button === 3 || e.button === 4) e.preventDefault(); });
@@ -684,15 +715,16 @@ function buildKeyboard() {
   }).join('');
   kbReset();
 }
-function kbReset() { kb = { done: {}, down: {}, max: 0, lastUp: {}, chat: 0 }; $$('#kb .k').forEach(function (e) { e.className = 'k'; }); ['#kbCount', '#kbNow', '#kbMax', '#kbChat'].forEach(function (i) { $(i).textContent = '0'; }); $('#kbLast').textContent = '마지막 키: -'; }
+ function kbReset() { delete S.dev.kbChat; delete S.dev.kbMax; delete S.dev.kbKeys; save(); kb = { done: {}, down: {}, max: 0, lastUp: {}, chat: 0 }; $$('#kb .k').forEach(function (e) { e.className = 'k'; }); ['#kbCount', '#kbNow', '#kbMax', '#kbChat'].forEach(function (i) { $(i).textContent = '0'; }); $('#kbLast').textContent = '마지막 키: -'; }
 $('#kbReset').addEventListener('click', kbReset);
 function kbEl(code) { return $('#kb .k[data-code="' + code + '"]'); }
-function kbActive() { return !$('[data-panel="dev"]').hidden && document.activeElement && (document.activeElement.id === 'kb' || document.activeElement === document.body); }
+function kbActive() { return !$('[data-panel="dev"]').hidden && document.activeElement && document.activeElement.id === 'kb'; }
 document.addEventListener('keydown', function (e) {
   if (!kb || !kbActive()) return;
+  if (e.code === 'Escape' && e.shiftKey) { $('#kb').blur(); toast('키보드 테스트에서 나왔어요'); return; }
   var code = CODE_ALIAS[e.code] || e.code || (e.key === 'HangulMode' ? 'Lang1' : e.key === 'HanjaMode' ? 'Lang2' : '');
   if (!code) return;
-  if (!(e.ctrlKey && (e.key === 'r' || e.key === 'R')) && code !== 'F5' && code !== 'F12' || document.activeElement.id === 'kb') e.preventDefault();
+  e.preventDefault();
   if (e.repeat) return;
   var now = performance.now();
   if (kb.lastUp[code] && now - kb.lastUp[code] < 30) { kb.chat++; var c = kbEl(code); if (c) c.classList.add('chat'); }
@@ -786,6 +818,7 @@ async function speedTest(onProg) {
     try {
       var t0 = performance.now();
       var r = await fetch('https://speed.cloudflare.com/__down?bytes=' + sizes[i], { cache: 'no-store', signal: ctl.signal, credentials: 'omit' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
       var b = await r.arrayBuffer();
       var sec = (performance.now() - t0) / 1000;
       var mbps = b.byteLength * 8 / sec / 1e6; if (mbps > best) best = mbps;
@@ -834,8 +867,8 @@ function renderNet() {
   $('#netVerdict').innerHTML = v;
 }
 $('#netRun').addEventListener('click', async function () {
-  var b = this; b.disabled = true; $('#netVerdict').innerHTML = '<span class="muted small">측정 중…</span>';
-  S.net = await runNet(function (p) { $('#netBar').style.width = p + '%'; }); $('#netBar').style.width = '100%'; save(); renderNet(); b.disabled = false;
+  var b = this; if (testBusy) { toast('다른 측정이 끝난 뒤 눌러 주세요'); return; } lockTests(true); $('#netVerdict').innerHTML = '<span class="muted small">측정 중…</span>';
+  S.net = await runNet(function (p) { $('#netBar').style.width = p + '%'; }); $('#netBar').style.width = '100%'; save(); renderNet(); lockTests(false);
 });
 function renderNativeNet() {
   var n = S.native; if (!n) return;
@@ -867,7 +900,7 @@ function drawSteps(state) {
   $('#allSteps').innerHTML = STEPS.map(function (s) { var v = state[s[0]] || ''; return '<div class="st"><span class="ic">' + (v === 'done' ? '✓' : v === 'run' ? '…' : v === 'err' ? '✗' : '·') + '</span><span' + (v === 'run' ? ' style="font-weight:700"' : v === 'done' ? '' : ' class="muted"') + '>' + s[1] + '</span></div>'; }).join('');
 }
 $('#runAll').addEventListener('click', async function () {
-  var b = this; b.disabled = true;
+  var b = this; if (testBusy) { toast('다른 측정이 끝난 뒤 눌러 주세요'); return; } lockTests(true);
   S.seat = $('#seatIn').value.trim(); save(); seatPill();
   var st = {}, bar = $('#allBar');
   var setP = function (base, span) { return function (p) { bar.style.width = (base + span * p / 100) + '%'; }; };
@@ -877,7 +910,7 @@ $('#runAll').addEventListener('click', async function () {
   await step('cpu', 15, 25, async function (p) { Object.assign(S.bench, await benchCpu(p)); save(); });
   await step('gpu', 40, 30, async function (p) { Object.assign(S.bench, await benchGpu(p)); save(); });
   await step('net', 70, 30, async function (p) { S.net = await runNet(p); save(); });
-  b.disabled = false;
+  lockTests(false);
   renderAllOut();
   renderSummary();
   toast('점검이 끝났어요');
@@ -963,7 +996,7 @@ $('#clrRec').addEventListener('click', function () { if (!records.length) return
 $('#csvRec').addEventListener('click', function () {
   var cols = ['seat', 'at', 'cpu', 'gpu', 'ram', 'hz', 'cpuS', 'cpuM', 'gpuB', 'net', 'gw', 'poll', 'react', 'probs'];
   var head = ['좌석', '날짜', 'CPU', '그래픽', 'RAM(GB)', '주사율(Hz)', 'CPU단일', 'CPU전체', 'GPU점수', '인터넷(ms)', '게이트웨이(ms)', '마우스폴링(Hz)', '반응속도(ms)', '문제'];
-  var lines = [head.join(',')].concat(records.map(function (r) { return cols.map(function (c) { var v = c === 'at' ? new Date(r.at).toLocaleString('ko-KR') : r[c]; v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }));
+  var lines = [head.join(',')].concat(records.map(function (r) { return cols.map(function (c) { var v = c === 'at' ? new Date(r.at).toLocaleString('ko-KR') : r[c]; v = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }).join(','); }));
   var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'pc방-점검-' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
 });
@@ -979,7 +1012,8 @@ $('#seatIn').addEventListener('change', function () { S.seat = this.value.trim()
 
 /* ---------------- 시작 ---------------- */
 fillLists(); seatPill();
-detect().then(function () { renderSummary(); renderSpec(); });
+if (S.native) S.native = sanitizeNative(S.native);
+detect().then(function () { renderSummary(); renderSpec(); var t = $('.tabs [aria-selected="true"]'); if (t && t.dataset.tab === 'games') renderGames(); });
 renderAllOut();
 var h = (location.hash || '').slice(1);
 if (h && $('[data-panel="' + h + '"]')) showTab(h);
