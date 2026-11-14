@@ -1,5 +1,6 @@
 // 하루 학습 — 오프라인용 서비스 워커. 파일을 바꾸면 VERSION을 올리세요.
-const VERSION = 'haru-v52';
+const VERSION = 'haru-v53';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const FILES = [
   './', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   './en/index.html', './en/words.js', './en/words2.js', './en/content.js', './en/sentences.js', './en/dialogues.js', './en/scenes.js',
@@ -36,7 +37,9 @@ const FILES = [
   './sheets/index.html', './sheets/lessons.js'
 ];
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
+  // 처음 설치 때는 허브만 받아 두고, 각 앱 파일은 처음 열 때 저장해요(앱이 많아 한꺼번에 받으면 무거워서).
+  // FILES 는 앱 목록(참고·생성 스크립트용)으로만 남겨 둬요.
+  e.waitUntil(caches.open(VERSION).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION && k !== 'haru-fonts').map(k => caches.delete(k)))).then(() => self.clients.claim()));
@@ -51,5 +54,5 @@ self.addEventListener('fetch', e => {
   }
   if (url.origin !== location.origin) return;
   // 앱 파일: 캐시 먼저, 없으면 네트워크
-  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(res => { if (res.ok) caches.open(VERSION).then(c => c.put(e.request, res.clone())); return res; }).catch(() => caches.match('./index.html'))));
+  e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(hit => hit || fetch(e.request).then(res => { if (res.ok) { const copy = res.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); } return res; }).catch(() => caches.match('./index.html'))));
 });
