@@ -222,7 +222,7 @@ function spec() {
   if (S.manual.cpu) { cm = matchCpu(S.manual.cpu); o.src.cpu = '직접 입력'; }
   if (!cm && nat.cpu) { cm = matchCpu(nat.cpu); if (cm) o.src.cpu = '점검 프로그램'; }
   if (!cm && S.bench.cpuSingle) { // 브라우저 측정값으로 대략 추정
-    cm = { name: '측정 기반 추정', single: Math.round(S.bench.cpuSingle * BENCH_TO_ST), multi: Math.round((S.bench.cpuMulti || S.bench.cpuSingle) * BENCH_TO_ST * 0.85 * 3.0), estimated: true };
+    cm = { name: '측정 기반 추정', single: Math.round(S.bench.cpuSingle * BENCH_TO_ST), multi: Math.round((S.bench.cpuMulti || S.bench.cpuSingle) * BENCH_TO_ST * 0.75), estimated: true };
     o.src.cpu = '벤치마크 추정';
   }
   o.cpu = cm;
