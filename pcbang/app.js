@@ -271,6 +271,13 @@ function judge(game, sp, opt) {
     if (sp.os === 'win10-32') osOk = false;
     if (!osOk) r.issues.push({ l: 'fail', t: '운영체제: ' + (need === 'win11' ? 'Windows 11' : 'Windows 10 64비트 이상') + ' 필요' });
   }
+  // 발로란트: Windows 11에서는 TPM 2.0 + 보안 부팅이 꺼져 있으면 실행 안 됨
+  var nat = S.native || {};
+  if (game.id === 'val' && sp.os === 'win11') {
+    if (/꺼짐/.test(nat.secureBoot || '')) r.issues.push({ l: 'fail', t: '보안 부팅(Secure Boot)이 꺼져 있어 실행 안 됨(VAN9003) — BIOS에서 켜야 함' });
+    if (/없음/.test(nat.tpm || '')) r.issues.push({ l: 'fail', t: 'TPM 2.0이 없거나 꺼져 있어 실행 안 됨(VAN9001) — BIOS에서 fTPM/PTT 켜기' });
+  }
+  if ((game.id === 'lol' || game.id === 'val') && nat.osBuild && nat.osBuild < 19041) r.issues.push({ l: 'fail', t: 'Windows 10 빌드 ' + nat.osBuild + ' — 19041 이상으로 업데이트 필요(VAN 9004)' });
   (game.checks || []).forEach(function (c) { r.issues.push({ l: 'info', t: c }); });
   var ls = r.comps.map(function (c) { return c.l; });
   if (ls.indexOf('fail') >= 0 || r.issues.some(function (i) { return i.l === 'fail'; })) r.level = 'fail';
@@ -378,6 +385,7 @@ function renderSpec() {
     kv('· RAM', nat.ramGB ? nat.ramGB + 'GB' + (nat.ramSpeed ? ' · ' + nat.ramSpeed + 'MHz' : '') + (nat.ramSticks ? ' · ' + nat.ramSticks + '개' : '') : '-');
     kv('· 운영체제', esc(nat.osName || '-'));
     if (nat.power) kv('· 전원 관리', esc(nat.power));
+    if (nat.secureBoot || nat.tpm) kv('· 보안 부팅 / TPM', esc(nat.secureBoot || '-') + ' / ' + esc(nat.tpm || '-'));
     if (nat.disks) kv('· 저장 장치', nat.disks.map(function (x) { return esc(x.name) + ' 남은 ' + x.free + '/' + x.size + 'GB'; }).join('<br>'));
   }
   $('#detKv').innerHTML = rows.join('');
@@ -849,7 +857,7 @@ function renderNativeNet() {
   else if (gw && extAvg != null) v = '<div class="okbox">게이트웨이 ' + fmt(gw.avg, 1) + 'ms, 외부 ' + fmt(extAvg) + 'ms — 정상이에요.</div>';
   if (n.adapter) v += '<div class="small muted">연결: ' + esc(n.adapter) + '</div>';
   $('#nativeNet').innerHTML = (rows ? '<div class="tblwrap"><table><thead><tr><th>핑(ICMP) 대상</th><th>평균</th><th>최소/최대</th><th>지터</th><th>손실</th><th>판정</th></tr></thead><tbody>' + rows + '</tbody></table></div>' : '') +
-    (tcp ? '<div class="tblwrap"><table><thead><tr><th>게임 서버 접속(TCP)</th><th>평균</th><th>최소</th><th>판정</th></tr></thead><tbody>' + tcp + '</tbody></table></div>' : '') + v +
+    (tcp ? '<div class="tblwrap"><table><thead><tr><th>게임사 웹 서버 접속(TCP)</th><th>평균</th><th>최소</th><th>판정</th></tr></thead><tbody>' + tcp + '</tbody></table></div>' : '') + v +
     '<div class="xs muted">측정 시각: ' + esc(n.time || '') + '</div>';
 }
 

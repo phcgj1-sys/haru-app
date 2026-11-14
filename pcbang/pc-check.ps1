@@ -9,6 +9,17 @@ try { [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(949) } cat
 
 function Say($t, $c) { if ($c) { Write-Host $t -ForegroundColor $c } else { Write-Host $t } }
 function Round1($v) { if ($null -eq $v) { return $null } return [math]::Round([double]$v, 1) }
+# 레지스트리 값(바이트 배열 / 부호 있는 DWORD)을 바이트 수로
+function RegBytes($v) {
+  if ($null -eq $v) { return $null }
+  if ($v -is [byte[]]) {
+    if ($v.Length -ge 8) { return [double][BitConverter]::ToUInt64($v, 0) }
+    if ($v.Length -ge 4) { return [double][BitConverter]::ToUInt32($v, 0) }
+    return $null
+  }
+  $d = [double]$v; if ($d -lt 0) { $d += 4294967296 }
+  return $d
+}
 
 Say ''
 Say '==============================================' Cyan
@@ -38,8 +49,8 @@ $regBase = 'HKLM:\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc
 $regVram = @{}
 Get-ChildItem $regBase | ForEach-Object {
   $p = Get-ItemProperty $_.PSPath
-  $mem = $p.'HardwareInformation.qwMemorySize'
-  if (-not $mem) { $m2 = $p.'HardwareInformation.MemorySize'; if ($m2 -is [byte[]]) { $mem = [BitConverter]::ToUInt32($m2, 0) } else { $mem = $m2 } }
+  $mem = RegBytes $p.'HardwareInformation.qwMemorySize'
+  if (-not $mem) { $mem = RegBytes $p.'HardwareInformation.MemorySize' }
   if ($p.DriverDesc -and $mem) { $regVram[$p.DriverDesc] = [double]$mem }
 }
 $hz = $null
@@ -47,9 +58,10 @@ Get-CimInstance Win32_VideoController | ForEach-Object {
   $name = ($_.Name -replace '\s+', ' ').Trim()
   if ($name -match 'Microsoft Basic|Remote Display|Virtual|Parsec|Meta Virtual|Citrix') { $virtual = $true } else { $virtual = $false }
   $bytes = $null
-  if ($regVram.ContainsKey($_.Name)) { $bytes = $regVram[$_.Name] } elseif ($_.AdapterRAM) { $bytes = [double][uint32]$_.AdapterRAM }
+  if ($regVram.ContainsKey($_.Name)) { $bytes = $regVram[$_.Name] } elseif ($_.AdapterRAM -and [double]$_.AdapterRAM -lt 4293918720) { $bytes = [double]$_.AdapterRAM }
   $vram = $null; if ($bytes) { $vram = [math]::Round($bytes / 1GB, 1) }
-  if ($_.CurrentRefreshRate -and -not $hz -and -not $virtual) { $hz = [int]$_.CurrentRefreshRate }
+  $rr = [double]$_.CurrentRefreshRate
+  if ($rr -gt 1 -and $rr -lt 1000 -and -not $hz -and -not $virtual) { $hz = [int]$rr }
   $gpus += [ordered]@{ name = $name; vram = $vram; driver = $_.DriverVersion; virtual = $virtual; res = ("{0}x{1}" -f $_.CurrentHorizontalResolution, $_.CurrentVerticalResolution) }
   $vtxt = ''; if ($vram) { $vtxt = " {0}GB" -f $vram }
   Say ("      {0}{1} (드라이버 {2})" -f $name, $vtxt, $_.DriverVersion)
@@ -66,7 +78,8 @@ $result.ramGB = [math]::Round($total / 1GB)
 $result.ramSticks = $sticks.Count
 $spd = ($sticks | ForEach-Object { if ($_.ConfiguredClockSpeed) { $_.ConfiguredClockSpeed } else { $_.Speed } } | Measure-Object -Minimum).Minimum
 if ($spd) { $result.ramSpeed = [int]$spd }
-Say ("      RAM {0}GB ({1}개, {2}MHz)" -f $result.ramGB, $result.ramSticks, $result.ramSpeed)
+$spdTxt = ''; if ($result.ramSpeed) { $spdTxt = (", {0}MT/s" -f $result.ramSpeed) }
+Say ("      RAM {0}GB ({1}개{2})" -f $result.ramGB, $result.ramSticks, $spdTxt)
 
 $os = Get-CimInstance Win32_OperatingSystem
 $build = [int]$os.BuildNumber
@@ -89,11 +102,19 @@ if ($scheme -match '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 }
 
 # 보안 부팅·TPM (발로란트·롤 뱅가드 관련, 관리자 권한이 없으면 확인 불가)
-try { $sb = Confirm-SecureBootUEFI -ErrorAction Stop; if ($sb) { $result.secureBoot = '켜짐' } else { $result.secureBoot = '꺼짐' } } catch { $result.secureBoot = '확인 불가' }
+$sbv = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\SecureBoot\State' -ErrorAction SilentlyContinue).UEFISecureBootEnabled
+if ($sbv -eq 1) { $result.secureBoot = '켜짐' } elseif ($sbv -eq 0) { $result.secureBoot = '꺼짐' } else {
+  try { if (Confirm-SecureBootUEFI -ErrorAction Stop) { $result.secureBoot = '켜짐' } else { $result.secureBoot = '꺼짐' } }
+  catch [System.PlatformNotSupportedException] { $result.secureBoot = '꺼짐(레거시 BIOS/CSM)' }
+  catch { $result.secureBoot = '확인 불가' }
+}
 try {
   $tpm = Get-CimInstance -Namespace 'root/cimv2/Security/MicrosoftTpm' -ClassName Win32_Tpm -ErrorAction Stop
   if ($tpm) { $result.tpm = ("있음 ({0})" -f ($tpm.SpecVersion -split ',')[0]) } else { $result.tpm = '없음' }
-} catch { $result.tpm = '확인 불가(관리자 권한 필요)' }
+} catch {
+  $pe = Get-CimInstance Win32_PnPEntity -Filter "Service='TPM'" | Select-Object -First 1
+  if ($pe) { $tv = '?'; if ($pe.Name -match '(\d\.\d)') { $tv = $matches[1] }; $result.tpm = "있음 ($tv)" } else { $result.tpm = '없음(또는 BIOS에서 꺼짐)' }
+}
 Say ("      보안 부팅: {0} / TPM: {1}" -f $result.secureBoot, $result.tpm)
 
 $disks = @()
@@ -107,10 +128,16 @@ if ($ssdMap.Count) { $result.diskTypes = (($ssdMap.Values | Sort-Object -Unique)
 
 # ---------- 네트워크 어댑터·게이트웨이 ----------
 Say '[4/6] 네트워크 연결 확인' Yellow
-$cfg = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=TRUE' | Where-Object { $_.DefaultIPGateway } | Select-Object -First 1
+# 기본 경로(메트릭이 가장 낮은 것) = 실제 인터넷으로 나가는 어댑터. VPN·가상 어댑터를 피함
+$rt = $null
+try { $rt = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Sort-Object { $_.RouteMetric + [int](Get-NetIPInterface -InterfaceIndex $_.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).InterfaceMetric } | Select-Object -First 1 } catch {}
+$cfg = $null
+if ($rt) { $cfg = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter ("InterfaceIndex={0}" -f $rt.ifIndex) }
+if (-not $cfg) { $cfg = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=TRUE' | Where-Object { $_.DefaultIPGateway } | Select-Object -First 1 }
 $gateway = $null
+if ($rt -and $rt.NextHop -match '^\d+\.\d+\.\d+\.\d+$' -and $rt.NextHop -ne '0.0.0.0') { $gateway = $rt.NextHop }
 if ($cfg) {
-  $gateway = @($cfg.DefaultIPGateway | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })[0]
+  if (-not $gateway) { $gateway = @($cfg.DefaultIPGateway | Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' })[0] }
   $ad = Get-CimInstance Win32_NetworkAdapter -Filter ("Index={0}" -f $cfg.Index)
   $speed = ''
   if ($ad.Speed) { $speed = (" {0}Mbps" -f [math]::Round([double]$ad.Speed / 1e6)) }
@@ -135,11 +162,13 @@ $pinger = New-Object System.Net.NetworkInformation.Ping
 $pings = @()
 foreach ($t in $targets) {
   $rtts = New-Object System.Collections.ArrayList
-  $sent = 20
-  for ($i = 0; $i -lt $sent; $i++) {
+  # 처음 5번 모두 응답이 없으면 그만(막힌 대상 때문에 오래 멈추지 않게)
+  for ($i = 0; $i -lt 20; $i++) {
     try { $r = $pinger.Send($t[1], 1000); if ($r.Status -eq 'Success') { [void]$rtts.Add([double]$r.RoundtripTime) } } catch {}
+    if ($i -eq 4 -and $rtts.Count -eq 0) { $i++; break }
     Start-Sleep -Milliseconds 50
   }
+  $sent = $i
   $recv = $rtts.Count
   $o = [ordered]@{ name = $t[0]; host = $t[1]; isGateway = $t[2]; sent = $sent; recv = $recv; loss = [math]::Round((($sent - $recv) / $sent) * 100) }
   if ($recv -gt 0) {
@@ -158,7 +187,7 @@ foreach ($t in $targets) {
 $result.pings = [object[]]$pings
 
 # ---------- 게임사 서버 접속 시간 (TCP 443) ----------
-Say '[6/6] 게임사 서버 접속 시간 (TCP)' Yellow
+Say '[6/6] 게임사 웹 서버 접속 시간 (TCP, 게임 매치 서버가 아니라 가까운 웹/CDN 서버)' Yellow
 $hosts = @(
   @('라이엇 (롤·발로란트)', 'www.leagueoflegends.com'),
   @('크래프톤 (배그)', 'pubg.com'),
@@ -172,17 +201,18 @@ $tcp = @()
 foreach ($h in $hosts) {
   $o = [ordered]@{ name = $h[0]; host = $h[1]; port = 443; n = 5; fail = 0; ok = $false }
   $ip = $null
-  try { $ip = ([System.Net.Dns]::GetHostAddresses($h[1]) | Where-Object { $_.AddressFamily -eq 'InterNetwork' } | Select-Object -First 1) } catch {}
+  try { $dt = [System.Net.Dns]::GetHostAddressesAsync($h[1]); if ($dt.Wait(3000)) { $ip = $dt.Result | Where-Object { $_.AddressFamily -eq 'InterNetwork' } | Select-Object -First 1 } } catch {}
   $times = New-Object System.Collections.ArrayList
   if ($ip) {
-    for ($i = 0; $i -lt 5; $i++) {
+    # 첫 번째 시도는 준비 시간(소켓 초기화)이 섞여 버림
+    for ($i = 0; $i -lt 6; $i++) {
       $c = New-Object System.Net.Sockets.TcpClient
       $sw = [System.Diagnostics.Stopwatch]::StartNew()
       try {
         $task = $c.ConnectAsync($ip, 443)
-        if ($task.Wait(2000) -and $c.Connected) { $sw.Stop(); [void]$times.Add($sw.Elapsed.TotalMilliseconds) } else { $o.fail++ }
-      } catch { $o.fail++ }
-      $c.Close()
+        $okc = $task.Wait(2000) -and $c.Connected; $sw.Stop()
+        if ($i -gt 0) { if ($okc) { [void]$times.Add($sw.Elapsed.TotalMilliseconds) } else { $o.fail++ } }
+      } catch { if ($i -gt 0) { $o.fail++ } } finally { $c.Close() }
       Start-Sleep -Milliseconds 80
     }
   } else { $o.fail = 5 }
@@ -200,14 +230,18 @@ $result.tcp = [object[]]$tcp
 $json = $result | ConvertTo-Json -Depth 6 -Compress
 $code = 'PCBANG1:' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($json))
 $copied = $false
-try { Set-Clipboard -Value $code -ErrorAction Stop; $copied = $true } catch { try { $code | clip.exe; $copied = $true } catch {} }
-$outFile = Join-Path $PSScriptRoot 'pc-check-result.txt'
-try { $code | Out-File -FilePath $outFile -Encoding ascii } catch {}
+try { Set-Clipboard -Value $code -ErrorAction Stop; $copied = $true } catch { $code | clip.exe; $copied = ($LASTEXITCODE -eq 0) }
+$base = $PSScriptRoot; if (-not $base) { $base = [Environment]::GetFolderPath('Desktop') }
+$outFile = Join-Path $base 'pc-check-result.txt'; $saved = $false
+try { $code | Out-File -FilePath $outFile -Encoding ascii -ErrorAction Stop; $saved = $true } catch {
+  $outFile = Join-Path ([Environment]::GetFolderPath('Desktop')) 'pc-check-result.txt'
+  try { $code | Out-File -FilePath $outFile -Encoding ascii -ErrorAction Stop; $saved = $true } catch {}
+}
 
 Say ''
 Say '==============================================' Cyan
 if ($copied) { Say '  결과 코드를 클립보드에 복사했어요.' Green } else { Say '  클립보드 복사 실패: 아래 파일을 열어 복사하세요.' Red }
-Say ("  파일로도 저장: {0}" -f $outFile)
+if ($saved) { Say ("  파일로도 저장: {0}" -f $outFile) }
 Say '  웹 앱 [내 사양] 탭 -> 결과 붙여넣기 칸에 Ctrl+V 하세요.'
 Say '==============================================' Cyan
 Say ''
