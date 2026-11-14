@@ -49,6 +49,7 @@ function showTab(name) {
   if (name === 'home') renderSummary();
   if (name === 'games') renderGames();
   if (name === 'log') renderShop();
+  if (name === 'game') renderGameTests();
   if (name === 'fix') renderFixes();
   if (name === 'spec') renderSpec();
   if (name === 'dev') { buildKeyboard(); renderChk(); }
@@ -1242,6 +1243,7 @@ function stateOf(e) {
   var w = e.web || {};
   return { manual: w.manual || {}, det: w.det || {}, bench: w.bench || {}, dev: w.dev || {}, net: w.net || null, native: e.native || null, opt: S.opt, seat: e.seat };
 }
+function lastGame(e) { return (e.games || []).slice(-1)[0] || null; }
 function shopRows() {
   var all = Object.keys(shop).map(function (k) {
     var e = shop[k], st = stateOf(e), sp = spec(st), pr = problems(st);
@@ -1252,17 +1254,19 @@ function shopRows() {
     return {
       e: e, st: st, sp: sp, pr: pr, games: games,
       seat: e.seat || e.computer || '-', at: e.at,
-      cpu: sp.cpu ? sp.cpu.name : (sp.cpuRaw || '-').slice(0, 40), gpu: sp.gpu ? sp.gpu.name : softwareRenderer(sp.gpuRaw) ? '그래픽 가속 꺼짐' : (cleanRenderer(sp.gpuRaw) || '-').slice(0, 40),
-      ram: sp.ram || (sp.ramAtLeast ? sp.ramAtLeast + '+' : null), hz: sp.hz,
+      cpu: sp.cpu ? sp.cpu.name : (sp.cpuRaw || (lastGame(e) && (matchCpu(lastGame(e).cpuName) || {}).name) || '-').slice(0, 40),
+      gpu: sp.gpu ? sp.gpu.name : (!sp.gpuRaw && lastGame(e)) ? ((matchGpu(lastGame(e).gpuName) || {}).name || lastGame(e).gpuName || '-').slice(0, 40) : softwareRenderer(sp.gpuRaw) ? '그래픽 가속 꺼짐' : (cleanRenderer(sp.gpuRaw) || '-').slice(0, 40),
+      ram: sp.ram || (sp.ramAtLeast ? sp.ramAtLeast + '+' : null) || (lastGame(e) && lastGame(e).ramGB) || null, hz: sp.hz || (lastGame(e) && lastGame(e).hz) || null,
       gw: gw && gw.recv ? gw.avg : null, gwLoss: gw ? gw.loss : null,
       ext: ext.length ? median(ext.map(function (x) { return x.avg; })) : webOk.length ? median(webOk.map(function (t) { return t.med; })) : null,
-      cpuB: st.bench.cpuSingle || null, gpuB: st.bench.gpu || null,
+      cpuB: st.bench.cpuSingle || null, gpuB: st.bench.gpu || null, game: (e.games || []).slice(-1)[0] || null,
       fails: games.filter(function (j) { return j.level === 'fail'; }).length,
       bad: pr.filter(function (p) { return p.lv === 'bad'; }).length, warn: pr.filter(function (p) { return p.lv === 'warn'; }).length
     };
   }).sort(function (a, b) { return String(a.seat).localeCompare(String(b.seat), 'ko', { numeric: true }); });
   // 같은 그래픽카드 좌석보다 측정 점수가 20% 이상 낮으면 성능 저하 의심
   all.forEach(function (r) {
+    if (r.game) gtProblems(r.game).forEach(function (p) { r.pr.push(p); if (p.lv === 'bad') r.bad++; else r.warn++; });
     var slow = [];
     [['cpuB', 'CPU'], ['gpuB', '그래픽']].forEach(function (kk) {
       var grp = kk[0] === 'cpuB' ? 'cpu' : 'gpu';
@@ -1318,6 +1322,7 @@ function renderShop() {
       '<td class="num' + (r.gw != null && (r.gw > 3 || r.gwLoss > 0) ? ' badv' : '') + '">' + (r.gw != null ? fmt(r.gw, 1) + 'ms' + (r.gwLoss ? ' (' + r.gwLoss + '%)' : '') : '-') + '</td>' +
       '<td class="num">' + (r.ext != null ? fmt(r.ext) + 'ms' : '-') + '</td>' +
       '<td' + (low(r, 'cpuB') || ' class="num"') + '>' + fmt(r.cpuB) + '</td><td' + (low(r, 'gpuB') || ' class="num"') + '>' + fmt(r.gpuB) + '</td>' +
+      '<td class="num">' + (r.game && r.game.fps ? fmt(r.game.fps.avg) + ' <span class="xs muted">(1% ' + fmt(r.game.fps.low1) + ')</span><div class="xs muted">' + esc((gtExpect(r.game) || {}).game ? gtExpect(r.game).game.short : r.game.app) + '</div>' : '-') + '</td>' +
       '<td class="xs">' + r.pr.slice(0, 4).map(function (p) { return '<span class="pill ' + p.lv + '">' + esc(p.short || p.t) + '</span>'; }).join(' ') + (r.pr.length > 4 ? ' +' + (r.pr.length - 4) : '') + '</td>' +
       '<td class="noprint"><button class="btn sm" type="button" data-del="' + esc(r.e.key) + '" aria-label="' + esc(r.seat) + ' 삭제">삭제</button></td></tr>';
   }).join('');
@@ -1329,6 +1334,7 @@ function seatReportHTML(r) {
   var h = '<div class="stack"><div class="row between"><div class="h2">' + esc(r.seat) + (/^\d+$/.test(String(r.seat)) ? '번 좌석' : '') + '</div><span class="small muted">' + d.toLocaleString('ko-KR') + '</span></div>' +
     '<dl class="kv"><dt>CPU</dt><dd>' + esc(r.cpu) + (n.cores ? ' · ' + n.cores + '코어 ' + n.threads + '스레드' : '') + '</dd><dt>그래픽</dt><dd>' + esc(r.gpu) + (r.sp.vram ? ' · ' + fmt(r.sp.vram, 0) + 'GB' : '') + '</dd><dt>RAM</dt><dd>' + (r.ram ? esc(r.ram) + 'GB' : '-') + (n.ramSpeed ? ' · ' + n.ramSpeed + 'MT/s' : '') + '</dd><dt>운영체제</dt><dd>' + esc(n.osName || (r.st.det && r.st.det.osName) || '-') + '</dd><dt>모니터</dt><dd>' + (r.hz ? r.hz + 'Hz' : '-') + '</dd>' +
     (n.adapter ? '<dt>네트워크</dt><dd>' + esc(n.adapter) + '</dd>' : '') + (r.gw != null ? '<dt>게이트웨이</dt><dd>' + fmt(r.gw, 1) + 'ms · 손실 ' + (r.gwLoss || 0) + '%</dd>' : '') + (r.ext != null ? '<dt>외부 지연</dt><dd>' + fmt(r.ext) + 'ms</dd>' : '') + (function () { var x = []; devKv(n, function (k, v) { x.push('<dt>' + k.replace(/^· /, '') + '</dt><dd>' + v + '</dd>'); }); return x.join(''); })() + '</dl>';
+  if (r.e.games && r.e.games.length) h += '<div class="h3">실전 게임 테스트</div><ul class="fixlist small">' + r.e.games.slice().reverse().map(function (g) { var ex = gtExpect(g); return '<li><b>' + esc(ex ? ex.game.name : g.app) + '</b> ' + esc(g.time) + ' — ' + (g.fps ? '평균 ' + fmt(g.fps.avg) + 'fps · 1% 최저 ' + fmt(g.fps.low1) + 'fps · 끊김 ' + fmt(g.fps.stutters) + '회' : 'FPS 없음') + (g.gpu.tempMax != null ? ' · 그래픽 최고 ' + g.gpu.tempMax + '°C' : '') + (g.ping.gw ? ' · 게이트웨이 ' + fmt(g.ping.gw.avg, 1) + 'ms' : '') + ' · 병목 ' + esc(g.bottleneck || '-') + '</li>'; }).join('') + '</ul>';
   if (r.e.history && r.e.history.length) h += '<div class="h3">지난 점검과 달라진 점</div><ul class="fixlist small">' + r.e.history.slice().reverse().map(function (x) { return '<li><b>' + esc(x.from) + ' → ' + esc(x.at) + '</b><br>' + x.ch.map(esc).join('<br>') + '</li>'; }).join('') + '</ul>';
   h += r.pr.length ? '<div class="h3">조치할 것</div><ol class="fixlist">' + r.pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : p.lv === 'warn' ? '확인' : '참고') + '</span> <b>' + esc(p.t) + '</b>' + (p.fix ? '<div class="small muted">' + esc(p.fix) + '</div>' : '') + '</li>'; }).join('') + '</ol>' : '<div class="okbox">문제가 없어요.</div>';
   h += '<div class="h3">게임별 판정 (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</div><div class="tblwrap"><table><tbody>' + GAMES.map(function (g, i) { var j = r.games[i], lv = LV[j.level]; return '<tr><td>' + g.rank + '. ' + esc(g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (j.fps != null ? '약 ' + fmt(j.fps) + 'fps' : '-') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
@@ -1351,8 +1357,22 @@ function printHTML(html, title) {
 // 가져오기
 async function importText(text, fileSeat) {
   var items = parseCodes(text);
-  if (!items.length) return { added: 0, errors: 1 };
-  return addToShop(items, fileSeat);
+  var gr = await importGameText(text), gadded = 0;
+  if (gr.list.length) {
+    addGameTests(gr.list);
+    gr.list.forEach(function (g) {
+      var seat = normSeat(g.seat), comp = g.computer ? g.computer.toUpperCase() : '';
+      if (!seat && !comp && fileSeat && /^\d{1,4}$/.test(fileSeat)) seat = normSeat(fileSeat);
+      var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : null; if (!key) return;
+      var e2 = Object.prototype.hasOwnProperty.call(shop, key) ? shop[key] : { key: key, seat: seat, computer: comp, at: 0 };
+      e2.games = (e2.games || []).filter(function (x) { return gtId(x) !== gtId(g); }).concat([g]).slice(-5);
+      e2.at = Math.max(e2.at || 0, Date.parse(String(g.time).replace(' ', 'T')) || Date.now());
+      shop[key] = e2; gadded++;
+    });
+    saveShop();
+  }
+  if (!items.length) return { added: gadded, errors: gadded ? 0 : 1 };
+  var r = addToShop(items, fileSeat); r.added += gadded; return r;
 }
 $('#shopImportBtn').addEventListener('click', async function () {
   var r = await importText($('#shopPaste').value); $('#shopPaste').value = '';
@@ -1401,7 +1421,8 @@ $('#shopRestore').addEventListener('change', async function () {
       var e = o.shop[k]; if (!e || typeof e !== 'object') return;
       var clean = { key: String(k).slice(0, 60), seat: String(e.seat || '').slice(0, 20), computer: String(e.computer || '').slice(0, 40), at: +e.at || Date.now(), native: e.native ? sanitizeNative(e.native) : undefined, web: e.web ? sanitizeWeb(e.web) : undefined,
         history: Array.isArray(e.history) ? e.history.slice(-10).map(function (h) { return { at: String(h.at || '').slice(0, 30), from: String(h.from || '').slice(0, 30), ch: Array.isArray(h.ch) ? h.ch.slice(0, 20).map(function (x) { return String(x).slice(0, 200); }) : [] }; }) : undefined };
-      if (!clean.native && !clean.web) return;
+      if (Array.isArray(e.games)) clean.games = e.games.slice(-5).map(sanitizeGame).filter(Boolean);
+      if (!clean.native && !clean.web && !(clean.games && clean.games.length)) return;
       var cur = shop[clean.key]; if (!cur || (cur.at || 0) <= clean.at) { shop[clean.key] = clean; n++; }
     });
     saveShop(); renderShop(); toast('좌석 ' + n + '개를 백업에서 불러왔어요');
@@ -1444,6 +1465,165 @@ $('#copyRep').addEventListener('click', function () {
   (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('복사했어요'); }, function () { prompt('아래 글을 복사하세요', t); });
 });
 $('#seatIn').addEventListener('change', function () { S.seat = this.value.trim(); save(); seatPill(); });
+
+/* ---------------- 실전 게임 테스트 (game-test.bat 결과) ---------------- */
+var GT_KEY = 'pcbang_games_v1';
+var gtests = store.get(GT_KEY, []);
+if (!Array.isArray(gtests)) gtests = [];
+var gtSel = null;
+function gameIdOf(app) {
+  var a = String(app || '').toLowerCase();
+  var map = [[/league of legends/, 'lol'], [/valorant/, 'val'], [/tslgame|pubg/, 'pubg'], [/overwatch/, 'ow'], [/roblox/, 'rbx'], [/maplestory/, 'maple'], [/lostark/, 'la'], [/sudden/, 'sa'], [/fc ?online|fczf|fifa/, 'fco'], [/lineage/, 'lin']];
+  for (var i = 0; i < map.length; i++) if (map[i][0].test(a)) return map[i][1];
+  return null;
+}
+function sanitizeGame(o) {
+  if (!o || typeof o !== 'object' || o.kind !== 'game') return null;
+  var num = function (v) { var n = +v; return v == null || v === '' || !isFinite(n) ? null : n; };
+  var str = function (v) { return v == null ? '' : String(v).slice(0, 120); };
+  var arrN = function (a, max) { return (Array.isArray(a) ? a : a == null ? [] : [a]).slice(0, max || 900).map(num); };
+  var pick = function (src, keys) { var o2 = {}; src = src && typeof src === 'object' ? src : {}; keys.forEach(function (k) { o2[k] = num(src[k]); }); return o2; };
+  var ps = function (x) { return x && typeof x === 'object' ? pick(x, ['n', 'loss', 'avg', 'max', 'jitter', 'spikes']) : null; };
+  var p = o.ping || {}, t = o.tl || {};
+  return {
+    kind: 'game', seat: o.seat == null ? '' : String(o.seat).slice(0, 20), computer: str(o.computer).slice(0, 40), time: str(o.time).slice(0, 20), durationS: num(o.durationS),
+    app: str(o.app), admin: o.admin === true, pmUsed: o.pmUsed === true, pmNote: str(o.pmNote),
+    cpuName: str(o.cpuName), gpuName: str(o.gpuName), ramGB: num(o.ramGB), hz: num(o.hz),
+    fps: o.fps && typeof o.fps === 'object' ? pick(o.fps, ['frames', 'avg', 'low1', 'low01', 'p50ms', 'p99ms', 'maxms', 'stutters', 'stutterPerMin']) : null,
+    gpuBusyPct: num(o.gpuBusyPct), bottleneck: str(o.bottleneck),
+    cpu: pick(o.cpu, ['avg', 'max', 'coreAvg', 'coreMax']), gpu: pick(o.gpu, ['utilAvg', 'utilMax', 'tempAvg', 'tempMax', 'powerAvg', 'fanMax', 'clockStart', 'clockEnd']), mem: pick(o.mem, ['avg', 'max']),
+    ping: { gwHost: str(p.gwHost), extHost: str(p.extHost), gsHost: str(p.gsHost), gw: ps(p.gw), ext: ps(p.ext), gs: ps(p.gs) },
+    tl: { fps: arrN(t.fps), ftMax: arrN(t.ftMax), cpu: arrN(t.cpu), core: arrN(t.core), gpu: arrN(t.gpu), temp: arrN(t.temp), mem: arrN(t.mem), gw: arrN(t.gw), ext: arrN(t.ext) },
+    verdicts: (Array.isArray(o.verdicts) ? o.verdicts : o.verdicts == null ? [] : [o.verdicts]).slice(0, 12).map(function (v) { return String(v).slice(0, 200); })
+  };
+}
+function gtId(g) { return [g.computer, g.time, g.app].join('|'); }
+function addGameTests(list) {
+  var n = 0;
+  list.forEach(function (g) {
+    var id = gtId(g);
+    gtests = gtests.filter(function (x) { return gtId(x) !== id; });
+    gtests.push(g); n++;
+  });
+  gtests.sort(function (a, b) { return String(b.time).localeCompare(String(a.time)); });
+  gtests = gtests.slice(0, 120);
+  if (!store.set(GT_KEY, gtests)) toast('저장 공간이 부족해 실전 테스트 기록을 저장하지 못했어요');
+  return n;
+}
+// 사양으로 계산한 예상 fps (낮음/중간/높음)와 비교
+function gtExpect(g) {
+  var gid = gameIdOf(g.app), game = GAMES.filter(function (x) { return x.id === gid; })[0];
+  if (!game) return null;
+  var sp = { gpu: matchGpu(g.gpuName), cpu: matchCpu(g.cpuName), ram: g.ramGB, os: null, src: {}, nat: {} };
+  if (!sp.gpu) return { game: game };
+  var r = {}; ['low', 'mid', 'high'].forEach(function (pr) { r[pr] = judge(game, sp, { res: '1080', preset: pr, target: 'auto' }).fps; });
+  return { game: game, exp: r };
+}
+function gtProblems(g) {
+  var out = [];
+  var e = gtExpect(g);
+  // 게임 안 FPS 제한(60·120·144·165·200·240 또는 모니터 주사율)에 걸려 있으면 낮아도 정상
+  var capped = g.fps && [60, 75, 100, 120, 144, 165, 200, 240, g.hz].some(function (c) { return c && Math.abs(g.fps.avg - c) < 2.5; }) && !(g.gpu.utilAvg >= 90);
+  if (g.fps && e && e.exp && e.exp.high && g.fps.avg < e.exp.high * 0.6 && !/제한/.test(g.bottleneck) && !capped) out.push({ id: 'gt-low', lv: 'warn', t: '실전 FPS가 같은 부품 예상치보다 많이 낮음 (' + Math.round(g.fps.avg) + ' / 예상 높음 옵션 ' + e.exp.high + ')', short: '실전 FPS 낮음', fix: '발열·전원 옵션·그래픽 드라이버·백그라운드 프로그램을 확인하세요. 게임 안 옵션이 아주 높거나 해상도가 크면 정상일 수 있어요.' });
+  if (g.fps && g.fps.stutterPerMin >= 6) out.push({ id: 'gt-stut', lv: 'warn', t: '게임 중 끊김 분당 ' + g.fps.stutterPerMin + '회', short: '게임 끊김', fix: '저장 장치 상태(노하드면 서버 디스크·네트워크 부하), 램 사용량, 백그라운드 프로그램을 확인하세요.' });
+  if (g.gpu.tempMax >= 85) out.push({ id: 'gt-hot', lv: 'bad', t: '게임 중 그래픽 ' + g.gpu.tempMax + '°C', short: '게임 중 과열', fix: '먼지 청소, 그래픽카드·케이스 팬 확인, 서멀 재도포.' });
+  if (g.gpu.clockStart && g.gpu.clockEnd && g.gpu.clockEnd < g.gpu.clockStart * 0.9 && g.gpu.tempMax >= 80) out.push({ id: 'gt-thr', lv: 'bad', t: '발열로 그래픽 클럭 저하(' + g.gpu.clockStart + '→' + g.gpu.clockEnd + 'MHz)', short: '스로틀링', fix: '냉각을 개선해야 해요. 먼지·팬·서멀 확인.' });
+  if (g.ping.gw && (g.ping.gw.loss > 0 || g.ping.gw.avg > 3)) out.push({ id: 'gt-gw', lv: 'bad', t: '게임 중 게이트웨이 핑 이상 (평균 ' + g.ping.gw.avg + 'ms, 손실 ' + g.ping.gw.loss + '%)', short: '게임 중 내부망', fix: '랜선·허브 포트·랜카드를 확인하세요.' });
+  if (g.ping.ext && (g.ping.ext.loss >= 2 || g.ping.ext.spikes >= 3)) out.push({ id: 'gt-ext', lv: 'warn', t: '게임 중 외부 핑 불안정 (손실 ' + g.ping.ext.loss + '%, 튐 ' + g.ping.ext.spikes + '회)', short: '게임 중 핑 튐', fix: '매장 다른 PC의 대용량 다운로드(패치) 여부, 통신사 회선을 확인하세요.' });
+  if (g.mem.max >= 90) out.push({ id: 'gt-mem', lv: 'warn', t: '게임 중 메모리 ' + g.mem.max + '%', short: '게임 중 램 부족', fix: '램 증설 또는 백그라운드 프로그램 정리.' });
+  return out;
+}
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim() || '#888'; }
+// 간단한 선 그래프: series = [{data, color, label}], opt = {max, unit, ref, refLabel}
+function drawChart(cv, series, opt) {
+  var dpr = window.devicePixelRatio || 1, W = cv.clientWidth || 600, H = cv.clientHeight || 160;
+  cv.width = W * dpr; cv.height = H * dpr;
+  var c = cv.getContext('2d'); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, W, H);
+  var L = 38, Rr = 8, T = 10, B = 20, w = W - L - Rr, h = H - T - B;
+  var all = []; series.forEach(function (s) { s.data.forEach(function (v) { if (v != null && v >= 0) all.push(v); }); });
+  var max = opt.max || Math.max(10, Math.ceil((Math.max.apply(null, all.concat([opt.ref || 0])) * 1.1) / 10) * 10);
+  var n = Math.max.apply(null, series.map(function (s) { return s.data.length; }).concat([2]));
+  c.font = '11px ' + cssVar('--font'); c.fillStyle = cssVar('--muted'); c.strokeStyle = cssVar('--line'); c.lineWidth = 1;
+  for (var g = 0; g <= 4; g++) { var y = T + h - h * g / 4; c.beginPath(); c.moveTo(L, y); c.lineTo(L + w, y); c.stroke(); c.fillText(Math.round(max * g / 4) + (opt.unit || ''), 2, y + 4); }
+  c.fillText('0초', L, H - 4); c.fillText(n + '초', L + w - 26, H - 4);
+  if (opt.ref) { var ry = T + h - h * Math.min(1, opt.ref / max); c.setLineDash([4, 4]); c.strokeStyle = cssVar('--warn'); c.beginPath(); c.moveTo(L, ry); c.lineTo(L + w, ry); c.stroke(); c.setLineDash([]); c.fillStyle = cssVar('--warn'); c.fillText(opt.refLabel || '', L + 4, ry - 3); }
+  series.forEach(function (s) {
+    c.strokeStyle = s.color; c.lineWidth = 1.8; c.beginPath(); var started = false;
+    s.data.forEach(function (v, i) {
+      var x = L + w * i / Math.max(1, n - 1);
+      if (v == null) { started = false; return; }
+      if (v < 0) { c.save(); c.fillStyle = cssVar('--bad'); c.fillRect(x - 1.5, T, 3, h); c.restore(); started = false; return; } // 손실 표시
+      var y = T + h - h * Math.min(1, v / max);
+      if (!started) { c.moveTo(x, y); started = true; } else c.lineTo(x, y);
+    });
+    c.stroke();
+  });
+}
+function renderGameTests() {
+  $('#gtEmpty').hidden = gtests.length > 0;
+  $('#gtList').innerHTML = gtests.map(function (g, i) {
+    var gm = gtExpect(g), name = gm ? gm.game.name : (g.app || '게임');
+    var pr = gtProblems(g), bad = pr.filter(function (p) { return p.lv === 'bad'; }).length;
+    return '<button class="item" type="button" data-gt="' + i + '"' + (gtSel === i ? ' aria-current="true"' : '') + '><span class="body"><span class="t">' + esc(g.seat ? g.seat + '번 · ' : (g.computer ? g.computer + ' · ' : '')) + esc(name) + '</span><span class="s">' + esc(g.time) + ' · ' + (g.fps ? '평균 ' + fmt(g.fps.avg) + 'fps · 1% 최저 ' + fmt(g.fps.low1) + 'fps' : 'FPS 없음') + '</span></span>' + (bad ? '<span class="pill bad">고칠 것 ' + bad + '</span>' : pr.length ? '<span class="pill warn">확인 ' + pr.length + '</span>' : '<span class="pill ok">정상</span>') + '</button>';
+  }).join('');
+  if (gtSel == null && gtests.length) gtSel = 0;
+  renderGameDetail();
+}
+function renderGameDetail() {
+  var box = $('#gtDetail');
+  var g = gtests[gtSel];
+  if (!g) { box.innerHTML = ''; return; }
+  var e = gtExpect(g), name = e ? e.game.name : (g.app || '게임');
+  var stat = function (v, l) { return '<div class="stat"><b>' + v + '</b><span>' + l + '</span></div>'; };
+  var pr = gtProblems(g);
+  var h = '<div class="card stack"><div class="row between"><div class="h2">' + esc(name) + ' <span class="small muted">' + esc(g.app) + '</span></div><span class="small muted">' + esc(g.time) + ' · ' + (g.durationS || '-') + '초 · ' + esc(g.seat ? g.seat + '번 좌석' : g.computer) + '</span></div>';
+  if (g.fps) h += '<div class="row sumrow">' + stat(fmt(g.fps.avg), '평균 fps') + stat(fmt(g.fps.low1), '1% 최저 fps') + stat(fmt(g.fps.low01), '0.1% 최저 fps') + stat(fmt(g.fps.p99ms, 1) + 'ms', '상위 1% 프레임 시간') + stat(fmt(g.fps.stutters), '끊김(긴 프레임)') + (g.hz ? stat(g.hz + 'Hz', '모니터') : '') + '</div>';
+  else h += '<div class="warnbox">FPS는 측정되지 않았어요' + (g.pmNote ? ': ' + esc(g.pmNote) : '') + (g.admin ? '' : ' (관리자 권한으로 실행해야 FPS를 잴 수 있어요)') + '</div>';
+  if (e && e.exp) h += '<div class="small">같은 부품 예상(1080p): 낮음 옵션 약 ' + fmt(e.exp.low) + ' · 중간 ' + fmt(e.exp.mid) + ' · 높음 ' + fmt(e.exp.high) + 'fps' + (g.fps ? ' → 실측 ' + fmt(g.fps.avg) + 'fps' : '') + '</div>';
+  h += '<div class="row sumrow">' + stat(esc(g.bottleneck || '-'), '병목') + stat((g.cpu.avg != null ? g.cpu.avg + '%' : '-'), 'CPU 평균 (바쁜 코어 ' + (g.cpu.coreAvg != null ? g.cpu.coreAvg + '%' : '-') + ')') + stat((g.gpu.utilAvg != null ? g.gpu.utilAvg + '%' : '-'), '그래픽 사용률') + (g.gpu.tempMax != null ? stat(g.gpu.tempMax + '°C', '그래픽 최고 온도') : '') + stat((g.mem.max != null ? g.mem.max + '%' : '-'), '메모리 최고') + '</div>';
+  var ps = function (lab, x, host) { return x ? '<tr><td>' + lab + (host ? '<div class="xs muted mono">' + esc(host) + '</div>' : '') + '</td><td class="num">' + fmt(x.avg, 1) + 'ms</td><td class="num">' + fmt(x.max) + 'ms</td><td class="num">' + fmt(x.jitter, 1) + 'ms</td><td class="num">' + fmt(x.loss, 1) + '%</td><td class="num">' + fmt(x.spikes) + '</td></tr>' : ''; };
+  var pt = ps('게이트웨이', g.ping.gw, g.ping.gwHost) + ps('외부(KT DNS)', g.ping.ext, g.ping.extHost) + ps('게임 서버', g.ping.gs, g.ping.gsHost);
+  if (pt) h += '<div class="tblwrap"><table><thead><tr><th>게임 중 핑</th><th>평균</th><th>최대</th><th>지터</th><th>손실</th><th>튐</th></tr></thead><tbody>' + pt + '</tbody></table></div>';
+  h += pr.length ? '<ol class="fixlist">' + pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : '확인') + '</span> <b>' + esc(p.t) + '</b><div class="small muted">' + esc(p.fix) + '</div></li>'; }).join('') + '</ol>' : '<div class="okbox">게임 중 문제가 없었어요.</div>';
+  h += '<div class="stack"><div class="h3">초당 FPS</div><canvas class="gtc" id="gtcFps"></canvas><div class="h3">그 초에서 가장 긴 프레임(ms) — 튀는 곳이 끊김</div><canvas class="gtc" id="gtcFt"></canvas><div class="h3">사용률 (CPU 파랑 · 바쁜 코어 보라 · 그래픽 초록 · 메모리 회색)</div><canvas class="gtc" id="gtcUse"></canvas>' + (g.tl.temp.length ? '<div class="h3">그래픽 온도</div><canvas class="gtc" id="gtcTemp"></canvas>' : '') + '<div class="h3">핑 (게이트웨이 주황 · 외부 파랑, 빨간 줄 = 손실)</div><canvas class="gtc" id="gtcPing"></canvas></div>';
+  h += '<div class="row noprint"><button class="btn sm" type="button" id="gtToShop">매장 현황 좌석에 붙이기</button><button class="btn sm" type="button" id="gtDel">이 기록 지우기</button></div></div>';
+  box.innerHTML = h;
+  var C = { blue: '#3B82F6', purple: '#8B5CF6', green: cssVar('--ok'), gray: '#9CA3AF', orange: '#F59E0B', red: cssVar('--bad') };
+  if (g.tl.fps.length) drawChart($('#gtcFps'), [{ data: g.tl.fps, color: C.green }], { ref: g.hz || null, refLabel: g.hz ? '모니터 ' + g.hz + 'Hz' : '' });
+  if (g.tl.ftMax.length) drawChart($('#gtcFt'), [{ data: g.tl.ftMax, color: C.orange }], { unit: '', ref: 33.3, refLabel: '33ms(30fps)' });
+  drawChart($('#gtcUse'), [{ data: g.tl.cpu, color: C.blue }, { data: g.tl.core, color: C.purple }, { data: g.tl.gpu, color: C.green }, { data: g.tl.mem, color: C.gray }], { max: 100, unit: '%' });
+  if (g.tl.temp.length) drawChart($('#gtcTemp'), [{ data: g.tl.temp, color: C.red }], { unit: '°', ref: 85, refLabel: '85°C' });
+  drawChart($('#gtcPing'), [{ data: g.tl.gw, color: C.orange }, { data: g.tl.ext, color: C.blue }], { unit: 'ms' });
+  $('#gtDel').addEventListener('click', function () { if (!confirm('이 실전 테스트 기록을 지울까요?')) return; gtests.splice(gtSel, 1); store.set(GT_KEY, gtests); gtSel = gtests.length ? 0 : null; renderGameTests(); });
+  $('#gtToShop').addEventListener('click', function () {
+    var seat = normSeat(g.seat), comp = g.computer ? g.computer.toUpperCase() : '';
+    var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : null;
+    if (!key) { toast('좌석 번호나 PC 이름이 없어 붙일 수 없어요'); return; }
+    var e2 = Object.prototype.hasOwnProperty.call(shop, key) ? shop[key] : { key: key, seat: seat, computer: comp, at: 0 };
+    e2.games = (e2.games || []).filter(function (x) { return gtId(x) !== gtId(g); }).concat([g]).slice(-5);
+    e2.at = Math.max(e2.at || 0, Date.parse(String(g.time).replace(' ', 'T')) || Date.now());
+    shop[key] = e2; saveShop(); toast((seat ? seat + '번 좌석' : comp) + '에 붙였어요');
+  });
+}
+$('#gtList').addEventListener('click', function (e) { var b = e.target.closest('[data-gt]'); if (!b) return; gtSel = +b.dataset.gt; renderGameTests(); });
+async function importGameText(text) {
+  var out = [], re = /PCBANGG1:([A-Za-z0-9+/=\s]+?)(?=PCBANG|[^A-Za-z0-9+/=\s]|$)/g, m, bad = 0;
+  while ((m = re.exec(text))) { try { var g = sanitizeGame(b64dec(m[1])); if (g) out.push(g); else bad++; } catch (err) { bad++; } }
+  return { list: out, bad: bad };
+}
+async function importGames(texts) {
+  var all = [], bad = 0;
+  for (var i = 0; i < texts.length; i++) { var r = await importGameText(texts[i]); all = all.concat(r.list); bad += r.bad; }
+  if (!all.length) { toast('실전 테스트 결과 코드(PCBANGG1:)를 찾지 못했어요'); return; }
+  addGameTests(all);
+  // 매장 현황에 같은 좌석이 있으면 자동으로 붙임
+  all.forEach(function (g) { var seat = normSeat(g.seat), key = seat ? 'seat:' + seat : g.computer ? 'pc:' + g.computer.toUpperCase() : null; if (key && Object.prototype.hasOwnProperty.call(shop, key)) { var e2 = shop[key]; e2.games = (e2.games || []).filter(function (x) { return gtId(x) !== gtId(g); }).concat([g]).slice(-5); } });
+  saveShop();
+  gtSel = 0; renderGameTests(); toast('실전 테스트 ' + all.length + '개를 불러왔어요' + (bad ? ' (' + bad + '개 실패)' : ''));
+}
+$('#gtImport').addEventListener('click', function () { importGames([$('#gtPaste').value]); $('#gtPaste').value = ''; });
+$('#gtFile').addEventListener('change', async function () { var fs = Array.prototype.slice.call(this.files); this.value = ''; var t = []; for (var i = 0; i < fs.length; i++) if (fs[i].size < 3e6) t.push(await fs[i].text()); importGames(t); });
+window.addEventListener('resize', function () { if (!$('[data-panel="game"]').hidden) renderGameDetail(); });
 
 /* ---------------- 시작 ---------------- */
 try { var qs = new URLSearchParams(location.search).get('seat'); if (qs) { S.seat = qs.slice(0, 20); save(); } } catch (e) {}
