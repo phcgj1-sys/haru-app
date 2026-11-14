@@ -44,6 +44,7 @@ function showTab(name) {
   $$('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
   if (name === 'games') renderGames();
   if (name === 'log') renderShop();
+  if (name === 'fix') renderFixes();
   if (name === 'spec') renderSpec();
   if (name === 'dev') { buildKeyboard(); }
   try { history.replaceState(null, '', '#' + name); } catch (e) {}
@@ -297,8 +298,12 @@ function judge(game, sp, opt) {
   if (sp.gpu) {
     var f = game.fps;
     // 저사양 그래픽은 가벼운 게임에서 점수 비율보다 덜 떨어짐 → 지수(e) < 1 로 완만하게
-    var gpuFps = Math.pow(sp.gpu.score / 17000, f.e || 0.85) * f.g3060 * PRESET[opt.preset] * RES[opt.res];
+    // 고성능 쪽은 실제 fps가 점수보다 가파르게 오름(eHi), 저사양 쪽은 완만(e)
+    var gr = sp.gpu.score / 17000;
+    var gpuFps = Math.pow(gr, gr > 1 && f.eHi ? f.eHi : (f.e || 0.85)) * f.g3060 * PRESET[opt.preset] * RES[opt.res];
     var cpuFps = sp.cpu ? (cpuIndex(sp.cpu) / cpuIndex({ single: 3500, multi: 19500 })) * f.c12400 * (opt.preset === 'low' ? 1.08 : opt.preset === 'high' ? 0.95 : 1) : null;
+    // X3D(대용량 캐시) CPU는 CPU 부담 큰 게임에서 점수보다 빠름
+    if (cpuFps && sp.cpu && /x3d/i.test(sp.cpu.name || '')) cpuFps *= 1.15;
     var fps = cpuFps == null ? gpuFps : Math.min(gpuFps, cpuFps);
     if (f.cap) fps = Math.min(fps, f.cap);
     if (ram && ram < game.min.ram) fps *= 0.55;
@@ -339,7 +344,7 @@ function renderGames() {
       var fl = fpsLabel(j.fps, tgt);
       fpsHtml = '<div class="fps"><b>' + (j.fps >= (g.fps.cap || 9999) ? g.fps.cap + '+' : '약 ' + fmt(j.fps)) + '</b><span class="muted small">fps 예상</span><span class="pill ' + fl[0] + '">' + fl[1] + '</span></div>' +
         (j.bottleneck ? '<div class="xs muted">병목: ' + j.bottleneck + (j.bottleneck === 'CPU' ? ' (그래픽 옵션을 낮춰도 크게 안 오름)' : ' (옵션·해상도를 낮추면 올라감)') + '</div>' : '') +
-        (j.fpsNoCpu ? '<div class="xs muted">CPU 미확인: 그래픽 기준 값</div>' : '');
+        (j.fpsNoCpu ? '<div class="xs muted">CPU 미확인: 그래픽 기준 값</div>' : '') + '<div class="xs muted">fps 근거: ' + (g.fpsBasis ? '공개 측정값으로 보정' : '공개 측정값이 적어 사양 비례 추정') + '</div>';
     }
     var comps = j.comps.map(function (c) {
       var col = c.l === 'rec' ? 'var(--ok)' : c.l === 'min' ? 'var(--warn)' : c.l === 'fail' ? 'var(--bad)' : 'var(--line)';
@@ -995,6 +1000,17 @@ function renderSummary() {
   $('#sumSave').addEventListener('click', function () { $('#shopAddThis').click(); });
 }
 
+/* ---------------- 문제 해결 안내 ---------------- */
+function renderFixes() {
+  var q = ($('#fixSearch').value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  var words = q ? q.split(' ') : [];
+  var list = (window.FIXES || []).filter(function (f) { var hay = (f.k + ' ' + f.t + ' ' + f.g + ' ' + f.steps.join(' ')).toLowerCase(); return words.every(function (w) { return hay.indexOf(w) >= 0 || hay.replace(/\s/g, '').indexOf(w) >= 0; }); });
+  $('#fixList').innerHTML = list.length ? list.map(function (f) {
+    return '<article class="card stack"><div class="row between"><div class="h3">' + esc(f.t) + '</div>' + (f.conf === 'high' ? '' : '<span class="pill" title="공식 문서로 확인하지 못한 일반적인 조치">경향</span>') + '</div><div class="xs muted">' + esc(f.g) + '</div><ol class="fixlist">' + f.steps.map(function (s) { return '<li class="small">' + esc(s) + '</li>'; }).join('') + '</ol></article>';
+  }).join('') : '<div class="card muted">찾는 내용이 없어요. 다른 말로 찾아보세요.</div>';
+}
+$('#fixSearch').addEventListener('input', renderFixes);
+
 /* ---------------- 좌석 결과 코드·매장 현황 ---------------- */
 function seatPill() { $('#seatPill').textContent = S.seat ? S.seat + '번 좌석' : '좌석 미지정'; $('#seatIn').value = S.seat || ''; }
 function b64enc(obj) { var bytes = new TextEncoder().encode(JSON.stringify(obj)), bin = ''; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); return btoa(bin); }
@@ -1056,7 +1072,10 @@ function addToShop(items, fileSeat) {
     // 같은 글에 웹 결과 + 점검 프로그램 결과가 함께 있으면 같은 좌석으로 묶음
     if (!seat && it.kind === 'native' && lastKey) key = lastKey;
     var e = shop[key] || { key: key, seat: seat, computer: '', at: 0 };
-    if (it.kind === 'native') { e.native = it.data; e.computer = it.data.computer || e.computer; }
+    if (it.kind === 'native') {
+      if (e.native && e.native.time !== it.data.time) { var ch = diffNative(e.native, it.data); if (ch.length) { e.history = (e.history || []).concat([{ at: it.data.time || '', from: e.native.time || '', ch: ch }]).slice(-10); } }
+      e.native = it.data; e.computer = it.data.computer || e.computer;
+    }
     else e.web = it.data;
     e.seat = e.seat || seat;
     e.at = Math.max(e.at || 0, (it.kind === 'web' ? it.data.at : Date.parse((it.data.time || '').replace(' ', 'T')) || Date.now()));
@@ -1064,6 +1083,18 @@ function addToShop(items, fileSeat) {
   });
   saveShop();
   return { added: Object.keys(keys).length, errors: errors };
+}
+// 같은 좌석의 이전 점검과 비교해 바뀐 것 (드라이버·윈도우·주사율·전원·램·부품)
+function diffNative(a, b) {
+  var out = [];
+  var cmp = function (label, x, y) { x = x == null ? '' : String(x); y = y == null ? '' : String(y); if (x !== y && (x || y)) out.push(label + ': ' + (x || '없음') + ' → ' + (y || '없음')); };
+  cmp('CPU', a.cpu, b.cpu);
+  cmp('그래픽', (a.gpus || []).map(function (g) { return g.name; }).join(', '), (b.gpus || []).map(function (g) { return g.name; }).join(', '));
+  cmp('그래픽 드라이버', (a.gpus || [])[0] && a.gpus[0].driver, (b.gpus || [])[0] && b.gpus[0].driver);
+  cmp('RAM(GB)', a.ramGB, b.ramGB); cmp('램 속도', a.ramSpeed, b.ramSpeed);
+  cmp('윈도우 빌드', a.osBuild, b.osBuild); cmp('주사율(Hz)', a.hz, b.hz); cmp('전원 관리', a.power, b.power);
+  cmp('보안 부팅', a.secureBoot, b.secureBoot); cmp('TPM', a.tpm, b.tpm); cmp('네트워크', a.adapter, b.adapter);
+  return out;
 }
 function stateOf(e) {
   var w = e.web || {};
@@ -1151,6 +1182,7 @@ function seatReportHTML(r) {
   var h = '<div class="stack"><div class="row between"><div class="h2">' + esc(r.seat) + (/^\d+$/.test(String(r.seat)) ? '번 좌석' : '') + '</div><span class="small muted">' + d.toLocaleString('ko-KR') + '</span></div>' +
     '<dl class="kv"><dt>CPU</dt><dd>' + esc(r.cpu) + (n.cores ? ' · ' + n.cores + '코어 ' + n.threads + '스레드' : '') + '</dd><dt>그래픽</dt><dd>' + esc(r.gpu) + (r.sp.vram ? ' · ' + fmt(r.sp.vram, 0) + 'GB' : '') + '</dd><dt>RAM</dt><dd>' + (r.ram ? esc(r.ram) + 'GB' : '-') + (n.ramSpeed ? ' · ' + n.ramSpeed + 'MT/s' : '') + '</dd><dt>운영체제</dt><dd>' + esc(n.osName || (r.st.det && r.st.det.osName) || '-') + '</dd><dt>모니터</dt><dd>' + (r.hz ? r.hz + 'Hz' : '-') + '</dd>' +
     (n.adapter ? '<dt>네트워크</dt><dd>' + esc(n.adapter) + '</dd>' : '') + (r.gw != null ? '<dt>게이트웨이</dt><dd>' + fmt(r.gw, 1) + 'ms · 손실 ' + (r.gwLoss || 0) + '%</dd>' : '') + (r.ext != null ? '<dt>외부 지연</dt><dd>' + fmt(r.ext) + 'ms</dd>' : '') + '</dl>';
+  if (r.e.history && r.e.history.length) h += '<div class="h3">지난 점검과 달라진 점</div><ul class="fixlist small">' + r.e.history.slice().reverse().map(function (x) { return '<li><b>' + esc(x.from) + ' → ' + esc(x.at) + '</b><br>' + x.ch.map(esc).join('<br>') + '</li>'; }).join('') + '</ul>';
   h += r.pr.length ? '<div class="h3">조치할 것</div><ol class="fixlist">' + r.pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : p.lv === 'warn' ? '확인' : '참고') + '</span> <b>' + esc(p.t) + '</b>' + (p.fix ? '<div class="small muted">' + esc(p.fix) + '</div>' : '') + '</li>'; }).join('') + '</ol>' : '<div class="okbox">문제가 없어요.</div>';
   h += '<div class="h3">게임별 판정 (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</div><div class="tblwrap"><table><tbody>' + GAMES.map(function (g, i) { var j = r.games[i], lv = LV[j.level]; return '<tr><td>' + g.rank + '. ' + esc(g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (j.fps != null ? '약 ' + fmt(j.fps) + 'fps' : '-') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
   return h;
@@ -1244,6 +1276,7 @@ $('#copyRep').addEventListener('click', function () {
 $('#seatIn').addEventListener('change', function () { S.seat = this.value.trim(); save(); seatPill(); });
 
 /* ---------------- 시작 ---------------- */
+try { var qs = new URLSearchParams(location.search).get('seat'); if (qs) { S.seat = qs.slice(0, 20); save(); } } catch (e) {}
 fillLists(); seatPill();
 if (S.native) S.native = sanitizeNative(S.native);
 detect().then(function () { renderSummary(); renderSpec(); var t = $('.tabs [aria-selected="true"]'); if (t && t.dataset.tab === 'games') renderGames(); });

@@ -2,26 +2,27 @@
    - 순위: 게임트릭스 PC방 점유율(2026-11-08 일간). 더로그 주간 순위와 조금 다를 수 있음.
    - 요구 사양: 각 게임 공식 안내(라이엇·크래프톤·넥슨·블리자드·스마일게이트·엔씨소프트·로블록스) 기준. 바뀔 수 있음.
    - 부품 점수: PassMark G3D Mark / CPU Mark(전체·단일) 근사치(±10%). 상대 비교용.
-   - fps 보정값: g3060 = RTX 3060·1080p·중간 옵션에서 그래픽 한계 fps, c12400 = i5-12400에서 CPU 한계 fps (커뮤니티 벤치마크 경향을 반영한 추정치). cap = 게임 자체 프레임 상한. */
+   - fps 보정값: g3060 = RTX 3060·1080p·중간 옵션에서 그래픽 한계 fps, c12400 = i5-12400에서 CPU 한계 fps, e/eHi = 그래픽 점수 대비 fps 곡선(저사양/고사양 쪽), cap = 게임 자체 프레임 상한.
+   2026-11 보정: 롤(노트북체크 UHD 630), 발로란트(UE5 전환 후 사용자 측정), 오버워치 2(엔비디아 발표·2024 측정), 배그(노트북체크·탐스하드웨어) 실측값에 맞춤. FC 온라인·서든어택·메이플·리니지 클래식은 공개 측정값이 없어 추정. */
 window.RANK_SOURCE = '순위: 게임트릭스 PC방 점유율 2026-11-08';
 window.GAMES = [
   { id: 'lol', rank: 1, name: '리그 오브 레전드', short: '롤', share: '34.1%',
     min: { os: 'win10', cpu: ['i3-530', 'A6-3650'], gpu: ['Intel HD 4600', 'HD 6570', 'GT 430'], ram: 2, vram: 1, storage: '16GB' },
     rec: { os: 'win11', cpu: ['i5-3300', 'Ryzen 3 1200'], gpu: ['GTX 560', 'HD 6950', 'Intel UHD 630'], ram: 4, vram: 2, storage: '16GB SSD' },
-    fps: { e: 0.75,  g3060: 480, c12400: 340, cap: null },
+    fpsBasis: '실측 보정', fps: { e: 0.45, g3060: 420, c12400: 400, cap: null },
     checks: ['라이엇 뱅가드(커널 안티치트) 필요 · Windows 10 빌드 19041 이상', 'DirectX 11 기능 수준 11_0 필수(DX9 지원 종료, 부족하면 플레이 버튼이 비활성) · CPU가 SSE4.2를 지원해야 함'],
     src: 'support.riotgames.com 최소·권장 사양' },
   { id: 'val', rank: 2, name: '발로란트', short: '발로란트', share: '10.2%',
     min: { os: 'win10', cpu: ['Core 2 Duo E8400', 'Athlon 200GE'], gpu: ['Intel HD 4000', 'R5 230'], ram: 4, vram: 1, storage: '약 50GB' },
     rec: { os: 'win10', cpu: ['i5-9400F', 'Ryzen 5 2600X'], gpu: ['GTX 1050 Ti', 'R7 370', 'Arc A310'], ram: 4, vram: 1, storage: '약 50GB SSD' },
-    fps: { e: 0.75,  g3060: 480, c12400: 420, cap: null },
+    fpsBasis: '실측 보정', fps: { e: 0.7, g3060: 340, c12400: 400, cap: null },
     tiers: '공식: 최소 30fps · 권장(i3-4150/GT 730) 60fps · 고사양(i5-9400F/GTX 1050 Ti) 144fps 이상',
     checks: ['라이엇 뱅가드 필요 · Windows 11은 TPM 2.0과 보안 부팅(Secure Boot)이 켜져 있어야 함(VAN9001/9003 오류)', '공식 고사양 기준 = 144fps 이상 · CPU가 SSE4.2 또는 AVX 지원 · 2025-07 언리얼 엔진 5로 바뀌었지만 공식 사양은 그대로'],
     src: 'support-valorant.riotgames.com 최소 사양' },
   { id: 'pubg', rank: 3, name: '배틀그라운드', short: '배그', share: '9.1%',
     min: { os: 'win10', cpu: ['i5-4430', 'FX-6300'], gpu: ['GTX 960', 'R7 370'], ram: 8, vram: 2, storage: '40GB' },
     rec: { os: 'win10', cpu: ['i5-6600K', 'Ryzen 5 1600'], gpu: ['GTX 1060 3GB', 'RX 580'], ram: 16, vram: 3, storage: '50GB SSD' },
-    fps: { e: 0.9,  g3060: 150, c12400: 175, cap: null },
+    fpsBasis: '실측 보정', fps: { e: 1.0, eHi: 1.5, g3060: 190, c12400: 220, cap: null },
     checks: ['64비트 전용 · DirectX 11'],
     src: 'Steam 상점 페이지(app 578080)·pubg.com' },
   { id: 'fco', rank: 4, name: 'FC 온라인', short: 'FC 온라인', share: '8.1%',
@@ -33,19 +34,19 @@ window.GAMES = [
   { id: 'ow', rank: 5, name: '오버워치 2', short: '오버워치', share: '5.6%',
     min: { os: 'win10', cpu: ['i3-2100', 'Phenom X3 8650'], gpu: ['GTX 650', 'HD 7750'], ram: 6, vram: 1, storage: '50GB' },
     rec: { os: 'win10', cpu: ['i7-4770', 'Ryzen 5 1600'], gpu: ['GTX 1060 6GB', 'R9 380'], ram: 8, vram: 3, storage: '50GB' },
-    fps: { e: 0.85,  g3060: 230, c12400: 340, cap: 600 },
+    fpsBasis: '실측 보정', fps: { e: 1.1, eHi: 1.6, g3060: 217, c12400: 340, cap: 600 },
     checks: ['공식 CPU 표기가 "Core i3 / Core i7 / Ryzen 5"처럼 세대가 없어 대표 모델로 계산', '배틀넷 계정 · 일부 계정은 휴대폰 인증(SMS) 필요'],
     src: 'support.blizzard.com 오버워치 2 시스템 요구 사항' },
   { id: 'sa', rank: 6, name: '서든어택', short: '서든', share: '4.5%',
     min: { os: 'win10', cpu: ['Core 2 Duo E6300'], gpu: ['7600 GT'], ram: 2, storage: '40GB' },
     rec: { os: 'win10', cpu: ['i5-2500'], gpu: ['9600 GT'], ram: 8, storage: '40GB' },
-    fps: { e: 0.75,  g3060: 520, c12400: 300, cap: 200 },
+    fps: { e: 0.5, g3060: 500, c12400: 300, cap: 200 },
     checks: ['공식 사양은 기본 해상도·기본 옵션 기준(엔진이 가벼워 CPU 단일 코어 영향이 큼)', '게임 안 프레임 제한은 최대 200fps'],
     src: 'sa.nexon.com 설치 가이드' },
   { id: 'rbx', rank: 7, name: '로블록스', short: '로블록스', share: '4.0%',
     min: { os: 'win10', cpu: ['Core 2 Duo E8400'], gpu: ['GT 710'], ram: 2, storage: '300MB' },
     rec: { os: 'win10', cpu: ['i5-4460'], gpu: ['GTX 750 Ti'], ram: 8, storage: '1GB' },
-    fps: { e: 0.8,  g3060: 320, c12400: 240, cap: 240 },
+    fps: { e: 0.65, g3060: 340, c12400: 240, cap: 240 },
     checks: ['공식 권장 사양이 따로 없어 권장은 대표값 · DirectX 10 이상 그래픽 필요', '하이페리온 안티치트: 가상 머신에서 실행 불가', '체험(맵)마다 무게 차이가 아주 큼'],
     src: 'en.help.roblox.com 시스템 요구 사항' },
   { id: 'lin', rank: 8, name: '리니지 클래식', short: '리니지', share: '3.1%',
@@ -57,13 +58,13 @@ window.GAMES = [
   { id: 'maple', rank: 9, name: '메이플스토리', short: '메이플', share: '2.5%',
     min: { os: 'win10', cpu: ['Pentium E5200'], gpu: ['GT 430', 'HD 5670'], ram: 4, storage: '35GB' },
     rec: { os: 'win10', cpu: ['Pentium E5200'], gpu: ['GT 430', 'HD 5670'], ram: 8, storage: '35GB' },
-    fps: { e: 0.7,  g3060: 400, c12400: 200, cap: null },
+    fps: { e: 0.5, g3060: 400, c12400: 200, cap: null },
     checks: ['공식 안내는 권장 사양만 있음(펜티엄 듀얼코어 이상 · GT 430 이상) → 최소도 같은 값, RAM만 4GB로 계산', '2024-06-20부터 Windows 10 미만 지원 종료', '보스전·사냥터 이펙트가 많으면 CPU 단일 코어가 병목'],
     src: 'maplestory.nexon.com 다운로드·공지' },
   { id: 'la', rank: 10, name: '로스트아크', short: '로아', share: '1.7%',
     min: { os: 'win10', cpu: ['i3-10100', 'Ryzen 3 3100'], gpu: ['GTX 1050 Ti', 'RX 560'], ram: 16, vram: 4, storage: '110GB' },
     rec: { os: 'win10', cpu: ['i5-9400F', 'Ryzen 5 2600'], gpu: ['GTX 1660 Super', 'RX 6600'], ram: 16, vram: 6, storage: '110GB SSD' },
-    fps: { e: 0.9,  g3060: 125, c12400: 140, cap: null },
+    fps: { e: 0.75, g3060: 140, c12400: 150, cap: null },
     tiers: '공식: FHD 60Hz 최소/권장, QHD 권장(i5-11400/RTX 3060), UHD 권장(i5-12400/RTX 3080·RAM 32GB)',
     checks: ['공식 사양은 해상도별 60Hz 기준 · SSD 권장(110GB 여유)'],
     src: 'lostark.game.onstove.com 다운로드 페이지' }
@@ -369,3 +370,24 @@ Ryzen 9 7900X|51500|4200|24|ryzen 9 7900
 Ryzen 9 7950X|63000|4250|32
 Ryzen 9 9950X|66000|4700|32
 `;
+
+/* 문제 해결 안내: 증상·오류 코드 → 조치 순서. conf: 'high' 공식/여러 출처 확인, 'mid' 커뮤니티·지원 문서 경향 */
+window.FIXES = [
+  { k: 'VAN 9001 TPM 발로란트 롤 뱅가드', t: 'VAN 9001 — TPM 2.0이 꺼져 있음', g: '발로란트·롤 (Windows 11)', conf: 'high', steps: ['Win+R → tpm.msc 로 TPM 상태 확인 ("사용 준비 완료", 사양 버전 2.0)', 'BIOS 진입(부팅 때 Del/F2) → 인텔은 PTT(Intel Platform Trust Technology), AMD는 fTPM을 Enabled', '저장 후 재부팅, 라이엇 클라이언트 다시 실행', '노하드(디스크리스) 환경이면 서버 이미지가 아니라 각 좌석 BIOS에서 켜야 해요'] },
+  { k: 'VAN 9003 보안 부팅 secure boot 발로란트 롤', t: 'VAN 9003 — 보안 부팅(Secure Boot)이 꺼져 있음', g: '발로란트·롤 (Windows 11)', conf: 'high', steps: ['Win+R → msinfo32 → "보안 부팅 상태" 확인', 'BIOS → Boot → CSM(호환 모드) Disabled, 부팅 모드 UEFI', 'Secure Boot → Enabled (키가 없으면 "Install default Secure Boot keys")', '디스크가 MBR이면 UEFI 부팅이 안 돼요. 이미지 담당 업체에 GPT 전환 문의'] },
+  { k: 'VAN 9004 윈도우 빌드 업데이트 19041', t: 'VAN 9004 — 윈도우 버전이 너무 낮음', g: '롤·발로란트', conf: 'mid', steps: ['Win+R → winver 로 빌드 확인 (19041 이상 필요)', '윈도우 업데이트로 Windows 10 22H2 또는 Windows 11로 올리기', '노하드 이미지라면 서버 이미지 자체를 업데이트해야 해요'] },
+  { k: 'VAN 1067 뱅가드 시작 실패 롤 발로란트', t: 'VAN 1067 — 뱅가드가 시작되지 않음', g: '롤·발로란트 (주로 Windows 11)', conf: 'mid', steps: ['위의 TPM(VAN 9001)과 보안 부팅(VAN 9003) 상태부터 확인', 'Win+R → services.msc → "vgc" 서비스 시작 유형 "자동"으로, 시작', 'PC 재부팅(뱅가드는 부팅 때 같이 올라와야 해요)', '그래도 안 되면 제어판에서 Riot Vanguard 삭제 → 라이엇 클라이언트 실행 시 재설치 → 재부팅'] },
+  { k: 'VAN -81 81 84 뱅가드 연결 서비스 초기화', t: 'VAN -81 / 81 / 84 계열 — 뱅가드 서비스 연결 실패', g: '롤·발로란트', conf: 'mid', steps: ['PC 재부팅(가장 흔한 해결)', 'services.msc → vgc 서비스 "자동" + 시작', '백신·PC방 보안 프로그램이 vgk/vgc를 막는지 예외 등록', 'Riot Vanguard 삭제 후 재설치 → 재부팅'] },
+  { k: 'VAN 152 HWID 하드웨어 제재 밴', t: 'VAN 152 — 하드웨어(HWID) 제재로 알려진 코드', g: '발로란트', conf: 'mid', steps: ['이 좌석 하드웨어가 이전 이용자의 부정행위로 제재된 경우예요. 계정 문제가 아니라 좌석 문제', '라이엇 고객지원에 PC방 좌석임을 알리고 문의하세요', '임시로 해당 좌석에 "발로란트 이용 불가" 안내'] },
+  { k: 'BattlEye 배그 배틀그라운드 안티치트 서비스 시작 실패', t: 'BattlEye 오류 — 배그 실행 안 됨', g: '배틀그라운드', conf: 'mid', steps: ['게임과 Steam 완전 종료 후 다시 실행', 'services.msc → BEService 가 "사용 안 함"이면 "수동"으로', '백신·PC방 보안 프로그램에 TslGame.exe, BEService.exe 예외 등록', 'Steam → 배그 → 속성 → 설치된 파일 → 게임 파일 무결성 검사', '그래도 안 되면 게임 폴더의 BattlEye 폴더 삭제 후 무결성 검사로 재설치'] },
+  { k: 'BLZBNTAGT 배틀넷 오버워치 에이전트 업데이트 멈춤', t: 'BLZBNTAGT… — 배틀넷 에이전트 오류/업데이트 멈춤', g: '오버워치 2 (배틀넷)', conf: 'mid', steps: ['배틀넷과 작업 관리자의 Agent.exe 종료', 'C:\\ProgramData\\Battle.net 폴더 삭제 (숨김 폴더)', '배틀넷 다시 실행(에이전트 재설치됨)', '보안 프로그램이 Agent.exe를 막는지 확인'] },
+  { k: '넥슨 서든 메이플 FC 게임 실행 안됨 플러그 런처', t: '넥슨 게임이 실행되지 않음', g: 'FC 온라인·서든어택·메이플스토리', conf: 'mid', steps: ['넥슨 플러그(런처)·게임 완전 종료 후 관리자 권한 없이 다시 실행', '게임 설정의 "파일 검사/복구" 실행', '보안 프로그램 예외 등록, PC방 게임 패치(동기화) 상태 확인', 'PC방 혜택이 안 보이면 매장 IP가 넥슨 PC방 가맹으로 등록됐는지 관리 프로그램에서 확인'] },
+  { k: '60Hz 주사율 144Hz 240Hz 모니터 화면 끊김 부드럽지 않음', t: '144Hz 모니터인데 60Hz로 나옴', g: '모든 게임', conf: 'high', steps: ['바탕화면 우클릭 → 디스플레이 설정 → 고급 디스플레이 → 새로 고침 빈도 최대로', '케이블: DP 또는 HDMI 2.0 이상(오래된 HDMI는 1080p 120Hz 근처까지만 돼요)', '모니터 케이블이 메인보드가 아니라 그래픽카드 단자에 꽂혔는지', '게임 안 설정의 화면 주사율/프레임 제한도 확인', '부팅 뒤 계속 60Hz로 돌아가면 그래픽 드라이버 재설치, 모니터 OSD에서 오버클럭/모드 확인'] },
+  { k: '마우스 더블클릭 채터링 한번 눌렀는데 두번 드래그 풀림', t: '마우스가 한 번 눌렀는데 두 번 눌림(채터링)', g: '모든 게임', conf: 'high', steps: ['장비 테스트 탭에서 같은 버튼을 여러 번 눌러 채터링 횟수 확인', '다른 USB 포트·다른 PC에서도 같으면 마우스 스위치 고장', '마우스 소프트웨어에 디바운스 시간 설정이 있으면 올려 보기(임시)', '스위치 교체 또는 마우스 교체'] },
+  { k: '키보드 키 씹힘 안눌림 동시 입력 고스팅', t: '키가 안 눌리거나 동시에 누르면 씹힘', g: '모든 게임', conf: 'high', steps: ['장비 테스트 탭에서 해당 키와 W·A·S·D+Shift+Space 동시 입력 확인', '한 키만 안 되면 키캡을 빼고 이물질 청소', '여러 키를 동시에 누를 때만 안 되면 키보드 동시 입력 한계(교체 대상)', '모든 키가 가끔 안 되면 USB 포트·케이블 확인'] },
+  { k: '헤드셋 소리 한쪽 안들림 좌우 바뀜 발소리', t: '헤드셋 한쪽이 안 들리거나 좌우가 바뀜', g: '배그·발로란트·서든 등', conf: 'high', steps: ['장비 테스트 탭의 왼쪽/오른쪽 소리로 확인', '단자를 끝까지 꽂았는지, 앞면 단자면 뒷면 단자로', '윈도우 설정 → 접근성 → 오디오 → "모노 오디오" 꺼짐 확인', '사운드 드라이버(Realtek 등) 스피커 구성이 스테레오인지', '케이블이 꺾인 부분을 흔들 때 소리가 끊기면 헤드셋 교체'] },
+  { k: '마이크 안됨 인식 안됨 디스코드 보이스', t: '마이크가 안 됨', g: '모든 게임', conf: 'high', steps: ['장비 테스트 탭의 마이크로 소리 크기 확인', '분홍색 단자(또는 4극 콤보 단자) 확인, 헤드셋 마이크 음소거 스위치 확인', '윈도우 설정 → 시스템 → 소리 → 입력 장치가 맞는지, 볼륨', '윈도우 설정 → 개인 정보 → 마이크 → 앱의 마이크 접근 허용'] },
+  { k: '핑 튐 렉 순간이동 끊김 패킷 손실 인터넷', t: '게임에서 핑이 튀거나 순간이동(렉)', g: '모든 온라인 게임', conf: 'high', steps: ['윈도우 점검 프로그램으로 게이트웨이 핑 확인: 1~2ms 넘거나 손실이 있으면 매장 안 문제', '매장 안 문제: 랜선 교체(Cat5e 이상), 허브 포트 변경, 랜카드 드라이버 업데이트', '랜 속도가 100Mbps로 잡히면 랜선 8가닥 중 일부 단선 의심', '게이트웨이는 정상이고 외부만 높으면 통신사 문의', '여러 좌석이 동시에 튀면 매장 안에서 대용량 다운로드(패치·업데이트) 중인지 확인'] },
+  { k: '프레임 드랍 fps 낮음 버벅임 끊김 렉 성능 저하', t: '프레임이 갑자기 낮거나 버벅임', g: '모든 게임', conf: 'high', steps: ['매장 현황에서 같은 사양 좌석보다 점수가 낮은지 확인', '전원 관리 옵션을 "고성능"으로', '먼지 청소·팬 동작 확인(발열로 성능이 떨어져요)', '그래픽 드라이버 최신으로, 백그라운드 프로그램(채굴·광고 프로그램 등) 확인', 'BIOS에서 램 XMP/EXPO 켜기(롤·발로란트·서든처럼 CPU를 많이 쓰는 게임에 효과 큼)'] },
+  { k: '블루스크린 재부팅 꺼짐 다운', t: '게임 중 블루스크린/재부팅', g: '모든 게임', conf: 'mid', steps: ['그래픽 드라이버 완전 삭제(DDU) 후 재설치', '온도 확인(그래픽카드 85°C 이상이면 청소·서멀)', '램 XMP를 잠시 끄고 재현되는지 확인(램 불안정)', '파워 서플라이 용량·노후 확인', '같은 증상이 여러 좌석이면 최근 이미지/드라이버 변경을 되돌려 보기'] }
+];
