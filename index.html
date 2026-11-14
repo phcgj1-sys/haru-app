@@ -82,12 +82,26 @@ a.card>span:last-child{flex:1;min-width:0}
 .lsr a{display:block;padding:11px 14px;text-decoration:none;color:inherit;min-height:48px}
 .lsr a b{display:block;font-size:15px;font-weight:700}
 .lsr a span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.startguide{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin:0 0 12px}
+.startguide summary{font-weight:700;font-size:15px;cursor:pointer;min-height:28px}
+.sg{margin-top:12px}
+.sg b{font-size:14px}
+.sg ol{margin:6px 0 0;padding-left:22px}
+.sg li{margin:4px 0;font-size:14.5px}
+.sg a{color:var(--fg);text-underline-offset:3px}
 </style>
 </head>
 <body>
 <div class="app">
   <h1>하루 학습</h1>
   <p class="sub">하루 15분, 매일. 32가지 앱을 한곳에서.</p>
+  <details class="startguide" id="startguide"><summary>어디서 시작할까요? 목표별 추천 순서</summary>
+    <div class="sg"><b>외국어를 매일 조금씩</b><ol><li><a href="en/index.html">하루영어</a></li><li><a href="listen/index.html">영어 듣기 집중</a></li><li><a href="ja/index.html">하루일본어</a></li><li><a href="th/index.html">하루태국어</a></li></ol></div>
+    <div class="sg"><b>컴퓨터·스마트폰이 아직 어려워요</b><ol><li><a href="basics/index.html">스마트폰·컴퓨터 기초</a></li><li><a href="money/index.html">돈 관리 기초</a></li><li><a href="media/index.html">사진·영상 편집 기초</a></li><li><a href="writing/index.html">AI로 글쓰기</a></li></ol></div>
+    <div class="sg"><b>일에 AI·도구를 쓰고 싶어요</b><ol><li><a href="claude/index.html">클로드 배우기</a></li><li><a href="excel/index.html">엑셀 배우기</a></li><li><a href="sheets/index.html">구글 시트·폼 배우기</a></li><li><a href="homepage/index.html">클로드로 홈페이지 잘 만들기</a></li><li><a href="github/index.html">깃허브 처음부터 배우기</a></li></ol></div>
+    <div class="sg"><b>AI 앱을 직접 만들고 싶어요</b><ol><li><a href="ai/index.html">AI 엔지니어링: LLM 앱 만들기</a></li><li><a href="tools/index.html">AI 도구와 프로토콜: MCP·스킬</a></li><li><a href="agent/index.html">AI 에이전트 엔지니어링</a></li><li><a href="infra/index.html">AI 인프라와 운영</a></li><li><a href="safety/index.html">AI 윤리·안전·정렬</a></li></ol></div>
+    <div class="sg"><b>AI 원리를 기초부터 깊게</b><ol><li><a href="found/index.html">AI 기초: 개발 환경과 수학</a></li><li><a href="ml/index.html">머신러닝·딥러닝 기초</a></li><li><a href="nlp/index.html">자연어 처리</a></li><li><a href="llm/index.html">트랜스포머와 LLM 직접 만들기</a></li><li><a href="cap/index.html">캡스톤 프로젝트</a></li></ol></div>
+  </details>
   <input class="appq" id="appq" type="search" placeholder="앱·수업 찾기 (예: 엑셀, 어텐션, 연말정산)" aria-label="앱과 수업 찾기" autocomplete="off">
   <p class="muted-empty" id="appq-empty" hidden>찾는 앱이 없어요. 다른 낱말로 찾아보세요.</p>
   <div class="lsr" id="lsr" hidden><h2 class="h2 grp">수업</h2><ul id="lsr-list"></ul><p class="muted-empty" id="lsr-more" hidden></p></div>
