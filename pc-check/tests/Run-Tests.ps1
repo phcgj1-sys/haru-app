@@ -265,7 +265,21 @@ It '지난 검사 대비: 이후 새 문제 집계와 보고서 표시, 이력 �
     } finally { $script:WorkDir = $old }
 }
 
+It '백그라운드 수집: 진행 상황 전달 후 데이터 반환' {
+    $job = Start-CollectAsync -Days 3
+    $sw = [Diagnostics.Stopwatch]::StartNew(); $seen = 0
+    while (-not $job.Sync.Done -and $sw.Elapsed.TotalSeconds -lt 120) { if ($job.Sync.I -gt $seen) { $seen = $job.Sync.I }; Start-Sleep -Milliseconds 100 }
+    Assert $job.Sync.Done '120초 안에 완료'
+    $data = Complete-CollectAsync $job
+    Assert ($null -eq $job.Sync.Error) "오류: $($job.Sync.Error)"
+    Assert ($null -ne $data) '데이터 반환'
+    Assert-Eq $job.Sync.N 10 '단계 수 전달'
+    Assert-Eq $data.Meta.Days 3 '기간 전달'
+    [void](Get-Diagnosis -Data $data)
+}
+
 Write-Host "`n[소스 규칙]" -ForegroundColor Cyan
+
 
 It 'PCCheck.ps1 은 UTF-8 BOM (PowerShell 5.1 한글 깨짐 방지)' {
     $b = [IO.File]::ReadAllBytes((Join-Path $root 'PCCheck.ps1')); Assert ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) 'BOM'

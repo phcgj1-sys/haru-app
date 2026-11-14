@@ -239,11 +239,16 @@ function Read-MinidumpBugCode([string]$Path) {
     return ''
 }
 
+function Test-IsAdmin {
+    try { return [bool](([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) }
+    catch { return $false }
+}
 function Invoke-Collect {
+
     param([int]$Days = 30, [scriptblock]$Progress)
     $D = New-EmptyData
     $D.Meta.Days = $Days
-    $D.Meta.IsAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    $D.Meta.IsAdmin = Test-IsAdmin
     $since = (Get-Date).AddDays(-$Days)
 
     $steps = @(
@@ -398,6 +403,37 @@ function Invoke-Collect {
         }
     }
     return $D
+}
+
+function Start-CollectAsync {
+    # 수집을 별도 런스페이스에서 실행 (화면 멈춤 방지). 진행 상황은 동기화 해시테이블로 전달
+    param([int]$Days = 30)
+    $sync = [hashtable]::Synchronized(@{ I = 0; N = 0; Name = ''; Done = $false; Data = $null; Error = $null })
+    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    foreach ($fn in @(Get-ChildItem function:)) {
+        if ($fn.ScriptBlock) { $iss.Commands.Add((New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($fn.Name, $fn.Definition))) }
+    }
+    foreach ($v in 'AppName', 'AppVersion', 'LogFile', 'IsWin', 'WorkDir') {
+        $iss.Variables.Add((New-Object System.Management.Automation.Runspaces.SessionStateVariableEntry($v, (Get-Variable -Name $v -Scope Script -ValueOnly -ErrorAction SilentlyContinue), '')))
+    }
+    $rs = [runspacefactory]::CreateRunspace($iss)
+    $rs.Open()
+    $rs.SessionStateProxy.SetVariable('sync', $sync)
+    $rs.SessionStateProxy.SetVariable('days', $Days)
+    $ps = [powershell]::Create()
+    $ps.Runspace = $rs
+    [void]$ps.AddScript({
+        try { $sync.Data = Invoke-Collect -Days $days -Progress { param($i, $n, $name) $sync.I = $i; $sync.N = $n; $sync.Name = $name } }
+        catch { $sync.Error = $_.Exception.Message }
+        finally { $sync.Done = $true }
+    })
+    $h = $ps.BeginInvoke()
+    return [pscustomobject]@{ Sync = $sync; PS = $ps; Handle = $h; Runspace = $rs }
+}
+function Complete-CollectAsync($Job) {
+    try { [void]$Job.PS.EndInvoke($Job.Handle) } catch { if (-not $Job.Sync.Error) { $Job.Sync.Error = $_.Exception.Message } }
+    try { $Job.PS.Dispose(); $Job.Runspace.Dispose() } catch {}
+    return $Job.Sync.Data
 }
 
 # =====================================================================
@@ -1191,7 +1227,7 @@ function Show-Gui {
 
     $bar = New-Object Windows.Forms.ProgressBar
     $status = New-Object Windows.Forms.Label; $status.AutoEllipsis = $true; $status.ForeColor = [Drawing.Color]::DimGray
-    $status.Text = $(if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { '준비됨 (관리자 권한)' } else { '준비됨 — (주의) 관리자 권한이 아니어서 일부 항목이 빠질 수 있습니다' })
+    $status.Text = $(if (Test-IsAdmin) { '준비됨 (관리자 권한)' } else { '준비됨 — (주의) 관리자 권한이 아니어서 일부 항목이 빠질 수 있습니다' })
 
     $score = New-Object Windows.Forms.Label; $score.Font = $big; $score.Text = '—'; $score.TextAlign = 'MiddleLeft'
     $grade = New-Object Windows.Forms.Label; $grade.Font = $bold; $grade.AutoEllipsis = $true; $grade.Text = '상태 점수'
@@ -1224,12 +1260,11 @@ function Show-Gui {
     $state = @{ Result = $null }
     $report.Add_Click({ if ($state.Result) { Start-Process $state.Result.Html } })
     $folder.Add_Click({ if ($state.Result) { Start-Process 'explorer.exe' "/select,`"$($state.Result.Html)`"" } })
-    $start.Add_Click({
-        $start.Enabled = $false; $daysBox.Enabled = $false; $list.Items.Clear(); $f.Cursor = 'WaitCursor'
-        $d = [int](([string]$daysBox.SelectedItem) -replace '\D', '')
+    # 수집이 끝난 뒤(화면 스레드) 분석·저장·표시
+    $finish = {
+        param($data)
         try {
-            $data = Invoke-Collect -Days $d -Progress { param($i, $n, $name) $bar.Maximum = $n + 2; $bar.Value = $i; $status.Text = "수집 중 ($i/$n): $name"; [Windows.Forms.Application]::DoEvents() }
-            $status.Text = '분석 중...'; [Windows.Forms.Application]::DoEvents()
+            $status.Text = '분석 중...'
             $dx = Get-Diagnosis -Data $data
             $bar.Value = $bar.Maximum - 1
             $state.Result = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
@@ -1239,7 +1274,6 @@ function Show-Gui {
             $grade.Text = "상태: $($dx.Grade)"
             foreach ($c in $dx.Causes | Select-Object -First 4) {
                 $it = New-Object Windows.Forms.ListViewItem("[원인] $($c.Name)")
-
                 [void]$it.SubItems.Add("$($c.Score)"); [void]$it.SubItems.Add($c.Confidence)
                 $it.Font = $bold; $it.ToolTipText = (@($c.Reasons) -join "`n"); [void]$list.Items.Add($it)
             }
@@ -1259,7 +1293,38 @@ function Show-Gui {
             $status.Text = '오류가 발생했습니다.'
             [void][Windows.Forms.MessageBox]::Show($f, "검사 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)", $script:AppName, 'OK', 'Error')
         } finally { $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default' }
+    }
+    # 진행 상황 갱신 타이머 (수집은 백그라운드에서, 화면은 계속 반응)
+    $timer = New-Object Windows.Forms.Timer; $timer.Interval = 150
+    $timer.Add_Tick({
+        $j = $state.Job; if (-not $j) { $timer.Stop(); return }
+        $sy = $j.Sync
+        if ($sy.N -gt 0) { $bar.Maximum = $sy.N + 2; $bar.Value = [math]::Min($bar.Maximum, [int]$sy.I) }
+        $dots = '.' * (1 + ([int]([DateTime]::Now.Ticks / 4000000) % 3))
+        if ($sy.Name) { $status.Text = "수집 중 ($($sy.I)/$($sy.N)): $($sy.Name) $dots" }
+        if ($sy.Done) {
+            $timer.Stop(); $state.Job = $null
+            $data = Complete-CollectAsync $j
+            if ($sy.Error) {
+                $status.Text = '오류가 발생했습니다.'; $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default'
+                [void][Windows.Forms.MessageBox]::Show($f, "검사 중 오류가 발생했습니다.`n$($sy.Error)`n`n로그: $($script:LogFile)", $script:AppName, 'OK', 'Error')
+            } else { & $finish $data }
+        }
     })
+    $start.Add_Click({
+        $start.Enabled = $false; $daysBox.Enabled = $false; $list.Items.Clear(); $f.Cursor = 'AppStarting'
+        $score.Text = '—'; $score.ForeColor = [Drawing.Color]::Black; $grade.Text = '검사 중'
+        $d = [int](([string]$daysBox.SelectedItem) -replace '\D', '')
+        $bar.Value = 0; $status.Text = '검사 준비 중...'
+        try { $state.Job = Start-CollectAsync -Days $d; $timer.Start() }
+        catch {
+            # 백그라운드 실행이 안 되는 환경이면 기존 방식(화면 스레드)으로
+            Write-PCLog "async failed, sync fallback: $($_.Exception.Message)"
+            $data = Invoke-Collect -Days $d -Progress { param($i, $n, $name) $bar.Maximum = $n + 2; $bar.Value = $i; $status.Text = "수집 중 ($i/$n): $name"; [Windows.Forms.Application]::DoEvents() }
+            & $finish $data
+        }
+    })
+    $f.Add_FormClosing({ if ($state.Job) { try { $state.Job.PS.Stop() } catch {} } })
 
     $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $grp))
 
