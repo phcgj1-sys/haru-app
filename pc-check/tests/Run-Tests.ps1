@@ -283,12 +283,64 @@ It '백그라운드 수집: 진행 상황 전달 후 데이터 반환' {
     $data = Complete-CollectAsync $job
     Assert ($null -eq $job.Sync.Error) "오류: $($job.Sync.Error)"
     Assert ($null -ne $data) '데이터 반환'
-    Assert-Eq $job.Sync.N 10 '단계 수 전달'
+    Assert-Eq $job.Sync.N 11 '단계 수 전달'
     Assert-Eq $data.Meta.Days 3 '기간 전달'
     [void](Get-Diagnosis -Data $data)
 }
 
+Write-Host "`n[블랙박스]" -ForegroundColor Cyan
+function New-BbFile([string]$name, [object[]]$rows, [switch]$Stop, [string]$Tail) {
+    $p = Join-Path $OutDir $name
+    New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+    $l = @('# PCCheck blackbox,v1,TEST,2026-11-14T10:00:00,2.1.0', $script:BlackboxCols)
+    $t = Get-Date '2026-11-14T10:00:00'
+    foreach ($r in $rows) { $t = $t.AddSeconds(2); $l += ('{0},{1},40,{2},{3},{4},2500,3000,{5},{6},{7}' -f (Format-T $t), $r[0], $r[1], $r[2], $r[3], $r[4], $r[5], $r[6]) }
+    if ($Stop) { $l += ('{0},,,,,,,,,,STOP' -f (Format-T $t.AddSeconds(2))) }
+    if ($Tail) { $l += $Tail }
+    [IO.File]::WriteAllLines($p, [string[]]$l); return $p
+}
+It '갑자기 끊김 + 고부하 + 정상 온도 → 파워' {
+    $p = New-BbFile 'a.csv' (@(1..20 | ForEach-Object { ,@(100, 72, 99, 280, 1, 1, '') }))
+    $a = Read-BlackboxAnalysis $p
+    Assert $a.Abrupt '끊김'; Assert-Eq $a.Cause 'PSU' '원인'; Assert-Eq $a.Level 'bad' '수준'
+}
+It '갑자기 끊김 + 고온 → 과열' {
+    $p = New-BbFile 'b.csv' (@(1..10 | ForEach-Object { ,@(30, (80 + $_), 95, 250, 0, 1, '') }))
+    Assert-Eq (Read-BlackboxAnalysis $p).Cause 'THERMAL' '원인'
+}
+It '정상 종료 + 오류 기록 → 경고, 정상 종료 무오류 → 이상 없음' {
+    $p = New-BbFile 'c.csv' (@(@(90, 70, 99, 250, 1, 1, ''), @(90, 70, 99, 250, 1, 1, 'Xid 79 ; WHEA 18'))) -Stop
+    $a = Read-BlackboxAnalysis $p; Assert-Eq $a.Level 'warn' '경고'; Assert-Eq $a.Cause 'GPU_HW' 'GPU'; Assert-Eq $a.Events['Xid 79'] 1 '이벤트'
+    $p2 = New-BbFile 'd.csv' (@(1..30 | ForEach-Object { ,@(100, 70, 99, 250, 1, 1, '') })) -Stop
+    Assert-Eq (Read-BlackboxAnalysis $p2).Level 'ok' '정상'
+}
+It '전원 차단으로 잘린 마지막 줄은 무시' {
+    $p = New-BbFile 'e.csv' (@(1..5 | ForEach-Object { ,@(100, 70, 99, 250, 1, 1, '') })) -Tail '2026-11-14T10:01:00,10'
+    $a = Read-BlackboxAnalysis $p; Assert-Eq $a.Rows 5 '행 수'; Assert $a.Abrupt '끊김'
+}
+It '블랙박스 결과가 진단·보고서에 반영' {
+    $a = Read-BlackboxAnalysis (New-BbFile 'f.csv' (@(1..20 | ForEach-Object { ,@(100, 72, 99, 280, 1, 1, '') })))
+    $d = New-Scenario @{ Blackbox = @($a) }
+    $dx = Get-Diagnosis -Data $d
+    Assert-Eq (Top $dx) 'PSU' '파워 1순위'
+    Assert ((New-HtmlReport -Data $d -Dx $dx) -match '블랙박스 기록') '보고서 표시'
+    Assert-Eq (Top (Get-Diagnosis -Data (RoundTrip $d))) 'PSU' 'JSON 왕복'
+}
+It '실제 기록기: 줄 기록 후 중지 표시, CPU 부하 시작/중지' {
+    $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb') -IntervalSec 0.3 -NoEvents
+    $cpu = Start-CpuStress -Threads 2
+    Start-Sleep -Seconds 2
+    Stop-CpuStress $cpu
+    Stop-Blackbox $job
+    Assert ($null -eq $job.Sync.Error) "오류: $($job.Sync.Error)"
+    $lines = @(Get-Content $job.Path)
+    Assert ($lines.Count -ge 5) "줄 수 $($lines.Count)"
+    Assert ($lines[-1] -match ',STOP$') '중지 표시'
+    $a = Read-BlackboxAnalysis $job.Path; Assert (-not $a.Abrupt) '정상 종료'
+}
+
 Write-Host "`n[영어]" -ForegroundColor Cyan
+
 It '영어 보고서·요약에 한글이 남지 않음 (모든 시나리오)' {
     $script:UiLang = 'en'
     try {
@@ -301,6 +353,13 @@ It '영어 보고서·요약에 한글이 남지 않음 (모든 시나리오)' {
         $x.Dimms = @([ordered]@{ Slot = 'A'; SizeGB = 8; ConfiguredMHz = 3600; RatedMHz = 2133; Part = 'X'; DDR = 'DDR4' }, [ordered]@{ Slot = 'B'; SizeGB = 16; ConfiguredMHz = 3600; RatedMHz = 2133; Part = 'Y'; DDR = 'DDR4' })
         $x.Whea = @(17, 18, 19, 47 | ForEach-Object { [ordered]@{ T = (T 2); Id = $_; Level = 3; Comp = 'x'; Msg = 'x' } })
         $x.BugChecks = @('0x116', '0x1A', '0x124', '0x9F', '0x12345' | ForEach-Object { [ordered]@{ T = (T 3); Code = $_ } })
+        $x.Blackbox = @(
+            (Read-BlackboxAnalysis (New-BbFile 'en1.csv' (@(1..5 | ForEach-Object { ,@(100, 72, 99, 280, 1, 1, '') })))),
+            (Read-BlackboxAnalysis (New-BbFile 'en2.csv' (@(1..5 | ForEach-Object { ,@(10, 95, 5, 80, 0, 0, '') })))),
+            (Read-BlackboxAnalysis (New-BbFile 'en3.csv' (@(1..5 | ForEach-Object { ,@(10, 50, 5, 80, 0, 0, '') })))),
+            (Read-BlackboxAnalysis (New-BbFile 'en4.csv' (@(@(10, 50, 5, 80, 0, 0, 'WHEA 19'))) -Stop)),
+            (Read-BlackboxAnalysis (New-BbFile 'en5.csv' (@(@(10, 50, 5, 80, 0, 0, ''))) -Stop)))
+
         $all += $x
         foreach ($d in $all) {
             $dx = Get-Diagnosis -Data $d
