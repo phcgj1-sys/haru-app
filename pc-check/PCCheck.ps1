@@ -1724,7 +1724,8 @@ $script:EnPairs = @(
 
     # ---- 화면(GUI)·콘솔·도구
     @('PC 원클릭 진단', 'PC One-Click Check'),
-    @('갑자기 꺼짐 · 블루스크린 · 그래픽카드(VRAM) · RAM · 디스크 문제를 Windows 기록으로 분석합니다.', 'Analyzes sudden power-offs, blue screens, graphics card (VRAM), RAM and disk problems from Windows records.'),
+    @('갑자기 꺼짐 · 블루스크린 · 그래픽카드(VRAM) · RAM · 디스크 문제를 Windows 기록으로 분석합니다.', 'Finds causes of power-offs, blue screens, GPU/VRAM, RAM and disk issues.'
+),
     @('분석 기간', 'Period'), @('검사 시작', 'Start scan'), @('준비됨 (관리자 권한)', 'Ready (administrator)'),
     @('준비됨 — (주의) 관리자 권한이 아니어서 일부 항목이 빠질 수 있습니다', 'Ready — (note) not administrator, some items may be missing'),
     @('상태 점수', 'Health score'), @('의심 원인 / 발견 사항', 'Likely causes / findings'), @('점수', 'Score'), @('가능성', 'Likelihood'),
