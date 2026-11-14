@@ -1,19 +1,24 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111111"><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#666;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style></head><body><a class="hublink" href="../index.html">‹ 전체 앱</a><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111111"><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#555;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style></head><body><a class="hublink" href="../index.html">‹ 전체 앱</a><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
 <title>하루일본어</title>
+<meta name="description" content="단어 344 · 통문장 120 · 역할극 · 읽는 법 표시">
+<meta property="og:title" content="하루일본어 · 하루 학습">
+<meta property="og:description" content="단어 344 · 통문장 120 · 역할극 · 읽는 법 표시">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Thai:wght@400;500;700&display=swap">
 <style>
 /* Layout: one centered column (max 600px) with a fixed bottom tab bar; study sessions open as a full-screen layer. Default look: white & black; skins via html[data-skin]. */
 :root{
   --bg:#F7F7F5; --surface:#FFFFFF; --fg:#111111; --muted:#666666; --line:#E2E2DE; --soft:#EFEFEB;
   --accent:#111111; --accent-ink:#FFFFFF; --accent-soft:#E6E6E2;
-  --ok:#1E9A58; --ok-soft:#E1F5E9; --bad:#D4433B; --bad-soft:#FBE6E4; --warn:#B97A00; --warn-soft:#FFF3D6;
+  --ok:#167A45; --ok-soft:#E1F5E9; --bad:#D4433B; --bad-soft:#FBE6E4; --warn:#B97A00; --warn-soft:#FFF3D6;
   --shadow:0 6px 24px rgba(0,0,0,.08);
   --font-ko:"Noto Sans KR",system-ui,-apple-system,"Segoe UI",sans-serif;
   --font-en:"Noto Sans JP","Noto Sans Thai","Noto Sans KR",system-ui,sans-serif;
   color-scheme:light;
 }
 :root[data-skin="light"]{ --accent:#2E54D3; --accent-soft:#E4EAFB; --bg:#F4F6FA; --line:#DCE2EA; --soft:#EEF1F6; --fg:#17202B; --muted:#5E6975 }
-:root[data-skin="red"]{ --bg:#0A0A0C; --surface:#151518; --fg:#F3F1EF; --muted:#9C9AA0; --line:#2A2A30; --soft:#1F1F24; --accent:#E6332C; --accent-ink:#FFFFFF; --accent-soft:#3B1613; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FFA447; --bad-soft:#3A2410; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
+:root[data-skin="red"]{ --bg:#0A0A0C; --surface:#151518; --fg:#F3F1EF; --muted:#9C9AA0; --line:#2A2A30; --soft:#1F1F24; --accent:#DC2F28; --accent-t:#FF4D45; --accent-ink:#FFFFFF; --accent-soft:#3B1613; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FFA447; --bad-soft:#3A2410; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
 :root[data-skin="navy"]{ --bg:#0A1220; --surface:#121C30; --fg:#EEF3FA; --muted:#93A3BC; --line:#243350; --soft:#1A2740; --accent:#4FA8FF; --accent-ink:#0A1220; --accent-soft:#143052; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF7A7A; --bad-soft:#3A1818; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
 :root[data-skin="dark"]{ --bg:#0F0F10; --surface:#1A1A1C; --fg:#F2F2F2; --muted:#9A9A9A; --line:#2C2C2F; --soft:#232326; --accent:#F2F2F2; --accent-ink:#111111; --accent-soft:#2E2E31; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF8A80; --bad-soft:#3A1A18; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
 *{box-sizing:border-box}
@@ -92,7 +97,7 @@ p{margin:0}
 .nav .in{max-width:600px;margin:0 auto;display:flex}
 .nav button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:10px 2px 9px;font-size:11px;font-weight:600;color:var(--muted);min-width:0}
 .nav button svg{width:22px;height:22px}
-.nav button.on{color:var(--accent)}
+.nav button.on{color:var(--accent-t,var(--accent))}
 .step{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--soft);width:100%;text-align:left}
 .step .n{width:26px;height:26px;border-radius:50%;background:var(--surface);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;flex:none;color:var(--muted)}
 .step.on .n{background:var(--accent);color:var(--accent-ink)}
@@ -158,7 +163,7 @@ p{margin:0}
 .line{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);align-items:flex-start}
 .line:last-child{border-bottom:0}
 .line .sp{font-size:12px;font-weight:700;color:var(--muted);width:52px;flex:none;padding-top:4px;overflow:hidden;text-overflow:ellipsis}
-.line .sp.me{color:var(--accent)}
+.line .sp.me{color:var(--accent-t,var(--accent))}
 .line .b{flex:1;min-width:0}
 .line .en{font-size:17px}
 .line .ko{font-size:13.5px;color:var(--muted);margin-top:2px}
@@ -256,7 +261,7 @@ function migrate(s){ const d=defaults(); if(!s||typeof s!=='object') return d; c
 function loadLocal(){ try{ const raw=localStorage.getItem(KEY); if(raw) state=migrate(JSON.parse(raw)); }catch(e){} }
 function saveLocal(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 function commit(){ state.updatedAt=Date.now(); saveLocal(); Sync.schedule(); applySkin(); }
-const SKINS=[['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#E6332C']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']]];
+const SKINS=[['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#DC2F28']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']]];
 function applySkin(){ document.documentElement.setAttribute('data-skin', (state.settings&&state.settings.skin)||'mono'); }
 const Sync = { ref:null, timer:null, writing:false, dirty:false, status:'local',
   async init(){ try{ if(!window.claude || typeof window.claude.use!=='function') return; const [db,user]=await Promise.all([window.claude.use('db'), window.claude.use('user')]); if(!db||!user) return; const id=await user.id(); if(!id) return; this.ref=db.doc('data/users/'+id+'/progress'); const snap=await this.ref.get(); if(snap.exists){ const remote=snap.data(); if((remote.updatedAt||0)>(state.updatedAt||0)){ state=migrate(JSON.parse(JSON.stringify(remote))); saveLocal(); applySkin(); render(); } else if((state.updatedAt||0)>(remote.updatedAt||0)) this.push(); } else if(state.updatedAt) this.push(); this.status='cloud'; if(ui.view==='more') render(); }catch(e){ console.warn('sync init', e); } },
@@ -578,7 +583,7 @@ function viewMore(){
     <div class="field"><label>카드가 나올 때 자동으로 읽기</label><div class="seg"><button class="${s.autoPlay?'on':''}" data-set="autoPlay" data-val="1">켜기</button><button class="${!s.autoPlay?'on':''}" data-set="autoPlay" data-val="0">끄기</button></div></div>
     <div class="field"><label>음성 시험</label><div class="row"><button class="btn sm" data-say="${esc(LANG.testPhrase||'')}">들어 보기</button></div></div>
     <div class="field" style="margin-top:8px"><label>진도 초기화</label>${ui.confirmReset? `<div class="row"><button class="btn danger" data-act="reset-yes">네, 모두 지울게요</button><button class="btn ghost" data-act="reset-no">취소</button></div>` : `<button class="btn ghost" data-act="reset-ask">모든 학습 기록 지우기</button>`}</div></div>`;
-  else body=`<div class="card stack"><div class="field"><label>내보내기</label><textarea class="ta" id="exportTa" readonly>${esc(JSON.stringify(state))}</textarea><div class="row"><button class="btn sm" data-act="copy-export">복사하기</button></div></div><div class="field" style="margin-top:8px"><label>가져오기</label><textarea class="ta" id="importTa" placeholder="내보내기로 복사해 둔 글을 여기에 붙여 넣으세요">${esc(ui.importText)}</textarea><div class="row"><button class="btn sm primary" data-act="do-import">가져오기 (지금 진도를 덮어써요)</button></div></div></div>`;
+  else body=`<div class="card stack"><div class="field"><label>내보내기</label><textarea class="ta" id="exportTa" aria-label="내보내기" readonly>${esc(JSON.stringify(state))}</textarea><div class="row"><button class="btn sm" data-act="copy-export">복사하기</button></div></div><div class="field" style="margin-top:8px"><label>가져오기</label><textarea class="ta" id="importTa" placeholder="내보내기로 복사해 둔 글을 여기에 붙여 넣으세요">${esc(ui.importText)}</textarea><div class="row"><button class="btn sm primary" data-act="do-import">가져오기 (지금 진도를 덮어써요)</button></div></div></div>`;
   return `<div class="topbar"><div class="brand"><h1>더보기</h1></div><span class="pill ${Sync.status==='cloud'?'ok':''}">${Sync.status==='cloud'?'계정에 저장 중':'이 기기에 저장'}</span></div><div class="tabs" style="margin-bottom:12px">${tabs}</div>${body}`;
 }
 
