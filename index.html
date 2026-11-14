@@ -52,12 +52,18 @@ a.card>span:last-child{flex:1;min-width:0}
 .h2{font-size:15px;font-weight:700;margin:0 0 10px}
 .grp{margin:22px 0 10px;color:var(--muted);font-size:14px}
 .grp-note{margin:-4px 0 10px;font-size:13px;color:var(--muted);line-height:1.6}
+[hidden]{display:none!important}
+.appq{width:100%;min-height:46px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--surface);color:var(--fg);font:inherit;font-size:15.5px;margin:0 0 14px}
+.appq:focus-visible{outline:3px solid var(--fg);outline-offset:1px}
+.muted-empty{color:var(--muted);font-size:14px;margin:0 0 12px}
 </style>
 </head>
 <body>
 <div class="app">
   <h1>하루 학습</h1>
   <p class="sub">하루 15분, 매일. 스물두 가지 앱을 한곳에서.</p>
+  <input class="appq" id="appq" type="search" placeholder="앱 찾기 (예: 엑셀, 강화학습, 일본어)" aria-label="앱 찾기" autocomplete="off">
+  <p class="muted-empty" id="appq-empty" hidden>찾는 앱이 없어요. 다른 낱말로 찾아보세요.</p>
   <a class="resume" id="resume" href="#"><span><div class="rk">이어서 학습</div><div class="rt" id="resumeT"></div><div class="rs" id="resumeS"></div></span><span class="go">계속하기</span></a>
   <h2 class="h2 grp">외국어</h2>
   <div class="grid">
@@ -115,6 +121,13 @@ a.card>span:last-child{flex:1;min-width:0}
 <script>
 (function(){
   // 각 앱이 이 기기에 저장한 진도를 읽어 카드에 표시 (언어 앱은 저장 방식이 달라 제외)
+  // 앱 찾기: 제목·설명으로 거르기
+  (function(){ var q=document.getElementById('appq'); if(!q) return; var empty=document.getElementById('appq-empty');
+    q.addEventListener('input', function(){ var v=q.value.trim().toLowerCase(); var shown=0;
+      Array.prototype.forEach.call(document.querySelectorAll('a.card'), function(a){ var hit=!v || a.textContent.toLowerCase().indexOf(v)>=0; a.hidden=!hit; if(hit) shown++; });
+      Array.prototype.forEach.call(document.querySelectorAll('.grid'), function(g){ var any=g.querySelector('a.card:not([hidden])'); g.hidden=!any; var h=g.previousElementSibling; while(h && !(h.tagName==='H2')){ if(h.classList.contains('grp-note')) h.hidden=!any; h=h.previousElementSibling; } if(h) h.hidden=!any; });
+      empty.hidden=shown>0; var r=document.getElementById('resume'); if(r&&r.classList.contains('show')) r.style.display=v?'none':''; });
+  })();
   var KEYS={'cap/index.html':'ai_capstone_study_v1','llm/index.html':'ai_llm_scratch_study_v1','mm/index.html':'ai_multimodal_study_v1','gen/index.html':'ai_gen_audio_study_v1','nlp/index.html':'ai_nlp_study_v1','rl/index.html':'ai_rl_study_v1','cv/index.html':'ai_cv_study_v1','found/index.html':'ai_found_math_study_v1','re/index.html':'ai_reverse_eng_study_v1','ml/index.html':'ai_ml_dl_study_v1','claude/index.html':'claude_study_v1','excel/index.html':'excel_study_v1','sheets/index.html':'sheets_study_v1','listen/index.html':'listen_study_v1','basics/index.html':'basics_study_v1','media/index.html':'media_study_v1','writing/index.html':'writing_study_v1','money/index.html':'money_study_v1','homepage/index.html':'homepage_study_v1','youtube/index.html':'youtube_study_v1','github/index.html':'github_study_v1','linux/index.html':'linux_slack_study_v1','ai/index.html':'ai_llm_eng_study_v1','tools/index.html':'ai_tools_mcp_study_v1','agent/index.html':'ai_agent_eng_study_v1','auto/index.html':'ai_autonomy_study_v1','multi/index.html':'ai_multiagent_study_v1','infra/index.html':'ai_infra_ops_study_v1','safety/index.html':'ai_safety_align_study_v1'};
   var best=null;
   Array.prototype.forEach.call(document.querySelectorAll('a.card'), function(a){
