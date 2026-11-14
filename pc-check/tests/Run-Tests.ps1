@@ -329,12 +329,14 @@ It '블랙박스 결과가 진단·보고서에 반영' {
 It '실제 기록기: 줄 기록 후 중지 표시, CPU 부하 시작/중지' {
     $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb') -IntervalSec 0.3 -NoEvents
     $cpu = Start-CpuStress -Threads 2
-    Start-Sleep -Seconds 2
+    # 첫 기록은 센서 준비(최초 1회 컴파일) 때문에 늦을 수 있으므로 3줄 이상 쌓일 때까지 대기 (최대 30초)
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($job.Sync.Rows -lt 3 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 200 }
     Stop-CpuStress $cpu
     Stop-Blackbox $job
     Assert ($null -eq $job.Sync.Error) "오류: $($job.Sync.Error)"
     $lines = @(Get-Content $job.Path)
-    Assert ($lines.Count -ge 5) "줄 수 $($lines.Count)"
+    Assert ($lines.Count -ge 6) "줄 수 $($lines.Count)"
     Assert ($lines[-1] -match ',STOP$') '중지 표시'
     $a = Read-BlackboxAnalysis $job.Path; Assert (-not $a.Abrupt) '정상 종료'
 }

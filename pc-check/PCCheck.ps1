@@ -1375,7 +1375,7 @@ function Show-BlackboxDialog {
     $font = New-Object Drawing.Font('Malgun Gothic', (10 * $s)); $bold = New-Object Drawing.Font('Malgun Gothic', (10.5 * $s), [Drawing.FontStyle]::Bold)
     $f = New-Object Windows.Forms.Form
     $f.Text = '블랙박스 기록 (재현 테스트)'; $f.Font = $font; $f.StartPosition = 'CenterParent'; $f.FormBorderStyle = 'FixedDialog'; $f.MaximizeBox = $false; $f.MinimizeBox = $false
-    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](560 * $s), [int](372 * $s))
+    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](560 * $s), [int](396 * $s))
     $u = { param([double]$v) [int][math]::Round($v * $s) }
     $mk = { param($type, $text, $x, $y, $w, $h) $c = New-Object $type; $c.Text = $text; $c.SetBounds((& $u $x), (& $u $y), (& $u $w), (& $u $h)); $f.Controls.Add($c); $c }
     $def = Get-BlackboxDefaultDir
@@ -1389,13 +1389,13 @@ function Show-BlackboxDialog {
     $cpuChk = & $mk Windows.Forms.CheckBox 'CPU 부하 걸기 (모든 코어 100%)' 16 124 528 26
     $gpuChk = & $mk Windows.Forms.CheckBox 'GPU·VRAM 부하 걸기 (memtest_vulkan 창이 열림)' 16 152 528 26
     $cpuChk.Checked = $true; $gpuChk.Checked = $true
-    $tip = & $mk Windows.Forms.Label '둘 다 켜면 전력 소모가 가장 커서 파워 문제 재현에 좋습니다. 20~30분 이상 권장.' 34 180 510 22
+    $tip = & $mk Windows.Forms.Label '둘 다 켜면 전력 소모가 가장 커서 파워 문제 재현에 좋습니다. 20~30분 이상 권장.' 34 180 510 42
     $tip.ForeColor = [Drawing.Color]::DimGray
-    $live = & $mk Windows.Forms.Label '대기 중' 16 214 528 48
+    $live = & $mk Windows.Forms.Label '대기 중' 16 230 528 52
     $live.Font = $bold
-    $startB = & $mk Windows.Forms.Button '기록 시작' 16 280 170 44
-    $stopB = & $mk Windows.Forms.Button '중지' 196 280 170 44
-    $anaB = & $mk Windows.Forms.Button '기록 파일 분석' 376 280 168 44
+    $startB = & $mk Windows.Forms.Button '기록 시작' 16 300 170 44
+    $stopB = & $mk Windows.Forms.Button '중지' 196 300 170 44
+    $anaB = & $mk Windows.Forms.Button '기록 파일 분석' 376 300 168 44
     $stopB.Enabled = $false
     $st = @{ Box = $null; Cpu = $null; Start = $null }
     $t = New-Object Windows.Forms.Timer; $t.Interval = 1000
