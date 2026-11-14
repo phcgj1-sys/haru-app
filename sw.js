@@ -1,5 +1,5 @@
 // 하루 학습 — 오프라인용 서비스 워커. 파일을 바꾸면 VERSION을 올리세요.
-const VERSION = 'haru-v33';
+const VERSION = 'haru-v34';
 const FILES = [
   './', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
   './en/index.html', './en/words.js', './en/words2.js', './en/content.js', './en/sentences.js', './en/dialogues.js', './en/scenes.js',
@@ -12,6 +12,7 @@ const FILES = [
   './tools/index.html', './tools/lessons.js',
   './agent/index.html', './agent/lessons.js',
   './auto/index.html', './auto/lessons.js',
+  './multi/index.html', './multi/lessons.js',
   './infra/index.html', './infra/lessons.js',
   './github/index.html', './github/lessons.js',
   './youtube/index.html', './youtube/lessons.js',
