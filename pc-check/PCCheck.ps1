@@ -1250,9 +1250,10 @@ function Show-Gui {
         param([int]$W, [int]$H)
         $u = { param([double]$v) [int][math]::Round($v * $s) }
         $m = & $u 20
-        $title.Location = New-Object Drawing.Point($m, (& $u 14))
+        $title.Left = $m; $title.Top = & $u 14
         $desc.SetBounds($m + (& $u 2), (& $u 48), $W - 2 * $m, (& $u 24))
-        $daysLbl.Location = New-Object Drawing.Point($m + (& $u 2), (& $u 90))
+        $daysLbl.Left = $m + (& $u 2); $daysLbl.Top = & $u 90
+
         $daysBox.SetBounds($m + (& $u 74), (& $u 86), (& $u 110), $daysBox.Height)
         $start.SetBounds($W - $m - (& $u 200), (& $u 78), (& $u 200), (& $u 44))
         $bar.SetBounds($m, (& $u 134), $W - 2 * $m, (& $u 10))
@@ -1377,6 +1378,12 @@ if ($Mode -eq 'Gui') {
         # 화면을 띄우지 못하면 보이는 콘솔 창으로 다시 실행 (숨김 창에서 멈추지 않도록)
 
         Write-PCLog "gui failed, relaunch console: $($_.Exception.Message)"
+        if (-not $PSCommandPath) {
+            # EXE(ps2exe)로 실행된 경우: 스크립트 경로가 없으므로 오류만 안내
+            try { [void][Windows.Forms.MessageBox]::Show("화면을 여는 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)", $script:AppName) } catch {}
+            return
+        }
+
         Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', "`"$PSCommandPath`"", '-Mode', 'Console', '-Days', $Days)
         return
     }
