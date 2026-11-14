@@ -197,7 +197,8 @@ function New-EmptyData {
         Gpus = @(); NvSmi = @(); Dimms = @()
         Shutdowns = @(); Unexpected = @(); BugChecks = @(); Dumps = @()
         GpuEvents = @(); Whea = @(); DiskEvents = @(); Disks = @(); MemDiag = @()
-        DriverInstalls = @(); AppCrashes = @(); OcTools = @(); Thermal = @()
+        DriverInstalls = @(); AppCrashes = @(); OcTools = @(); Thermal = @(); GpuSensors = @()
+
         Errors = @()
     }
 }
@@ -239,6 +240,65 @@ function Read-MinidumpBugCode([string]$Path) {
     return ''
 }
 
+$script:GpuPerfSource = @'
+using System;
+using System.Runtime.InteropServices;
+public static class PCCheckGpuPerf {
+    [StructLayout(LayoutKind.Sequential)] struct LUID { public uint Low; public int High; }
+    [StructLayout(LayoutKind.Sequential)] struct ADAPTERINFO { public uint hAdapter; public LUID Luid; public uint NumOfSources; public int Precise; }
+    [StructLayout(LayoutKind.Sequential)] struct ENUM2 { public uint NumAdapters; public IntPtr pAdapters; }
+    [StructLayout(LayoutKind.Sequential)] struct QUERY { public uint hAdapter; public int Type; public IntPtr pData; public uint Size; }
+    [StructLayout(LayoutKind.Sequential)] struct CLOSE { public uint hAdapter; }
+    [StructLayout(LayoutKind.Sequential)] public struct PERF {
+        public uint PhysicalAdapterIndex; public ulong MemoryFrequency; public ulong MaxMemoryFrequency; public ulong MaxMemoryFrequencyOC;
+        public ulong MemoryBandwidth; public ulong PCIEBandwidth; public uint FanRPM; public uint Power; public uint Temperature; public byte PowerStateOverride; }
+    [DllImport("gdi32.dll")] static extern int D3DKMTEnumAdapters2(ref ENUM2 e);
+    [DllImport("gdi32.dll")] static extern int D3DKMTQueryAdapterInfo(ref QUERY q);
+    [DllImport("gdi32.dll")] static extern int D3DKMTCloseAdapter(ref CLOSE c);
+    // 반환: 어댑터마다 { 온도(0.1도), 팬 RPM, 전력(0.1%) } — 실패한 항목은 -1
+    public static long[][] Read() {
+        ENUM2 e = new ENUM2();
+        if (D3DKMTEnumAdapters2(ref e) != 0 || e.NumAdapters == 0) return new long[0][];
+        int sz = Marshal.SizeOf(typeof(ADAPTERINFO));
+        IntPtr buf = Marshal.AllocHGlobal(sz * (int)e.NumAdapters);
+        try {
+            e.pAdapters = buf;
+            if (D3DKMTEnumAdapters2(ref e) != 0) return new long[0][];
+            long[][] res = new long[e.NumAdapters][];
+            for (int i = 0; i < e.NumAdapters; i++) {
+                ADAPTERINFO ai = (ADAPTERINFO)Marshal.PtrToStructure(new IntPtr(buf.ToInt64() + i * sz), typeof(ADAPTERINFO));
+                res[i] = new long[] { -1, -1, -1 };
+                PERF perf = new PERF();
+                int psz = Marshal.SizeOf(typeof(PERF));
+                IntPtr p = Marshal.AllocHGlobal(psz);
+                try {
+                    Marshal.StructureToPtr(perf, p, false);
+                    QUERY q = new QUERY(); q.hAdapter = ai.hAdapter; q.Type = 62; q.pData = p; q.Size = (uint)psz;  // KMTQAITYPE_ADAPTERPERFDATA
+                    if (D3DKMTQueryAdapterInfo(ref q) == 0) {
+                        perf = (PERF)Marshal.PtrToStructure(p, typeof(PERF));
+                        res[i][0] = perf.Temperature; res[i][1] = perf.FanRPM; res[i][2] = perf.Power;
+                    }
+                } catch { } finally { Marshal.FreeHGlobal(p); }
+                CLOSE c = new CLOSE(); c.hAdapter = ai.hAdapter; try { D3DKMTCloseAdapter(ref c); } catch { }
+            }
+            return res;
+        } finally { Marshal.FreeHGlobal(buf); }
+    }
+}
+'@
+function Get-GpuSensors {
+    # 제조사와 무관한 GPU 온도/팬 (Windows 10 2004+ 의 작업 관리자와 같은 출처). 지원 안 되면 빈 결과
+    $out = @()
+    try {
+        if (-not ('PCCheckGpuPerf' -as [type])) { Add-Type -TypeDefinition $script:GpuPerfSource -ErrorAction Stop }
+        $rows = [PCCheckGpuPerf]::Read()
+        for ($i = 0; $i -lt $rows.Length; $i++) {
+            $t = $rows[$i][0] / 10.0
+            if ($t -ge 5 -and $t -le 125) { $out += [ordered]@{ Index = $i; TempC = [math]::Round($t, 1); FanRPM = $(if ($rows[$i][1] -gt 0 -and $rows[$i][1] -lt 10000) { $rows[$i][1] } else { $null }) } }
+        }
+    } catch { Write-PCLog "gpu sensors: $($_.Exception.Message)" }
+    return $out
+}
 function Test-IsAdmin {
     try { return [bool](([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) }
     catch { return $false }
@@ -311,6 +371,7 @@ function Invoke-Collect {
                 }
                 $D.NvSmi = $rows
             }
+            $D.GpuSensors = @(Get-GpuSensors)
         } }
         @{ Name = 'RAM';                    Run = {
             $D.Dimms = @(Get-CimInstance Win32_PhysicalMemory | ForEach-Object {
@@ -679,6 +740,16 @@ function Get-Diagnosis {
             & $find $(if ($idle) { 'bad' } else { 'warn' }) 'THERMAL' "그래픽카드 온도 높음: $t °C" $(if ($idle) { '거의 쉬는 상태인데 온도가 높습니다. 팬 고장이나 먼지 막힘을 확인하세요.' } else { '부하 중 온도입니다. 85°C 이상이 계속되면 쿨링을 개선하세요.' }) $(if ($idle) { 15 } else { 5 })
         }
     }
+    if ($nv.Count -eq 0) {
+        # NVIDIA 외 (AMD/Intel): Windows 공통 센서 — 부하 정보가 없으므로 높은 기준만 적용
+        $gs = @(Get-Arr (Get-Prop $Data 'GpuSensors'))
+        $hot = @($gs | Where-Object { [double](Get-Prop $_ 'TempC') -ge 88 } | Sort-Object { - [double](Get-Prop $_ 'TempC') }) | Select-Object -First 1
+        if ($hot) {
+            $tc = Get-Prop $hot 'TempC'
+            & $add 'THERMAL' 14 "그래픽카드 $tc °C (Windows 센서)"
+            & $find 'warn' 'THERMAL' "그래픽카드 온도 높음: $tc °C" '검사 시점의 온도입니다. 부하가 거의 없는데도 이 정도라면 팬·먼지·써멀을 점검하세요.' 5
+        }
+    }
     foreach ($t in $therm) { if ([double]$t -ge 90) { & $add 'THERMAL' 15 "메인보드 온도 센서 $t °C"; & $find 'warn' 'THERMAL' "메인보드 온도 센서 $t °C" 'HWiNFO 로 CPU 온도를 확인하세요.' 8; break } }
 
     # ---- 11) 오버클럭 도구, 오래된 드라이버
@@ -984,6 +1055,8 @@ $findHtml
 <details class="sec"><summary>그래픽카드<span class="cnt">$($gpuRows.Count)</span></summary><div>
 $(ConvertTo-HtmlTable $gpuRows @('Name','Vram','Driver','DD','St') @('이름','VRAM','드라이버','드라이버 날짜','상태'))
 $(if ($nvRows.Count) { '<h4>NVIDIA 실시간 상태</h4>' + (ConvertTo-HtmlTable $nvRows @('Name','Temp','Util','Mem','Pw','Clk') @('이름','온도','사용률','VRAM','전력','클럭')) })
+$(if (@(Get-Arr (Get-Prop $Data 'GpuSensors')).Count) { '<h4>그래픽 센서 (Windows 제공)</h4>' + (ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'GpuSensors')) | ForEach-Object { [ordered]@{ I = "어댑터 $(Get-Prop $_ 'Index')"; T = "$(Get-Prop $_ 'TempC') °C"; F = $(if (Get-Prop $_ 'FanRPM') { "$(Get-Prop $_ 'FanRPM') RPM" } else { '-' }) } }) @('I','T','F') @('장치','온도','팬')) })
+
 </div></details>
 <details class="sec"$(if ($c.PowerLoss -or $shutRows.Count) { ' open' })><summary>갑작스런 종료 (Kernel-Power 41)<span class="cnt">$($shutRows.Count)</span></summary><div>
 $(ConvertTo-HtmlTable $shutRows @('T','K','W','B') @('시간','종류','추정','전원버튼'))

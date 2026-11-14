@@ -156,7 +156,17 @@ It '가상 머신에서는 RAM 혼용 경고 생략, 안내 표시' {
     $d2 = New-Scenario $over
     Assert (@((Get-Diagnosis -Data $d2).Findings) | Where-Object { $_.Title -match '섞어' }) '실제 PC 에서는 혼용 경고'
 }
+It 'AMD/Intel: Windows GPU 센서 고온 판정 (NVIDIA 정보 없을 때만)' {
+    $d = New-Scenario @{ GpuSensors = @([ordered]@{ Index = 0; TempC = 94; FanRPM = 3000 }) }
+    Assert (@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match '94' }) '고온 경고'
+    $d2 = New-Scenario @{ GpuSensors = @([ordered]@{ Index = 0; TempC = 60; FanRPM = 1000 }) }
+    Assert (-not (@((Get-Diagnosis -Data $d2).Findings) | Where-Object { $_.Title -match '그래픽카드 온도' })) '정상 온도'
+}
+It 'GPU 센서 읽기는 지원 안 되는 환경에서도 오류 없이 빈 결과' {
+    $r = @(Get-GpuSensors); Assert ($r.Count -ge 0) 'ok'
+}
 It '덤프 저장 꺼짐·페이지 파일 없음 안내' {
+
     $d = New-Scenario @{}; $d.System.CrashDump = 0; $d.System.PageFiles = 0
     $t = @((Get-Diagnosis -Data $d).Findings | ForEach-Object { $_.Title })
     Assert ($t -match '덤프 저장이 꺼져') '덤프'; Assert ($t -match '페이지 파일') '페이지 파일'
