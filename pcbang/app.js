@@ -1274,7 +1274,7 @@ function shopRows() {
   });
   return all;
 }
-var shopFilter = 'all', shopQuery = '';
+var shopFilter = 'all', shopQuery = '', shopSort = 'seat';
 function renderShop() {
   var rows = shopRows();
   $('#shopEmpty').hidden = rows.length > 0;
@@ -1300,6 +1300,7 @@ function renderShop() {
     if (same.length < 3 || !r[key]) return '';
     return r[key] < median(same) * 0.8 ? ' class="num lowv" title="같은 그래픽 좌석 중간값보다 20% 이상 낮음"' : '';
   }
+  if (shopSort === 'sev') rows = rows.slice().sort(function (a, b) { return (b.bad - a.bad) || (b.warn - a.warn) || String(a.seat).localeCompare(String(b.seat), 'ko', { numeric: true }); });
   var q = shopQuery.toLowerCase();
   var shown = rows.filter(function (r) {
     if (shopFilter === 'bad' && !r.bad) return false;
@@ -1379,6 +1380,7 @@ $('#shopAddThis').addEventListener('click', function () {
   addToShop(parseCodes(seatCodes())); toast('이 PC 결과를 매장 현황에 넣었어요'); renderShop();
 });
 $('#shopFilter').addEventListener('change', function () { shopFilter = this.value; renderShop(); });
+$('#shopSort').addEventListener('change', function () { shopSort = this.value; renderShop(); });
 $('#shopSearch').addEventListener('input', function () { shopQuery = this.value.trim(); renderShop(); });
 $('#shopTbl').addEventListener('click', function (e) {
   var o = e.target.closest('[data-open]'); if (o) { openSeat(o.dataset.open); return; }
