@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111111">
 <title>하루 학습</title>
-<meta name="description" content="하루 15분, 매일. 25가지 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
+<meta name="description" content="하루 15분, 매일. 26가지 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
 <meta property="og:title" content="하루 학습">
-<meta property="og:description" content="하루 15분, 매일. 외국어·생활 기초·일과 도구·개발과 AI까지 25가지 학습 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
+<meta property="og:description" content="하루 15분, 매일. 외국어·생활 기초·일과 도구·개발과 AI까지 26가지 학습 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
 <link rel="manifest" href="manifest.webmanifest">
@@ -88,6 +88,7 @@ a.card>span:last-child{flex:1;min-width:0}
   <div class="grid" id="g-basic">
     <a class="card" href="found/index.html"><span class="ic" style="background:#4338CA">기초</span><span><div class="t">AI 기초: 개발 환경과 수학</div><div class="s">6단계 35수업 · AI Engineering from Scratch 0·1단계 · 개발 환경·깃·도커 → 선형대수·미적분 → 확률·최적화·정보이론 → 통계</div></span></a>
     <a class="card" href="ml/index.html"><span class="ic" style="background:#9D174D">ML</span><span><div class="t">머신러닝·딥러닝 기초</div><div class="s">5단계 34수업 · AI Engineering from Scratch 2·3단계 · 회귀·트리·SVM → 평가·튜닝 → 실전 ML 시스템 → 퍼셉트론·역전파 → PyTorch·JAX</div></span></a>
+    <a class="card" href="cv/index.html"><span class="ic" style="background:#0E7490">비전</span><span><div class="t">컴퓨터 비전</div><div class="s">6단계 28수업 · AI Engineering from Scratch 4단계 · 합성곱·CNN → YOLO·U-Net → GAN·확산 → ViT·NeRF → CLIP·SAM·깊이·추적</div></span></a>
   </div>
   <h2 class="h2 grp">AI 엔지니어링 (강의 11~19단계)</h2>
   <p class="grp-note">추천 순서: LLM 앱 만들기 → 멀티모달 → 도구·MCP → 에이전트 → 자율 시스템 → 다중 에이전트 → 인프라·운영 → 윤리·안전 → 캡스톤</p>
@@ -108,7 +109,7 @@ a.card>span:last-child{flex:1;min-width:0}
 <script>
 (function(){
   // 각 앱이 이 기기에 저장한 진도를 읽어 카드에 표시 (언어 앱은 저장 방식이 달라 제외)
-  var KEYS={'found/index.html':'ai_found_math_study_v1','re/index.html':'ai_reverse_eng_study_v1','ml/index.html':'ai_ml_dl_study_v1','claude/index.html':'claude_study_v1','excel/index.html':'excel_study_v1','sheets/index.html':'sheets_study_v1','listen/index.html':'listen_study_v1','basics/index.html':'basics_study_v1','media/index.html':'media_study_v1','writing/index.html':'writing_study_v1','money/index.html':'money_study_v1','homepage/index.html':'homepage_study_v1','youtube/index.html':'youtube_study_v1','github/index.html':'github_study_v1','linux/index.html':'linux_slack_study_v1','ai/index.html':'ai_llm_eng_study_v1','tools/index.html':'ai_tools_mcp_study_v1','agent/index.html':'ai_agent_eng_study_v1','auto/index.html':'ai_autonomy_study_v1','multi/index.html':'ai_multiagent_study_v1','infra/index.html':'ai_infra_ops_study_v1','safety/index.html':'ai_safety_align_study_v1'};
+  var KEYS={'cv/index.html':'ai_cv_study_v1','found/index.html':'ai_found_math_study_v1','re/index.html':'ai_reverse_eng_study_v1','ml/index.html':'ai_ml_dl_study_v1','claude/index.html':'claude_study_v1','excel/index.html':'excel_study_v1','sheets/index.html':'sheets_study_v1','listen/index.html':'listen_study_v1','basics/index.html':'basics_study_v1','media/index.html':'media_study_v1','writing/index.html':'writing_study_v1','money/index.html':'money_study_v1','homepage/index.html':'homepage_study_v1','youtube/index.html':'youtube_study_v1','github/index.html':'github_study_v1','linux/index.html':'linux_slack_study_v1','ai/index.html':'ai_llm_eng_study_v1','tools/index.html':'ai_tools_mcp_study_v1','agent/index.html':'ai_agent_eng_study_v1','auto/index.html':'ai_autonomy_study_v1','multi/index.html':'ai_multiagent_study_v1','infra/index.html':'ai_infra_ops_study_v1','safety/index.html':'ai_safety_align_study_v1'};
   var best=null;
   Array.prototype.forEach.call(document.querySelectorAll('a.card'), function(a){
     var href=a.getAttribute('href'), k=KEYS[href]; if(!k) return; var st=null; try{ st=JSON.parse(localStorage.getItem(k)||'null'); }catch(e){} if(!st||!st.lessons) return;
