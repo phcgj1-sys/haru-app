@@ -1290,6 +1290,18 @@ function Show-Gui {
         } catch { Write-PCLog "dpi aware failed: $($_.Exception.Message)" }
     }
     [Windows.Forms.Application]::EnableVisualStyles()
+    if (-not $SmokeTest -and -not $script:GuiGuard) {
+        # 처리되지 않은 오류가 .NET 오류 창으로 뜨지 않도록 (로그 + 안내 후 계속 사용)
+        try {
+            [Windows.Forms.Application]::SetUnhandledExceptionMode([Windows.Forms.UnhandledExceptionMode]::CatchException)
+            [Windows.Forms.Application]::add_ThreadException({
+                param($sender, $e)
+                Write-PCLog "unhandled: $($e.Exception)"
+                [void][Windows.Forms.MessageBox]::Show((Tr "예상하지 못한 오류가 발생했습니다.`n$($e.Exception.Message)`n`n로그: $($script:LogFile)"), (Tr $script:AppName), 'OK', 'Error')
+            })
+            $script:GuiGuard = $true
+        } catch { Write-PCLog "guard failed: $($_.Exception.Message)" }
+    }
     $font = New-Object Drawing.Font('Malgun Gothic', (10 * $SimScale))
     $bold = New-Object Drawing.Font('Malgun Gothic', (11 * $SimScale), [Drawing.FontStyle]::Bold)
     $big  = New-Object Drawing.Font('Malgun Gothic', (26 * $SimScale), [Drawing.FontStyle]::Bold)
@@ -1343,13 +1355,19 @@ function Show-Gui {
             $sender.Enabled = $false; $f.Cursor = 'WaitCursor'
             $r = Invoke-Tool $sender.Tag
             $f.Cursor = 'Default'; $sender.Enabled = $true
-            if ($r.Ok) { [void][Windows.Forms.MessageBox]::Show($f, (Tr $r.Help), $sender.Text, 'OK', 'Information') }
-            else { [void][Windows.Forms.MessageBox]::Show($f, (Tr "실행하지 못했습니다.`n$($r.Error)"), $sender.Text, 'OK', 'Warning') }
+            if ($r.Ok) { & $notify $r.Help 'Information' $sender.Text }
+            else { & $notify "실행하지 못했습니다.`n$($r.Error)" 'Warning' $sender.Text }
         })
         $grp.Controls.Add($b); [void]$toolBtns.Add($b)
     }
 
-    $state = @{ Result = $null }
+    $state = @{ Result = $null; Job = $null; Tick = 0; Headless = [bool]$SmokeTest; Failed = $null }
+    # 안내 창 (자동 테스트 중에는 창 대신 기록만)
+    $notify = {
+        param([string]$text, [string]$icon = 'Information', [string]$caption = $script:AppName)
+        if ($state.Headless) { if ($icon -eq 'Error') { $state.Failed = $text }; Write-PCLog "notify: $text"; return }
+        [void][Windows.Forms.MessageBox]::Show($f, (Tr $text), (Tr $caption), 'OK', $icon)
+    }
     $report.Add_Click({ if ($state.Result) { Start-Process $state.Result.Html } })
     $folder.Add_Click({ if ($state.Result) { Start-Process 'explorer.exe' "/select,`"$($state.Result.Html)`"" } })
     # 수집이 끝난 뒤(화면 스레드) 분석·저장·표시
@@ -1379,31 +1397,39 @@ function Show-Gui {
             $list.ShowItemToolTips = $true
             $report.Enabled = $true; $folder.Enabled = $true
             $status.Text = (Tr '완료 — 보고서: ') + $state.Result.Html
-            Start-Process $state.Result.Html
+            if (-not $state.Headless) { Start-Process $state.Result.Html }
         } catch {
             Write-PCLog "gui error: $($_.Exception.Message)"
             $status.Text = Tr '오류가 발생했습니다.'
-            [void][Windows.Forms.MessageBox]::Show($f, (Tr "검사 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)"), (Tr $script:AppName), 'OK', 'Error')
+            & $notify "검사 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)" 'Error'
         } finally { $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default' }
     }
     # 진행 상황 갱신 타이머 (수집은 백그라운드에서, 화면은 계속 반응)
     $timer = New-Object Windows.Forms.Timer; $timer.Interval = 150
     $timer.Add_Tick({
-        $j = $state.Job; if (-not $j) { $timer.Stop(); return }
-        $sy = $j.Sync
-        if ($sy.N -gt 0) { $bar.Maximum = $sy.N + 2; $bar.Value = [math]::Min($bar.Maximum, [int]$sy.I) }
-        $dots = '.' * (1 + ([int]([DateTime]::Now.Ticks / 4000000) % 3))
-        if ($sy.Name) { $status.Text = (Tr "수집 중 ($($sy.I)/$($sy.N)): $($sy.Name)") + " $dots" }
-        if ($sy.Done) {
+        try {
+            $j = $state.Job; if (-not $j) { $timer.Stop(); return }
+            $sy = $j.Sync
+            if ($sy.N -gt 0) { $bar.Maximum = $sy.N + 2; $bar.Value = [math]::Max(0, [math]::Min($bar.Maximum, [int]$sy.I)) }
+            $state.Tick = ($state.Tick + 1) % 3
+            if ($sy.Name) { $status.Text = (Tr "수집 중 ($($sy.I)/$($sy.N)): $($sy.Name)") + ' ' + ('.' * (1 + $state.Tick)) }
+            if ($sy.Done) {
+                $timer.Stop(); $state.Job = $null
+                $data = Complete-CollectAsync $j
+                if ($sy.Error) {
+                    $status.Text = Tr '오류가 발생했습니다.'; $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default'
+                    & $notify "검사 중 오류가 발생했습니다.`n$($sy.Error)`n`n로그: $($script:LogFile)" 'Error'
+                } else { & $finish $data }
+            }
+        } catch {
+            # 화면 갱신 중 예상 못 한 오류: 프로그램이 죽지 않게 정리하고 안내
             $timer.Stop(); $state.Job = $null
-            $data = Complete-CollectAsync $j
-            if ($sy.Error) {
-                $status.Text = Tr '오류가 발생했습니다.'; $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default'
-                [void][Windows.Forms.MessageBox]::Show($f, (Tr "검사 중 오류가 발생했습니다.`n$($sy.Error)`n`n로그: $($script:LogFile)"), (Tr $script:AppName), 'OK', 'Error')
-            } else { & $finish $data }
+            Write-PCLog "tick error: $($_.Exception.Message)"
+            $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default'; $status.Text = Tr '오류가 발생했습니다.'
+            & $notify "검사 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)" 'Error'
         }
     })
-    $start.Add_Click({
+    $onStart = {
         $start.Enabled = $false; $daysBox.Enabled = $false; $list.Items.Clear(); $f.Cursor = 'AppStarting'
         $score.Text = '—'; $score.ForeColor = [Drawing.Color]::Black; $grade.Text = Tr '검사 중'
         $d = [int](([string]$daysBox.SelectedItem) -replace '\D', '')
@@ -1414,6 +1440,14 @@ function Show-Gui {
             Write-PCLog "async failed, sync fallback: $($_.Exception.Message)"
             $data = Invoke-Collect -Days $d -Progress { param($i, $n, $name) $bar.Maximum = $n + 2; $bar.Value = $i; $status.Text = Tr "수집 중 ($i/$n): $name"; [Windows.Forms.Application]::DoEvents() }
             & $finish $data
+        }
+    }
+    $start.Add_Click({
+        try { & $onStart }
+        catch {
+            Write-PCLog "start error: $($_.Exception.Message)"
+            $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default'
+            & $notify "검사 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)" 'Error'
         }
     })
     $f.Add_FormClosing({ if ($state.Job) { try { $state.Job.PS.Stop() } catch {} } })
@@ -1477,6 +1511,18 @@ function Show-Gui {
         }
         foreach ($i in $issues) { Write-Output "GUI LAYOUT ISSUE: $i" }
         & $doLayout 760 600
+        if ($env:PCCHECK_GUI_E2E -and $SimScale -eq 1.0) {
+            # 실제로 '검사 시작'을 누른 것과 같은 흐름을 끝까지 실행 (타이머·백그라운드 수집·분석·저장)
+            & $onStart
+            $sw = [Diagnostics.Stopwatch]::StartNew()
+            while (-not $state.Result -and -not $state.Failed -and $sw.Elapsed.TotalSeconds -lt 180) { [Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 30 }
+            $timer.Stop()
+            if ($state.Failed) { $issues += "검사 흐름 오류: $($state.Failed)" }
+            elseif (-not $state.Result -or -not (Test-Path $state.Result.Html)) { $issues += '검사 흐름: 180초 안에 보고서가 만들어지지 않음' }
+            elseif ($list.Items.Count -lt 1) { $issues += '검사 흐름: 결과 목록이 비어 있음' }
+            else { Write-Output "GUI E2E OK: $([int]$sw.Elapsed.TotalSeconds)s, 점수 $($score.Text), 목록 $($list.Items.Count)개, 상태줄 '$($status.Text)'" }
+            foreach ($i in $issues) { Write-Output "GUI ISSUE: $i" }
+        }
         if ($env:PCCHECK_SHOT -and $SimScale -eq 1.0) {
             # 화면 캡처 (CI 산출물로 디자인 확인)
             $bmp = New-Object Drawing.Bitmap($f.Width, $f.Height)

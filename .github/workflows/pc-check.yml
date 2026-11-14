@@ -55,12 +55,15 @@ jobs:
         shell: pwsh
         run: ./tests/CI-Run.ps1
 
-      - name: GUI construction
+      - name: GUI layout + real "Start scan" click flow (ko/en)
         if: success() || failure()
         shell: powershell
         run: |
           $env:PCCHECK_SHOT = Join-Path $env:RUNNER_TEMP 'gui.png'
-          powershell -NoProfile -STA -File ./PCCheck.ps1 -Mode Gui -GuiSmokeTest
+          $env:PCCHECK_GUI_E2E = '1'
+          powershell -NoProfile -STA -File ./PCCheck.ps1 -Mode Gui -GuiSmokeTest -OutDir "$env:RUNNER_TEMP\gui-e2e"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
 
 
 
