@@ -488,7 +488,7 @@ function Get-Diagnosis {
             $bi = Get-BugInfo $k
             $parts += "$k $($bi.N) $($codeCount[$k])회"
             $mult = [math]::Min(3, $codeCount[$k])
-            foreach ($wk in $bi.W.Keys) { & $add $wk ($bi.W[$wk] * $mult) "블루스크린 $k ($($bi.N))" }
+            foreach ($wk in $bi.W.Keys) { & $add $wk ($bi.W[$wk] * $mult) $(if ($bi.W[$wk] -ge 8) { "블루스크린 $k ($($bi.N))" } else { '' }) }
         }
         if ($codeCount.Count -ge 3 -and $crashes.Count -ge 3) {
             & $add 'RAM' 12 '블루스크린 코드가 매번 다름 (RAM 불량의 전형적 특징)'
@@ -508,7 +508,8 @@ function Get-Diagnosis {
         foreach ($x in $xids) {
             if ($script:XidDb.ContainsKey($x)) {
                 $xi = $script:XidDb[$x]
-                foreach ($wk in $xi.W.Keys) { & $add $wk $xi.W[$wk] "NVIDIA Xid $x ($($xi.D))" }
+                foreach ($wk in $xi.W.Keys) { & $add $wk $xi.W[$wk] $(if ($xi.W[$wk] -ge 8) { "NVIDIA Xid $x ($($xi.D))" } else { '' }) }
+
                 $detail += " Xid $x = $($xi.D)."
             }
         }
@@ -853,6 +854,8 @@ details.sec{background:var(--card);border:1px solid var(--line);border-radius:12
 pre{white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:12px;font:12px/1.6 Consolas,monospace;margin:0}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:8px 14px;cursor:pointer}button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
 footer{margin-top:40px;color:var(--muted);font-size:12px}
+.next{margin:6px 0 4px;padding:8px 12px;background:var(--soft);border-radius:8px}.next span{color:var(--muted);font-size:13px}
+
 .cmp{border-radius:12px;padding:12px 16px;margin:16px 0;border:1px solid var(--line);background:var(--card)}.cmp p{margin:2px 0 0;color:var(--muted)}
 .cmp.ok{border-left:5px solid var(--ok)}.cmp.bad{border-left:5px solid var(--bad)}
 
@@ -866,6 +869,9 @@ function copySummary(){var t=document.getElementById('sumtext').innerText;
 function flash(m){var b=document.getElementById('cpbtn');var o=b.textContent;b.textContent=m;setTimeout(function(){b.textContent=o},1600)}
 function openAll(v){document.querySelectorAll('details').forEach(function(d){d.open=v})}
 '@
+    $nextHtml = ''
+    $topC = @($Dx.Causes) | Select-Object -First 1
+    if ($topC -and $topC.Score -ge 30) { $nextHtml = "<p class='next'>👉 지금 할 일: <b>$(HtmlEnc @($topC.Steps)[0])</b> <span>($(HtmlEnc $topC.Name) 의심)</span></p>" }
     $cmpHtml = ''
     $pv = $Dx['Previous']
     if ($pv) {
@@ -886,6 +892,7 @@ function openAll(v){document.querySelectorAll('details').forEach(function(d){d.o
 <header>
  <div class="ring $gradeCls"><svg width="128" height="128" viewBox="0 0 128 128"><circle class="bg" cx="64" cy="64" r="52"/><circle class="fg" cx="64" cy="64" r="52" stroke-dasharray="$dash $circS"/></svg><b>$($Dx.Health)</b><small>/ 100</small></div>
  <div class="hd"><h1>PC 진단 보고서</h1><div class="grade">상태: $(HtmlEnc $Dx.Grade)</div>
+ $nextHtml
  <p class="sub">$(HtmlEnc (Get-Prop $m 'Computer')) · $(HtmlEnc ([string](Get-Prop $m 'Created')).Replace('T',' ')) · 최근 $(Get-Prop $m 'Days')일 분석 · v$(HtmlEnc (Get-Prop $m 'Version'))</p>
  <p class="sub">$(HtmlEnc (Get-Prop $s 'CPU')) · RAM $(HtmlEnc (Get-Prop $s 'RamGB'))GB · $(HtmlEnc ((@(Get-Arr (Get-Prop $Data 'Gpus')) | ForEach-Object { Get-Prop $_ 'Name' }) -join ', '))</p></div>
 </header>

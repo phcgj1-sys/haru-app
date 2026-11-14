@@ -213,6 +213,8 @@ It 'HTML/JSON 저장, 특수문자 이스케이프, 타임라인' {
     Assert ($h -match '<svg viewBox') '타임라인 SVG'
     Assert ($h -match '그래픽카드 하드웨어/VRAM') '원인 표시'
     Assert ($h -match 'copySummary') '요약 복사 버튼'
+    Assert ($h -match '지금 할 일') '다음 행동 안내'
+
     $bytes = [IO.File]::ReadAllBytes($r.Html); Assert ($bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB) 'UTF-8 BOM'
     $j = Get-Content -Raw -Encoding UTF8 $r.Json | ConvertFrom-Json
     Assert-Eq (Top (Get-Diagnosis -Data $j)) 'GPU_HW' '저장된 JSON 재분석'
