@@ -59,7 +59,7 @@ function Format-BugCode($n) {
 }
 
 $script:LogFile = $null
-function Write-Log([string]$msg) {
+function Write-PCLog([string]$msg) {
     if (-not $script:LogFile) { return }
     try { Add-Content -Path $script:LogFile -Value ("{0:HH:mm:ss} {1}" -f (Get-Date), $msg) -Encoding UTF8 } catch {}
 }
@@ -374,10 +374,10 @@ function Invoke-Collect {
     foreach ($s in $steps) {
         $i++
         if ($Progress) { & $Progress $i $steps.Count $s.Name }
-        Write-Log "collect: $($s.Name)"
+        Write-PCLog "collect: $($s.Name)"
         try { & $s.Run } catch {
             $D.Errors += [ordered]@{ Step = $s.Name; Msg = $_.Exception.Message }
-            Write-Log "  error: $($_.Exception.Message)"
+            Write-PCLog "  error: $($_.Exception.Message)"
         }
     }
     return $D
@@ -934,7 +934,7 @@ function Save-Results {
 $script:WorkDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'PCCheck' } else { Join-Path ([IO.Path]::GetTempPath()) 'PCCheck' }
 
 function Save-Download([string]$Url, [string]$Dest, [string]$Sha256) {
-    Write-Log "download $Url"
+    Write-PCLog "download $Url"
     [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
     $tmp = "$Dest.part"
     $pp = $ProgressPreference; $ProgressPreference = 'SilentlyContinue'   # PS5.1 진행 표시가 다운로드를 크게 느리게 함
@@ -943,7 +943,7 @@ function Save-Download([string]$Url, [string]$Dest, [string]$Sha256) {
     if ($Sha256) {
         $h = (Get-FileHash -Path $tmp -Algorithm SHA256).Hash
         if ($h -ne $Sha256.ToUpper()) { Remove-Item $tmp -Force; throw "파일 무결성 검증 실패 (SHA256 불일치)" }
-        Write-Log "  sha256 ok"
+        Write-PCLog "  sha256 ok"
     }
     Move-Item $tmp $Dest -Force
 }
@@ -996,7 +996,7 @@ function Invoke-Tool([string]$Key) {
     $t = $script:Tools | Where-Object { $_.Key -eq $Key } | Select-Object -First 1
     try { & $t.Run; return [pscustomobject]@{ Ok = $true; Help = $t.Help; Error = $null } }
     catch {
-        Write-Log "tool $Key failed: $($_.Exception.Message)"
+        Write-PCLog "tool $Key failed: $($_.Exception.Message)"
         if ($t.Fallback) { Start-Process $t.Fallback }
         return [pscustomobject]@{ Ok = $false; Help = $t.Help; Error = "$($_.Exception.Message)$(if ($t.Fallback) { "`n공식 다운로드 페이지를 열었습니다." })" }
     }
@@ -1102,7 +1102,7 @@ function Show-Gui {
             $status.Text = "완료 — 보고서: $($state.Result.Html)"
             Start-Process $state.Result.Html
         } catch {
-            Write-Log "gui error: $($_.Exception.Message)"
+            Write-PCLog "gui error: $($_.Exception.Message)"
             $status.Text = '오류가 발생했습니다.'
             [void][Windows.Forms.MessageBox]::Show($f, "검사 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)", $script:AppName, 'OK', 'Error')
         } finally { $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default' }
@@ -1161,7 +1161,7 @@ if (-not $OutDir) {
 }
 New-Item -ItemType Directory -Force -Path $script:WorkDir, (Join-Path $script:WorkDir 'logs') -ErrorAction SilentlyContinue | Out-Null
 $script:LogFile = Join-Path $script:WorkDir ("logs\{0:yyyyMMdd_HHmmss}.log" -f (Get-Date))
-Write-Log "$($script:AppName) v$($script:AppVersion) mode=$Mode days=$Days ps=$($PSVersionTable.PSVersion)"
+Write-PCLog "$($script:AppName) v$($script:AppVersion) mode=$Mode days=$Days ps=$($PSVersionTable.PSVersion)"
 
 if ($FromJson) {
     $data = Get-Content -Raw -Encoding UTF8 -Path $FromJson | ConvertFrom-Json
@@ -1178,7 +1178,7 @@ if ($Mode -eq 'Gui') {
     try { Show-Gui -Days $Days -OutDir $OutDir -SmokeTest:$GuiSmokeTest; return }
     catch {
         # 화면을 띄우지 못하면 보이는 콘솔 창으로 다시 실행 (숨김 창에서 멈추지 않도록)
-        Write-Log "gui failed, relaunch console: $($_.Exception.Message)"
+        Write-PCLog "gui failed, relaunch console: $($_.Exception.Message)"
         Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', "`"$PSCommandPath`"", '-Mode', 'Console', '-Days', $Days)
         return
     }
