@@ -24,10 +24,12 @@ jobs:
         run: ./tests/Run-Tests.ps1
 
       - name: 단위·시나리오 테스트 (PowerShell 7)
+        if: success() || failure()
         shell: pwsh
         run: ./tests/Run-Tests.ps1
 
       - name: PSScriptAnalyzer (오류 + 5.1 호환성)
+        if: success() || failure()
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
@@ -44,6 +46,7 @@ jobs:
           if ($bad.Count) { throw "분석 오류 $($bad.Count) 건" }
 
       - name: 실제 PC 검사 실행 (5.1, 무인 모드)
+        if: success() || failure()
         shell: powershell
         run: |
           $out = Join-Path $env:RUNNER_TEMP 'report'
@@ -60,6 +63,7 @@ jobs:
           ./PCCheck.ps1 -Mode Silent -FromJson $r.Json -OutDir (Join-Path $env:RUNNER_TEMP 'rerender') -NoOpen
 
       - name: 실제 PC 검사 실행 (PowerShell 7)
+        if: success() || failure()
         shell: pwsh
         run: |
           $r = ./PCCheck.ps1 -Mode Silent -Days 7 -OutDir (Join-Path $env:RUNNER_TEMP 'report7') | Select-Object -Last 1
@@ -67,10 +71,12 @@ jobs:
           if (@($j.Errors).Count -gt 0) { $j.Errors | Format-Table | Out-String | Write-Host; throw '수집 단계 오류 발생' }
 
       - name: 화면(GUI) 생성 검사
+        if: success() || failure()
         shell: powershell
         run: powershell -NoProfile -STA -File ./PCCheck.ps1 -Mode Gui -GuiSmokeTest
 
       - name: 외부 도구 다운로드·무결성 검사
+        if: success() || failure()
         shell: powershell
         run: |
           . ./PCCheck.ps1 -LoadOnly

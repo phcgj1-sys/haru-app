@@ -518,10 +518,18 @@ function Get-Diagnosis {
     }
 
     # ---- 6) 드라이버 업데이트 직후 문제 시작
-    $firstProblem = @($gpuTimes + @($crashes | ForEach-Object { $_.T } | Where-Object { $_ })) | Sort-Object | Select-Object -First 1
-    if ($firstProblem -and $drvInst.Count) {
-        $inst = @($drvInst | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') } | Where-Object { $_ -and $_ -le $firstProblem -and ($firstProblem - $_).TotalDays -le 3 })
+    $probT = New-Object 'System.Collections.Generic.List[datetime]'
+    foreach ($g in $gpuTimes) { $probT.Add([datetime]$g) }
+    foreach ($x in $crashes) { if ($x.T) { $probT.Add([datetime]$x.T) } }
+    $inst = New-Object 'System.Collections.Generic.List[datetime]'
+    if ($probT.Count -and $drvInst.Count) {
+        $probT.Sort(); $firstProblem = $probT[0]
+        foreach ($di in $drvInst) {
+            $it = ConvertTo-Date (Get-Prop $di 'T')
+            if ($null -ne $it -and $it -le $firstProblem -and ($firstProblem - $it).TotalDays -le 3) { $inst.Add($it) }
+        }
         if ($inst.Count) {
+
             & $add 'GPU_DRIVER' 18 '그래픽 드라이버 설치 직후(3일 이내)부터 문제 시작'
             & $find 'warn' 'GPU_DRIVER' '그래픽 드라이버 설치 직후부터 문제 시작' "$((($inst | Sort-Object -Descending | Select-Object -First 1)).ToString('yyyy-MM-dd')) 드라이버 설치 후 문제가 시작됐습니다. 이전 버전으로 되돌려 보세요 (DDU 사용)." 5
         }
