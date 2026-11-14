@@ -241,6 +241,9 @@ a.card>span:last-child{flex:1;min-width:0}
       if(!confirm('이 기기의 모든 앱 진도를 백업 내용으로 바꿀까요?')) return;
       Object.keys(o.data).forEach(function(k){ try{ localStorage.setItem(k,o.data[k]); }catch(e){} }); msg.textContent='불러왔어요. 화면을 새로 고칠게요.'; setTimeout(function(){ location.reload(); },600); });
   })();
+  // 바로가기: #find 는 검색창에, #mystats 는 기록으로
+  if(location.hash==='#find'){ var qq=document.getElementById('appq'); if(qq) setTimeout(function(){ qq.focus(); },50); }
+  if(location.hash==='#mystats'){ var ms=document.getElementById('mystats'); if(ms) setTimeout(function(){ ms.scrollIntoView(); },50); }
   if(best){ var r=document.getElementById('resume'); r.href=best.a.getAttribute('href'); document.getElementById('resumeT').textContent=best.a.querySelector('.t').textContent; document.getElementById('resumeS').textContent=best.done+'/'+best.total+' 수업 마침 · 최근에 공부한 앱'; r.classList.add('show'); }
   if('serviceWorker' in navigator && location.protocol!=='file:'){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
   var deferred=null; var btn=document.getElementById('installBtn');
