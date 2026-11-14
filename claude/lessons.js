@@ -1,5 +1,32 @@
 // 클로드 배우기 — 수업 데이터
 // stage: 단계, lessons: 수업. 각 수업: id, title, min(소요 분), key(핵심 3줄), body(단락들), prompts(예시 프롬프트), quiz(문제), task(실습 과제)
+window.APP={
+ title:"클로드 배우기",
+ subtitle:"하루 한 수업, 5분",
+ key:"claude_study_v1",
+ homeDone:"이제 '템플릿'과 '실습실'로 매일 한 가지씩 써 보세요.",
+ cards:{
+  templates:["프롬프트 템플릿","복사해서 바로 쓰는"],
+  lab:["실습실","여기서 바로 클로드에게 물어보기"],
+  diag:["내 프롬프트 진단","점수와 고친 버전 받기"]
+ },
+ sec:{steps:"따라 하기",prompts:"예시 프롬프트"},
+ nav:"템플릿",
+ templates:{title:"템플릿",subtitle:"[ ] 안만 바꿔 쓰세요",note:"복사해서 클로드 대화창에 붙여 넣고, [ ] 안을 내 내용으로 바꾸세요. '실습실에서 써 보기'를 누르면 이 앱 안에서 바로 보낼 수 있어요."},
+ lab:{
+  title:"실습실",subtitle:"여기서 바로 클로드에게",
+  diagTab:"내 프롬프트 진단",
+  askLabel:"클로드에게 보낼 글",diagLabel:"진단받을 프롬프트",
+  askPh:"예: 나는 영어 초보야. 하루 10분 4주 계획을 표로 짜 줘.",diagPh:"내가 평소 쓰는 질문을 그대로 붙여 넣으세요.",
+  tip:"마음에 안 들면 위 글을 고쳐서 다시 보내 보세요. '더 짧게', '표로', '예를 들어' 같은 말을 덧붙이면 달라져요."
+ },
+ diagPrompt:function(txt){ return `You are a prompt coach for a Korean beginner who is learning to use Claude. Evaluate the prompt below using these criteria: (1) situation/context given, (2) clear request, (3) desired output format (length, table, tone), (4) role or example if useful, (5) safety (no sensitive data). Reply ONLY with one JSON object: {"score": 1-5 integer, "level": "초보"|"보통"|"좋음"|"훌륭함", "good": "what is good, 1-2 Korean sentences", "improve": "the most important 1-2 improvements, Korean, concrete", "rewritten": "an improved version of the prompt in Korean that keeps the user's intent, with [ ] for details the user must fill in"}\n\nPrompt to evaluate:\n"""\n${txt}\n"""`; },
+ guide:"<h3 style=\"margin-top:0\">이 사이트 쓰는 법</h3><ol><li><b>하루 한 수업(5분).</b> 핵심 3줄을 읽고, 예시 프롬프트를 복사해 실제로 클로드에게 보내 보세요. 읽기만 하면 남지 않아요.</li><li><b>퀴즈 3문제</b>를 풀면 수업을 마칠 수 있어요. 틀린 건 수업을 다시 읽으세요.</li><li><b>실습 과제</b>는 실제 클로드 앱에서 하고 체크하세요. 이게 진짜 공부예요.</li><li><b>템플릿</b>은 [ ] 안만 바꿔 쓰는 완성된 프롬프트예요. 마음에 드는 걸 메모장에 저장해 두세요.</li><li><b>실습실</b>에서는 이 사이트 안에서 바로 클로드에게 물어보고, 내 프롬프트를 진단받을 수 있어요(claude.ai 로그인 필요).</li></ol><h3>추천 순서 (10주)</h3><ul><li><b>1주:</b> 1~2단계(9수업). 하루 하나, 주말에 복습 퀴즈.</li><li><b>2주:</b> 3~4단계(9수업). 각 수업의 실습 과제를 꼭 실제로.</li><li><b>3주:</b> 5단계(3수업) + 템플릿 중 5개를 내 것으로 고쳐서 저장.</li><li><b>4주:</b> 6단계 홈페이지 만들기(4수업). 실제로 내 홈페이지 하나를 만들어 공유 링크까지.</li><li><b>5주:</b> 7단계 클로드 코드(5수업). 내 컴퓨터에 파일로 만들고 GitHub Pages로 무료 공개까지.</li><li><b>6~7주:</b> 8~9단계 자동화 기초(6수업). 반복 작업 목록 → 템플릿·프로젝트 → 파일 일괄 처리 → 예약 작업·연결.</li><li><b>8~9주:</b> 10~11단계 자동화 최대 단계(7수업). 클로드 코드 스크립트·훅·스케줄러 → 에이전트·MCP·API·나만의 스킬·운영.</li><li><b>10주:</b> 12단계 클로드로 앱 만들기(7수업). 기획 한 장 → 아티팩트 첫 버전 → 파일·PWA → 인터넷 공개·배포까지 내 앱 하나를 끝까지.</li></ul><p class=\"muted small\" style=\"margin-top:12px\">내용은 2026년 기준 일반적인 사용법이에요. 메뉴 이름이나 요금제는 바뀔 수 있으니, 앱 안의 실제 화면을 우선하세요. 진도는 이 기기 브라우저에 저장되고, claude.ai에 로그인한 상태면 계정에도 함께 저장돼요.</p>",
+ navLab:"실습실",
+ tolab:"실습실에서 써 보기",
+ diagEmpty:"진단받을 프롬프트를 먼저 쓰세요",
+ tts:null
+};
 window.CS_STAGES = [
 {id:"s1",title:"1단계 · 클로드 첫걸음",desc:"클로드가 무엇이고, 어디서 어떻게 쓰는지",lessons:[
 {id:"l01",title:"클로드는 무엇인가요?",min:5,

@@ -1,5 +1,30 @@
 // 엑셀 배우기 — 수업 데이터
 // 각 수업: id, title, min, key(핵심 3줄), body(단락), formulas([이름, 수식/조작, 설명]), prompts([제목, 클로드에게 물어볼 말]), quiz, task
+window.APP={
+ title:"엑셀 배우기",
+ subtitle:"초급 → 중급 → 전문가",
+ key:"excel_study_v1",
+ homeDone:"이제 '수식 모음'과 '엑셀 도우미'로 실무에 바로 쓰세요.",
+ cards:{
+  templates:["수식 모음","복사해서 바로 쓰는 수식"],
+  lab:["엑셀 도우미","수식·기능을 클로드에게 바로 물어보기"],
+  diag:["내 수식 진단","틀린 곳과 고친 수식 받기"]
+ },
+ sec:{steps:"수식·조작",prompts:"클로드에게 물어보기"},
+ nav:"수식 모음",
+ templates:{title:"수식 모음",subtitle:"범위만 내 표에 맞게",note:"수식을 복사해 엑셀 칸에 붙여 넣고 범위(C2:C100 등)만 내 표에 맞게 바꾸세요. 마지막 묶음은 클로드에게 물어볼 말이에요. '도우미에게 바로 묻기'를 누르면 이 앱 안에서 보낼 수 있어요."},
+ lab:{
+  title:"엑셀 도우미",subtitle:"수식·기능을 바로 묻기",
+  diagTab:"내 수식 진단",
+  askLabel:"엑셀에 대해 물어볼 말",diagLabel:"진단받을 수식 (또는 질문)",
+  askPh:"예: B열이 식비이고 A열이 5월인 금액 합계 수식 알려 줘. 표는 A 날짜, B 항목, C 금액.",diagPh:"예: =VLOOKUP(A2,상품!A:C,3)  ← 수식을 그대로 붙여 넣으세요",
+  tip:"수식을 받으면 작은 표에서 먼저 검증하세요. '이 수식이 틀릴 수 있는 경우는?'이라고 한 번 더 물어보면 좋아요."
+ },
+ diagPrompt:function(txt){ return `You are an Excel coach for a Korean beginner-to-intermediate user. The user pasted either an Excel formula or a question about Excel. Evaluate it: (1) is the formula correct and robust (absolute references where needed, correct function arguments, no whole-column references in large data, error handling), (2) can it be written more simply or with a better function (XLOOKUP, SUMIFS, SUMPRODUCT, dynamic arrays), (3) what will break it (blank cells, text-numbers, duplicates). If it is a question, answer it as the "rewritten" field with a concrete formula. Reply ONLY with one JSON object: {"score": 1-5 integer, "level": "초보"|"보통"|"좋음"|"훌륭함", "good": "what is good, 1-2 Korean sentences", "improve": "the most important 1-2 improvements, Korean, concrete", "rewritten": "the improved formula (or the answer formula) with a one-line Korean explanation after it; use [ ] for ranges the user must adjust"}\n\nUser input:\n"""\n${txt}\n"""`; },
+ guide:"<h3 style=\"margin-top:0\">이 앱 쓰는 법</h3><ol><li><b>하루 한 수업(6~8분).</b> 핵심 3줄을 읽고, '수식·조작' 카드의 수식을 복사해 실제 엑셀에 넣어 보세요. 읽기만 하면 남지 않아요.</li><li><b>퀴즈 3문제</b>를 풀면 수업을 마칠 수 있어요. 틀린 건 수업을 다시 읽으세요.</li><li><b>실습 과제</b>는 가계부 파일 하나를 1단계부터 계속 키워 가며 하도록 짜여 있어요. 같은 파일에서 하세요.</li><li><b>수식 모음</b>은 복사해서 쓰는 완성 수식이에요. [ ]나 범위만 내 표에 맞게 바꾸세요.</li><li><b>엑셀 도우미</b>에서는 이 앱 안에서 바로 클로드에게 수식이나 기능을 묻고, 내 수식을 진단받을 수 있어요(claude.ai 로그인 필요).</li></ol><h3>단계 안내</h3><ul><li><b>초급(1~2단계, 11수업):</b> 셀·입력·서식·수식·함수·정렬·표·차트·인쇄. 가계부와 간단한 보고서가 돼요.</li><li><b>중급(3~4단계, 11수업):</b> IF·절대참조·SUMIF·날짜·텍스트·조건부 서식·VLOOKUP·피벗·데이터 정리. 실무 표 대부분을 다뤄요.</li><li><b>전문가(5~6단계, 11수업):</b> 동적 배열·SUMPRODUCT·LET/LAMBDA·파워 쿼리·대시보드·매크로·VBA·파워 피벗·보호·디버깅·클로드 자동화.</li></ul><h3>추천 일정 (7주)</h3><ul><li><b>1~2주:</b> 초급 11수업. 가계부 파일 완성.</li><li><b>3~4주:</b> 중급 11수업. 상품표·주문표를 만들어 조회와 피벗까지.</li><li><b>5~7주:</b> 전문가 11수업. 파워 쿼리로 CSV 자동 정리, 대시보드 한 장, 매크로 하나.</li></ul><p class=\"muted small\" style=\"margin-top:12px\">수식과 메뉴 이름은 엑셀 365/2021 한국어판 기준이에요. 구버전에는 XLOOKUP·FILTER·LET·LAMBDA가 없어서 VLOOKUP·SUMPRODUCT로 대신하는 법도 같이 적어 두었어요. 진도는 이 기기 브라우저에 저장되고, claude.ai에 로그인한 상태면 계정에도 함께 저장돼요.</p>",
+ diagEmpty:"진단받을 수식이나 질문을 먼저 쓰세요",
+ tts:null
+};
 window.CS_STAGES = [
 {id:"s1",title:"1단계 · 초급: 엑셀 첫걸음",desc:"화면 보는 법부터 첫 수식까지. 이것만 알아도 가계부가 돼요",lessons:[
 {id:"l01",title:"화면과 셀: 엑셀은 칸으로 생각해요",min:6,
