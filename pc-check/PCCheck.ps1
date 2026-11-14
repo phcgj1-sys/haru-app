@@ -853,6 +853,9 @@ details.sec{background:var(--card);border:1px solid var(--line);border-radius:12
 pre{white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:12px;font:12px/1.6 Consolas,monospace;margin:0}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:8px 14px;cursor:pointer}button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
 footer{margin-top:40px;color:var(--muted);font-size:12px}
+.cmp{border-radius:12px;padding:12px 16px;margin:16px 0;border:1px solid var(--line);background:var(--card)}.cmp p{margin:2px 0 0;color:var(--muted)}
+.cmp.ok{border-left:5px solid var(--ok)}.cmp.bad{border-left:5px solid var(--bad)}
+
 @media (max-width:640px){.cause summary{grid-template-columns:24px 1fr 36px;}.cause .bar,.cause .cf{display:none}.cb{grid-template-columns:1fr}header{padding:16px}}
 @media print{button,.btns{display:none}details{break-inside:avoid}details:not([open])>*:not(summary){display:block}body{background:#fff}}
 '@
@@ -863,6 +866,18 @@ function copySummary(){var t=document.getElementById('sumtext').innerText;
 function flash(m){var b=document.getElementById('cpbtn');var o=b.textContent;b.textContent=m;setTimeout(function(){b.textContent=o},1600)}
 function openAll(v){document.querySelectorAll('details').forEach(function(d){d.open=v})}
 '@
+    $cmpHtml = ''
+    $pv = $Dx['Previous']
+    if ($pv) {
+        $pvT = ([string]$pv.Created).Replace('T', ' ').Substring(0, 16)
+        $lbl = [ordered]@{ PowerLoss = '갑자기 꺼짐'; Bsod = '블루스크린'; Gpu = '그래픽 오류'; Whea = 'WHEA'; Disk = '디스크 오류' }
+        if ($pv.NewTotal -eq 0) {
+            $cmpHtml = "<div class='cmp ok'><b>지난 검사($pvT · $($pv.Health)점) 이후 새로 생긴 문제 없음 ✓</b><p>조치가 효과를 보고 있는 것으로 보입니다. 며칠 더 사용한 뒤 다시 검사해 확인하세요.</p></div>"
+        } else {
+            $parts = @(); foreach ($k in $lbl.Keys) { if ($pv.New[$k]) { $parts += "$($lbl[$k]) $($pv.New[$k])" } }
+            $cmpHtml = "<div class='cmp bad'><b>지난 검사($pvT · $($pv.Health)점) 이후 새 문제 $($pv.NewTotal) 건</b><p>$(HtmlEnc ($parts -join ' · ')) — 문제가 아직 해결되지 않았습니다. 아래 1순위 원인의 다음 단계를 진행하세요.</p></div>"
+        }
+    }
     $memDiagText = if ($memD.Count) { $x = $memD[0]; "$(([string](Get-Prop $x 'T')).Replace('T',' ')) — $(if (Get-Prop $x 'Failed') { '❌ 오류 발견' } else { '✅ 오류 없음' })" } else { '실행 기록 없음 (메뉴에서 실행 가능)' }
 
     $html = @"
@@ -882,6 +897,7 @@ function openAll(v){document.querySelectorAll('details').forEach(function(d){d.o
  <div class="stat$(if ($c.Disk) { ' hot' })"><b>$($c.Disk)</b><span>디스크 오류</span></div>
 </div>
 
+$cmpHtml
 <h2>가장 의심되는 원인</h2>
 $causeHtml
 <p class="sub">점수는 기록된 증거의 강도입니다 (100 = 매우 강함). 해결 순서대로 하나씩 시도하고 다시 검사해 보세요.</p>
@@ -937,15 +953,54 @@ $(ConvertTo-HtmlTable (Get-Prop $Data 'DriverInstalls') @('T','Msg') @('시간',
     return $html
 }
 
+function Get-NewSince($Data, [datetime]$Since) {
+    # 지정 시각 이후에 새로 생긴 문제 기록 수
+    $n = [ordered]@{ PowerLoss = 0; Bsod = 0; Gpu = 0; Whea = 0; Disk = 0 }
+    $after = { param($o) $t = ConvertTo-Date (Get-Prop $o 'T'); return ($null -ne $t -and $t -gt $Since) }
+    foreach ($s in @(Get-Arr (Get-Prop $Data 'Shutdowns'))) { if (& $after $s) { if (Format-BugCode (Get-Prop $s 'Code')) { $n.Bsod++ } else { $n.PowerLoss++ } } }
+    $bsodEv = @(@(Get-Arr (Get-Prop $Data 'BugChecks')) | Where-Object { & $after $_ }).Count
+    if ($bsodEv -gt $n.Bsod) { $n.Bsod = $bsodEv }
+    $n.Gpu = @(@(Get-Arr (Get-Prop $Data 'GpuEvents')) | Where-Object { & $after $_ }).Count
+    $n.Whea = @(@(Get-Arr (Get-Prop $Data 'Whea')) | Where-Object { & $after $_ }).Count
+    $n.Disk = @(@(Get-Arr (Get-Prop $Data 'DiskEvents')) | Where-Object { & $after $_ }).Count
+    return $n
+}
+
+function Get-HistoryPath { return (Join-Path $script:WorkDir 'history.json') }
+function Read-History {
+    $p = Get-HistoryPath
+    if (-not (Test-Path $p)) { return @() }
+    try { return @(Get-Content -Raw -Encoding UTF8 $p | ConvertFrom-Json) } catch { return @() }
+}
+function Add-Comparison($Data, $Dx, $History) {
+    $me = [string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')
+    $prev = @($History | Where-Object { [string](Get-Prop $_ 'Computer') -eq $me }) | Select-Object -Last 1
+    if (-not $prev) { return }
+    $pt = ConvertTo-Date (Get-Prop $prev 'Created'); if (-not $pt) { return }
+    $new = Get-NewSince $Data $pt
+    $total = 0; foreach ($k in $new.Keys) { $total += $new[$k] }
+    $Dx.Previous = [ordered]@{ Created = (Format-T $pt); Health = [int](Get-Prop $prev 'Health'); New = $new; NewTotal = $total }
+}
+function Add-History($Data, $Dx) {
+    $h = @(Read-History) + @([ordered]@{ Created = (Get-Prop (Get-Prop $Data 'Meta') 'Created'); Computer = (Get-Prop (Get-Prop $Data 'Meta') 'Computer'); Health = $Dx.Health; Counts = $Dx.Counts })
+    if ($h.Count -gt 50) { $h = $h[($h.Count - 50)..($h.Count - 1)] }
+    try {
+        New-Item -ItemType Directory -Force -Path $script:WorkDir | Out-Null
+        [IO.File]::WriteAllText((Get-HistoryPath), (ConvertTo-Json -InputObject @($h) -Depth 5), (New-Object System.Text.UTF8Encoding($true)))
+    } catch { Write-PCLog "history save failed: $($_.Exception.Message)" }
+}
+
 function Save-Results {
-    param($Data, $Dx, [string]$Dir)
+    param($Data, $Dx, [string]$Dir, [switch]$Track)
     if (-not (Test-Path $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
+    if ($Track) { Add-Comparison $Data $Dx (Read-History) }
     $stamp = (ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created')); if (-not $stamp) { $stamp = Get-Date }
     $base = Join-Path $Dir ("PC진단_{0:yyyyMMdd_HHmmss}" -f $stamp)
     $html = New-HtmlReport -Data $Data -Dx $Dx
     $utf8 = New-Object System.Text.UTF8Encoding($true)
     [IO.File]::WriteAllText("$base.html", $html, $utf8)
     [IO.File]::WriteAllText("$base.json", (ConvertTo-Json -InputObject $Data -Depth 6), $utf8)
+    if ($Track) { Add-History $Data $Dx }
     return [pscustomobject]@{ Html = "$base.html"; Json = "$base.json" }
 }
 
@@ -1142,7 +1197,7 @@ function Show-Gui {
             $status.Text = '분석 중...'; [Windows.Forms.Application]::DoEvents()
             $dx = Get-Diagnosis -Data $data
             $bar.Value = $bar.Maximum - 1
-            $state.Result = Save-Results -Data $data -Dx $dx -Dir $OutDir
+            $state.Result = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
             $bar.Value = $bar.Maximum
             $score.Text = "$($dx.Health)"
             $score.ForeColor = $(if ($dx.Health -ge 90) { [Drawing.Color]::SeaGreen } elseif ($dx.Health -ge 70) { [Drawing.Color]::DarkOrange } else { [Drawing.Color]::Firebrick })
@@ -1261,7 +1316,7 @@ if ($Mode -eq 'Gui') {
 Write-Host "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분석" -ForegroundColor Cyan
 $data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, $name) }
 $dx = Get-Diagnosis -Data $data
-$res = Save-Results -Data $data -Dx $dx -Dir $OutDir
+$res = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
 Write-ConsoleResult $dx $res
 if ($Mode -eq 'Silent') { Write-Output $res; return }
 if (-not $NoOpen) { Start-Process $res.Html }

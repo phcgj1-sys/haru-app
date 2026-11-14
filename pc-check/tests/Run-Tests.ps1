@@ -230,7 +230,33 @@ It '기간 365일 · 대량 이벤트에서도 빠르게 동작' {
     Assert ($sw.Elapsed.TotalSeconds -lt 30) "소요 $($sw.Elapsed.TotalSeconds)s"
 }
 
+It '지난 검사 대비: 이후 새 문제 집계와 보고서 표시, 이력 저장' {
+    $old = $script:WorkDir
+    $script:WorkDir = Join-Path $OutDir 'wd'
+    try {
+        $d1 = New-Scenario @{ Shutdowns = @([ordered]@{ T = (T 10); Code = ''; PowerButton = $false }) }
+        $d1.Meta.Created = Format-T $now.AddDays(-5)
+        $dx1 = Get-Diagnosis -Data $d1
+        [void](Save-Results -Data $d1 -Dx $dx1 -Dir $OutDir -Track)
+        Assert-Eq @(Read-History).Count 1 '이력 1건'
+        # 5일 전 검사 이후 2건 새로 발생
+        $d2 = New-Scenario @{ Shutdowns = @([ordered]@{ T = (T 10); Code = ''; PowerButton = $false }, [ordered]@{ T = (T 2); Code = ''; PowerButton = $false }); GpuEvents = @([ordered]@{ T = (T 1); Source = 'Display'; Id = 4101; Xid = $null; Msg = 'x' }) }
+        $dx2 = Get-Diagnosis -Data $d2
+        $r = Save-Results -Data $d2 -Dx $dx2 -Dir $OutDir -Track
+        Assert-Eq $dx2.Previous.NewTotal 2 '새 문제 2건'
+        Assert-Eq $dx2.Previous.New.PowerLoss 1 '꺼짐 1'
+        Assert ([IO.File]::ReadAllText($r.Html) -match '이후 새 문제 2 건') '보고서 표시'
+        # 새 문제 없음
+        $d3 = New-Scenario @{}; $d3.Meta.Created = Format-T $now.AddMinutes(5)
+        $dx3 = Get-Diagnosis -Data $d3
+        $r3 = Save-Results -Data $d3 -Dx $dx3 -Dir $OutDir -Track
+        Assert ([IO.File]::ReadAllText($r3.Html) -match '새로 생긴 문제 없음') '없음 표시'
+        Assert-Eq @(Read-History).Count 3 '이력 3건'
+    } finally { $script:WorkDir = $old }
+}
+
 Write-Host "`n[소스 규칙]" -ForegroundColor Cyan
+
 It 'PCCheck.ps1 은 UTF-8 BOM (PowerShell 5.1 한글 깨짐 방지)' {
     $b = [IO.File]::ReadAllBytes((Join-Path $root 'PCCheck.ps1')); Assert ($b[0] -eq 0xEF -and $b[1] -eq 0xBB -and $b[2] -eq 0xBF) 'BOM'
 }
