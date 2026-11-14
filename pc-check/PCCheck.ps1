@@ -209,6 +209,15 @@ function Get-EventsSafe([string]$Log, $Ids, [string]$Provider, [datetime]$Since,
     try { return @(Get-WinEvent -FilterHashtable $f -MaxEvents $Max -ErrorAction Stop) }
     catch { return @() }   # 기록이 없으면 예외가 나므로 빈 배열
 }
+function Get-EventData($e) {
+    # 이벤트의 EventData 를 이름 → 값 사전으로 (속성 순서는 Windows 버전마다 다를 수 있음)
+    $h = @{}
+    try {
+        $x = [xml]$e.ToXml()
+        foreach ($d in $x.Event.EventData.Data) { if ($d.Name) { $h[[string]$d.Name] = [string]$d.'#text' } }
+    } catch {}
+    return $h
+}
 function Get-EventText($e) {
     $t = $e.Message
     if (-not $t) { $t = (($e.Properties | ForEach-Object { [string]$_.Value }) -join ' ') }
@@ -301,9 +310,11 @@ function Invoke-Collect {
         } }
         @{ Name = '갑작스런 종료 기록';      Run = {
             $D.Shutdowns = @(Get-EventsSafe 'System' 41 'Microsoft-Windows-Kernel-Power' $since | ForEach-Object {
-                $code = 0; try { $code = [int64]$_.Properties[0].Value } catch {}
-                $pb = 0; try { $pb = [int64]$_.Properties[5].Value } catch {}
-                [ordered]@{ T = (Format-T $_.TimeCreated); Code = (Format-BugCode $code); PowerButton = [bool]($pb -ne 0) }
+                $ed = Get-EventData $_
+                $code = 0; try { $code = [int64]$ed['BugcheckCode'] } catch {}
+                $pb = 0; try { $pb = [int64]$ed['PowerButtonTimestamp'] } catch {}
+                $sl = 0; try { $sl = [int64]$ed['SleepInProgress'] } catch {}
+                [ordered]@{ T = (Format-T $_.TimeCreated); Code = (Format-BugCode $code); PowerButton = [bool]($pb -ne 0); Sleep = [bool]($sl -ne 0) }
             })
             $D.Unexpected = @(Get-EventsSafe 'System' 6008 'EventLog' $since | ForEach-Object { [ordered]@{ T = (Format-T $_.TimeCreated) } })
         } }
@@ -452,6 +463,7 @@ function Get-Diagnosis {
     # ---- 2) 블루스크린 없이 꺼짐 (코드 0)
     $plCount = $powerLoss.Count
     $plButton = @($powerLoss | Where-Object { Get-Prop $_ 'PowerButton' }).Count
+    $plSleep = @($powerLoss | Where-Object { Get-Prop $_ 'Sleep' }).Count
     if ($plCount -gt 0) {
         $eff = [math]::Max(0, $plCount - $plButton * 0.7)
         & $add 'PSU' ([math]::Min(45, 14 * $eff)) "블루스크린 없이 꺼짐 $plCount 회"
@@ -460,6 +472,11 @@ function Get-Diagnosis {
         $lv = if ($plCount -ge 3) { 'bad' } else { 'warn' }
         $d = "블루스크린 기록 없이 전원이 끊긴 것처럼 꺼진 기록입니다. 파워 부족·노후, 과열 보호, 전원 케이블/멀티탭 접촉 불량에서 전형적으로 나타납니다."
         if ($plButton) { $d += " (이 중 $plButton 회는 전원 버튼을 길게 눌러 끈 흔적이 있습니다 — 멈춤 후 강제 종료였을 수 있습니다.)" }
+        if ($plSleep) {
+            $d += " $plSleep 회는 절전 진입/복귀 중에 발생했습니다 (드라이버·BIOS 절전 설정 문제가 흔함)."
+            & $add 'DRIVER' ([math]::Min(20, 8 * $plSleep)) "절전 진입/복귀 중 꺼짐 $plSleep 회"
+        }
+
         & $find $lv 'PSU' "갑자기 꺼짐 $plCount 회 (블루스크린 없음)" $d ([math]::Min(35, 10 * $plCount))
     }
 
@@ -952,20 +969,30 @@ function Save-Download([string]$Url, [string]$Dest, [string]$Sha256) {
     Move-Item $tmp $Dest -Force
 }
 
+function Select-WindowsAsset($assets) {
+    # 릴리스 파일 중 Windows x64 용을 고름 (.exe 또는 .zip, 리눅스/ARM/맥 제외)
+    $c = @($assets | Where-Object { $_.name -match '\.(exe|zip)$' -and $_.name -notmatch '(?i)linux|aarch|arm64|armv|raspberry|android|mac|darwin|src|source' })
+    $win = @($c | Where-Object { $_.name -match '(?i)win' })
+    if ($win.Count) { $c = $win }
+    $x64 = @($c | Where-Object { $_.name -match '(?i)x64|x86_64|amd64|64' })
+    if ($x64.Count) { $c = $x64 }
+    return ($c | Sort-Object @{ e = { if ($_.name -match '\.exe$') { 0 } else { 1 } } } | Select-Object -First 1)
+}
 function Install-MemtestVulkan {
+
     $dir = Join-Path $script:WorkDir 'memtest_vulkan'
-    $exe = Get-ChildItem $dir -Recurse -Filter 'memtest_vulkan*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+    $exe = Get-ChildItem $dir -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'memtest' } | Select-Object -First 1
     if (-not $exe) {
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
         $rel = Invoke-RestMethod 'https://api.github.com/repos/GpuZelenograd/memtest_vulkan/releases/latest' -UserAgent "PCCheck/$($script:AppVersion)" -ErrorAction Stop
-        $asset = @($rel.assets | Where-Object { $_.name -match '\.zip$' -and $_.name -notmatch 'linux|arm|aarch|src' }) | Select-Object -First 1
-        if (-not $asset) { throw 'Windows 용 파일을 찾지 못했습니다.' }
+        $asset = Select-WindowsAsset @($rel.assets)
+        if (-not $asset) { throw "Windows 용 파일을 찾지 못했습니다. (릴리스 파일: $((@($rel.assets) | ForEach-Object { $_.name }) -join ', '))" }
         $sha = $null; if ($asset.digest -match '^sha256:([0-9a-fA-F]{64})$') { $sha = $Matches[1] }
-        $zip = Join-Path $script:WorkDir $asset.name
-        Save-Download $asset.browser_download_url $zip $sha
-        Expand-Archive $zip -DestinationPath $dir -Force
-        Remove-Item $zip -Force -ErrorAction SilentlyContinue
-        $exe = Get-ChildItem $dir -Recurse -Filter 'memtest_vulkan*.exe' | Select-Object -First 1
+        $file = Join-Path $script:WorkDir $asset.name
+        Save-Download $asset.browser_download_url $file $sha
+        if ($asset.name -match '\.exe$') { Move-Item $file (Join-Path $dir $asset.name) -Force }
+        else { Expand-Archive $file -DestinationPath $dir -Force; Remove-Item $file -Force -ErrorAction SilentlyContinue }
+        $exe = Get-ChildItem $dir -Recurse -Filter '*.exe' | Where-Object { $_.Name -match 'memtest' } | Select-Object -First 1
     }
     if (-not $exe) { throw '실행 파일을 찾지 못했습니다.' }
     return $exe.FullName

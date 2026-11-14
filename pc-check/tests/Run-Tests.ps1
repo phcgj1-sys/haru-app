@@ -164,6 +164,14 @@ It '단일 항목 목록 (5.1 배열 풀림 회귀 방지)' {
 }
 
 Write-Host "`n[유틸]" -ForegroundColor Cyan
+It 'GitHub 릴리스에서 Windows 파일 고르기' {
+    $mk = { param($n) [pscustomobject]@{ name = $n } }
+    Assert-Eq (Select-WindowsAsset @((& $mk 'memtest_vulkan-v0.5.0_DesktopLinux_X86_64.tar.xz'), (& $mk 'memtest_vulkan-v0.5.0.zip'))).name 'memtest_vulkan-v0.5.0.zip' 'zip'
+    Assert-Eq (Select-WindowsAsset @((& $mk 'memtest_vulkan-v0.6.0-linux-x86_64.zip'), (& $mk 'memtest_vulkan-v0.6.0-windows-x86_64.zip'), (& $mk 'memtest_vulkan-v0.6.0-linux-aarch64.zip'))).name 'memtest_vulkan-v0.6.0-windows-x86_64.zip' 'windows 표시'
+    Assert-Eq (Select-WindowsAsset @((& $mk 'memtest_vulkan.exe'), (& $mk 'memtest_vulkan-linux.zip'))).name 'memtest_vulkan.exe' 'exe 우선'
+    Assert ($null -eq (Select-WindowsAsset @((& $mk 'a-linux.tar.xz')))) '없으면 null'
+}
+
 
 It 'Format-BugCode 정규화' {
     Assert-Eq (Format-BugCode '0x00000116') '0x116' 'hex 문자열'
