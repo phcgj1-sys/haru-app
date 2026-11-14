@@ -109,6 +109,13 @@ foreach ($name in $scenarios.Keys) {
         Assert-Eq (Top $dx) $sc.Expect "원인 순위: $((@($dx.Causes) | ForEach-Object { "$($_.Key)=$($_.Score)" }) -join ', ')"
         $dx2 = Get-Diagnosis -Data (RoundTrip $data)
         Assert-Eq (Top $dx2) $sc.Expect 'JSON 왕복 후에도 같은 결과'
+        if ($dx2.Health -ne $dx.Health) {
+            $rt = RoundTrip $data
+            Write-Host ("      원본: " + ((@($dx.Findings) | ForEach-Object { $_.Title }) -join ' | '))
+            Write-Host ("      왕복: " + ((@($dx2.Findings) | ForEach-Object { $_.Title }) -join ' | '))
+            Write-Host ("      DriverInstalls 왕복: " + (ConvertTo-Json -InputObject $rt.DriverInstalls -Compress) + ' type=' + $rt.DriverInstalls.GetType().FullName)
+            Write-Host ("      GpuEvents[0].T: " + $rt.GpuEvents[0].T + ' type=' + $rt.GpuEvents[0].T.GetType().FullName)
+        }
         Assert-Eq $dx2.Health $dx.Health 'JSON 왕복 후 점수 동일'
         Assert ($dx.Health -lt 90) "문제가 있으면 90 미만이어야 함 (현재 $($dx.Health))"
     }
