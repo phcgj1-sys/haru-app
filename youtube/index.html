@@ -1,5 +1,6 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111111"><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#666;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style></head><body><a class="hublink" href="../index.html">‹ 전체 앱</a><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
 <title>클로드로 유튜브 채널 만들기</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: one centered column (max 640px) with a fixed bottom tab bar. Default look: white & black (mono); other skins via html[data-skin]. */
@@ -8,7 +9,7 @@
   --accent:#111111; --accent-ink:#FFFFFF; --accent-soft:#E6E6E2;
   --ok:#1E9A58; --ok-soft:#E1F5E9; --bad:#D4433B; --bad-soft:#FBE6E4; --warn:#B97A00; --warn-soft:#FFF3D6;
   --shadow:0 6px 24px rgba(0,0,0,.08);
-  --font:"Noto Sans KR",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font:"Pretendard Variable",Pretendard,"Noto Sans KR",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
   color-scheme:light;
 }
@@ -135,7 +136,136 @@ textarea.ta.small{min-height:90px;font-size:12.5px}
 .guide h3{font-size:16px;margin:16px 0 6px}
 .guide ol,.guide ul{margin:0;padding-left:20px}
 .guide li{margin:4px 0}
-@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+/* ---- 2026-11 화면 다듬기: 교육 사이트형 레이아웃 ---- */
+html{scroll-behavior:smooth}
+body{font-size:16px;letter-spacing:-.005em;word-break:keep-all;overflow-wrap:anywhere}
+.h2{font-size:18px;font-weight:700;letter-spacing:-.015em;margin:30px 0 12px}
+.sec-title{font-size:15px;font-weight:700;letter-spacing:-.01em;text-transform:none;color:var(--fg);margin:26px 0 10px}
+.eyb{font-size:13px;font-weight:600;color:var(--accent)}
+:root[data-skin="mono"]:not([style]) .eyb,:root[data-skin="dark"] .eyb{color:var(--muted)}
+.meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap;color:var(--muted);font-size:13.5px}
+.meta .sep{width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.6}
+.bar.big{height:6px;margin:4px 0 8px}
+
+/* 머리말 */
+.apphead{margin:6px 0 16px}
+.brand2 h1{font-size:24px;font-weight:800;letter-spacing:-.025em;line-height:1.25}
+.brand2 p{color:var(--muted);font-size:13.5px;margin-top:4px;line-height:1.5}
+
+/* 홈: 이어서 학습 */
+.hero2{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px 18px 16px;display:flex;flex-direction:column;gap:14px}
+.hero-top{display:flex;gap:16px;align-items:center}
+.hero-meta{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
+.hero-t{font-size:21px;font-weight:800;letter-spacing:-.02em;line-height:1.3}
+.hero-k{color:var(--muted);font-size:14.5px;line-height:1.6}
+.ring{position:relative;width:64px;height:64px;flex:none;display:inline-flex;align-items:center;justify-content:center}
+.ring svg{position:absolute;inset:0;transform:rotate(-90deg)}
+.ring circle{fill:none;stroke-width:6}
+.ring .ring-bg{stroke:var(--soft)}
+.ring .ring-fg{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.ring b{position:relative;font-size:17px;font-weight:800;letter-spacing:-.02em}
+.ring b small{font-size:11px;font-weight:700;margin-left:1px}
+.week{border-top:1px solid var(--line);padding-top:12px}
+.week .wk-t{font-size:13px;font-weight:700}
+.week .wk-s{font-size:12.5px;color:var(--muted)}
+.week ol{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.week li{display:flex;flex-direction:column;align-items:center;gap:4px}
+.week li i{width:30px;height:30px;border-radius:50%;background:var(--soft);display:inline-flex;align-items:center;justify-content:center;color:var(--accent-ink)}
+.week li.on i{background:var(--accent)}
+.week li.today i{box-shadow:0 0 0 2px var(--surface),0 0 0 4px var(--accent)}
+.week li small{font-size:11.5px;color:var(--muted);font-weight:600}
+.week li.today small{color:var(--fg)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:12px 0 0;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.stats>div{padding:12px 10px;text-align:center}
+.stats>div+div{border-left:1px solid var(--line)}
+.stats dt{font-size:12.5px;color:var(--muted)}
+.stats dd{margin:2px 0 0;font-size:22px;font-weight:800;letter-spacing:-.02em}
+.stats dd small{font-size:13px;font-weight:600;color:var(--muted);margin-left:1px}
+
+/* 홈: 단계 로드맵 (순서가 있는 단계라 번호를 씀) */
+.timeline{list-style:none;margin:0;padding:0;position:relative}
+.timeline li{position:relative}
+.timeline li+li::before{content:"";position:absolute;left:21px;top:-10px;height:20px;width:2px;background:var(--line)}
+.tl{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:10px 12px 10px 8px;border-radius:14px;margin:4px 0}
+.tl:hover{background:var(--soft)}
+.tl-n{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);background:var(--surface);display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:var(--muted);flex:none;margin-left:0}
+.tl.on .tl-n{border-color:var(--accent);background:var(--accent);color:var(--accent-ink)}
+.tl.done .tl-n{border-color:var(--ok);background:var(--ok);color:#fff}
+.tl-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.tl-t{font-weight:700;font-size:15.5px;letter-spacing:-.01em}
+.tl-s{font-size:12.5px;color:var(--muted)}
+.tl.on .tl-s{color:var(--accent)}
+:root[data-skin="mono"]:not([style]) .tl.on .tl-s{color:var(--fg)}
+.tl .bar{height:4px;margin-top:6px}
+.tl.done .bar>i{background:var(--ok)}
+
+/* 커리큘럼 */
+.stagebox{margin-top:22px;scroll-margin-top:12px}
+.sb-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.sb-head h2{font-size:17px;font-weight:800;letter-spacing:-.015em}
+.sb-head p{font-size:13px;color:var(--muted);margin-top:3px;line-height:1.5}
+.sb-pc{font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap;padding-top:2px}
+.stagebox>.bar{height:4px;margin:10px 0 8px}
+.curri{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:16px;background:var(--surface);overflow:hidden}
+.curri li+li{border-top:1px solid var(--line)}
+.lrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:13px 14px;min-height:60px}
+.lrow:hover{background:var(--soft)}
+.lr-n{width:28px;height:28px;border-radius:9px;background:var(--soft);color:var(--muted);display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex:none}
+.lrow.done .lr-n{background:var(--ok-soft);color:var(--ok)}
+.lrow.cur{background:var(--accent-soft)}
+.lrow.cur .lr-n{background:var(--accent);color:var(--accent-ink)}
+.lr-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.lr-t{font-weight:600;font-size:15.5px;letter-spacing:-.01em}
+.lrow.done .lr-t{color:var(--muted)}
+.lr-s{font-size:12.5px;color:var(--muted)}
+
+/* 수업 화면 */
+.lhead{position:sticky;top:0;z-index:15;margin:-14px -16px 0;padding:8px 16px 0;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.lh-in{display:flex;align-items:center;justify-content:space-between}
+.lh-in .back{margin:0}
+.lh-pos{font-size:13px;color:var(--muted);font-weight:600}
+.readbar{height:3px;background:var(--line);margin:4px -16px 0}
+.readbar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .1s linear}
+.lhero{padding:18px 0 4px;display:flex;flex-direction:column;gap:8px}
+.lhero h1{font-size:26px;font-weight:800;letter-spacing:-.03em;line-height:1.3}
+.lhero .pill{gap:4px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:12px 0 2px;margin:0 -16px;padding-inline:16px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{display:inline-flex;align-items:center;gap:4px;white-space:nowrap;padding:7px 12px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:13px;font-weight:600;color:var(--muted);min-height:34px}
+.chip.ok{border-color:var(--ok);color:var(--ok);background:var(--ok-soft)}
+section[id^="sec-"]{scroll-margin-top:64px}
+.keycard{background:var(--accent-soft);border-radius:18px;padding:4px 18px 18px;margin-top:16px}
+.keycard .h2{margin-top:16px}
+.keycard .key li{font-size:15.5px;line-height:1.6}
+.prose{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:20px 20px}
+.prose p{font-size:16.5px;line-height:1.85;margin:0 0 16px;max-width:38em}
+.prose p:last-child{margin-bottom:0}
+.prompt pre{font-size:13.5px}
+.qbox{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:16px}
+.qbox.is-ok{border-color:var(--ok)}
+.qbox.is-bad{border-color:var(--bad)}
+.qnum{font-size:12.5px;font-weight:700;color:var(--muted)}
+.qq{font-size:16.5px;font-weight:700;line-height:1.5;margin-top:4px;letter-spacing:-.01em}
+.opt{transition:border-color .15s,background .15s}
+.opt:not([disabled]):hover{border-color:var(--accent)}
+.qsum{font-size:14.5px;font-weight:600;color:var(--muted);padding:2px 4px}
+.qsum.ok{color:var(--ok)}
+.finish{margin-top:28px;display:flex;flex-direction:column;gap:10px}
+.done-note{display:flex;align-items:center;justify-content:center;gap:6px;padding:14px;border-radius:14px;background:var(--ok-soft);color:var(--ok);font-weight:700}
+.pager{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.pg{display:flex;flex-direction:column;gap:2px;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--surface);min-width:0}
+.pg.next{text-align:right;grid-column:2}
+.pg small{font-size:12px;color:var(--muted);font-weight:600}
+.pg span{font-weight:700;font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pg:hover{border-color:var(--accent)}
+@media (min-width:600px){.lhero h1{font-size:30px}.prose{padding:26px 28px}}
+
+.hublink{display:none!important}
+.hub2{display:inline-flex;align-items:center;min-height:32px;font-size:13.5px;font-weight:600;color:var(--muted);text-decoration:none;margin-bottom:2px}
+.hub2:hover{color:var(--fg)}
+.keycard ul.key{margin:0;padding:0}
+
+@media (prefers-reduced-motion: reduce){*{transition:none!important;scroll-behavior:auto!important}}
 </style>
 
 <div id="app" class="app"></div>
@@ -161,7 +291,7 @@ function loadLocal(){ try{ const raw=localStorage.getItem(KEY); if(raw) state=mi
 function saveLocal(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 function commit(){ state.updatedAt=Date.now(); saveLocal(); Sync.schedule(); applySkin(); }
 const SKINS=[['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#E6332C']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']]];
-function applySkin(){ document.documentElement.setAttribute('data-skin', (state.settings&&state.settings.skin)||'mono'); }
+function applySkin(){ const sk=(state.settings&&state.settings.skin)||'mono'; const r=document.documentElement; r.setAttribute('data-skin', sk); if(APP.accent && sk==='mono'){ r.style.setProperty('--accent', APP.accent); r.style.setProperty('--accent-soft', APP.accent+'1A'); } else { r.style.removeProperty('--accent'); r.style.removeProperty('--accent-soft'); } }
 const Sync={ ref:null, timer:null, writing:false, dirty:false, status:'local',
   async init(){ try{ if(!window.claude||typeof window.claude.use!=='function') return; const [db,user]=await Promise.all([window.claude.use('db'), window.claude.use('user')]); if(!db||!user) return; const id=await user.id(); if(!id) return; this.ref=db.doc('data/users/'+id+'/progress'); const snap=await this.ref.get(); if(snap.exists){ const remote=snap.data(); if((remote.updatedAt||0)>(state.updatedAt||0)){ state=migrate(JSON.parse(JSON.stringify(remote))); saveLocal(); applySkin(); render(); } else if((state.updatedAt||0)>(remote.updatedAt||0)) this.push(); } else if(state.updatedAt) this.push(); this.status='cloud'; if(ui.view==='more') render(); }catch(e){ console.warn('sync',e); } },
   schedule(){ if(!this.ref) return; clearTimeout(this.timer); this.timer=setTimeout(()=>this.push(),1500); },
@@ -188,19 +318,32 @@ function render(){ const v=ui.view; $('#app').innerHTML = v==='home'?viewHome():
 function renderNav(){ const items=[['home','오늘','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/></svg>'],['lessons','수업','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z"/><path d="M4 17a3 3 0 0 1 3-3h12"/></svg>'],['templates',APP.nav||'모음','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>'],['lab','도우미','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>'],['more','더보기','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>']];
   $('#nav').innerHTML='<div class="in">'+items.map(([k,l,i])=>`<button class="${ui.view===k?'on':''}" data-nav="${k}" aria-label="${l}">${i}<span>${l}</span></button>`).join('')+'</div>'; }
 
+/* ---- 공용 조각 ---- */
+const icClock='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+const icCheck='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
+function ring(pct){ const r=26, c=2*Math.PI*r; return `<span class="ring" role="img" aria-label="전체 진도 ${pct}%"><svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><circle cx="32" cy="32" r="${r}" class="ring-bg"/><circle cx="32" cy="32" r="${r}" class="ring-fg" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c*(1-pct/100)).toFixed(1)}"/></svg><b class="num">${pct}<small>%</small></b></span>`; }
+function activeDays(){ const set=new Set(); LESSONS.forEach(l=>{ const t=lp(l.id).ts; if(t) set.add(dayStr(t)); }); const s=state.streak; if(s.last && streakNow()>0){ const base=new Date(s.last+'T12:00:00').getTime(); for(let k=0;k<s.count && k<7;k++) set.add(dayStr(base-k*DAY)); } return set; }
+function weekStrip(){ const on=activeDays(); const W='일월화수목금토'; let h=''; for(let i=6;i>=0;i--){ const ts=Date.now()-i*DAY; const ds=dayStr(ts); const a=on.has(ds); h+=`<li class="${a?'on':''} ${i===0?'today':''}"><i>${a?icCheck:''}</i><small>${i===0?'오늘':W[new Date(ts).getDay()]}</small></li>`; } const n=streakNow(); return `<div class="week"><div class="row between"><span class="wk-t">최근 7일</span><span class="wk-s">${n>0? n+'일째 이어서 배우는 중':'오늘 한 수업으로 시작해요'}</span></div><ol aria-label="최근 7일 학습 기록">${h}</ol></div>`; }
+const stageName=t=>String(t).replace(/^\d+단계 · /,'');
+
 /* ---- 홈 ---- */
 function viewHome(){
   const next=LESSONS.find(l=>!lp(l.id).done); const dn=doneCount(); const total=LESSONS.length; const q=state.quiz; const acc=(q.ok+q.ng)?Math.round(q.ok/(q.ok+q.ng)*100):null; const tasks=LESSONS.filter(l=>lp(l.id).task).length;
-  const stages=STAGES.map((s,i)=>{ const n=s.lessons.length; const d=s.lessons.filter(l=>lp(l.id).done).length; const pct=Math.round(d/n*100); const cur= next && next.stage===s.id; return `<button class="step ${pct===100?'done':cur?'on':''}" data-stage="${s.id}"><span class="n">${pct===100?'✓':i+1}</span><span class="b"><span class="t">${esc(s.title.replace(/^\d+단계 · /,''))}</span><span class="bar"><i style="width:${pct}%"></i></span></span><span class="pc num">${d}/${n}</span></button>`; }).join('');
-  return `<div class="topbar"><div class="brand"><h1>${esc(APP.title)}</h1><small>${esc(APP.subtitle)}</small></div><span class="pill ${streakNow()>0?'ok':''}">🔥 ${streakNow()}일 연속</span></div>
-  <div class="card hero stack">
-    <div class="row between"><h2 style="font-size:19px">오늘의 수업</h2><span class="pill accent">${next? '약 '+next.min+'분':'완료'}</span></div>
-    ${next? `<div><div class="muted small">${esc(next.stageTitle)}</div><div style="font-size:20px;font-weight:700;margin-top:2px">${esc(next.title)}</div><p class="muted small" style="margin-top:6px">${esc(next.key[0])}</p></div><button class="btn primary big" data-lesson="${next.id}">수업 시작</button>` : `<p>${LESSONS.length}개 수업을 모두 마쳤어요. ${esc(APP.homeDone)}</p>`}
-    <div class="sum" style="margin:4px 0 0"><div class="card" style="padding:12px 6px"><div class="stat"><b class="num">${dn}</b><span>마친 수업 / ${total}</span></div></div><div class="card" style="padding:12px 6px"><div class="stat"><b class="num">${acc===null?'–':acc+'%'}</b><span>퀴즈 정답률</span></div></div><div class="card" style="padding:12px 6px"><div class="stat"><b class="num">${tasks}</b><span>실습 완료</span></div></div></div>
-  </div>
-  <div class="sec-title">학습 로드맵</div>
-  <div class="card stack" style="gap:8px">${stages}</div>
-  <div class="sec-title">바로 가기</div>
+  const pct=total? Math.round(dn/total*100):0;
+  const stages=STAGES.map((s,i)=>{ const n=s.lessons.length; const d=s.lessons.filter(l=>lp(l.id).done).length; const sp=Math.round(d/n*100); const cur= next && next.stage===s.id; return `<li><button class="tl ${sp===100?'done':cur?'on':''}" data-stage="${s.id}"><span class="tl-n">${sp===100?icCheck:i+1}</span><span class="tl-b"><span class="tl-t">${esc(stageName(s.title))}</span><span class="tl-s">${cur? '지금 배우는 단계 · ':''}${d}/${n} 수업</span><span class="bar"><i style="width:${sp}%"></i></span></span>${chev}</button></li>`; }).join('');
+  const started=next && (lp(next.id).quiz||lp(next.id).task);
+  const hero = next? `<div class="hero2">
+      <div class="hero-top">${ring(pct)}<div class="hero-meta"><div class="eyb">${esc(stageName(next.stageTitle))} · ${LESSONS.indexOf(next)+1}번째 수업</div><h2 class="hero-t">${esc(next.title)}</h2><div class="meta">${icClock}<span>약 ${next.min}분</span><span class="sep"></span><span>${dn}/${total} 마침</span></div></div></div>
+      <p class="hero-k">${esc(next.key[0])}</p>
+      <button class="btn primary big" data-lesson="${next.id}">${started?'이어서 학습':'수업 시작'}</button>
+      ${weekStrip()}
+    </div>` : `<div class="hero2"><div class="hero-top">${ring(100)}<div class="hero-meta"><div class="eyb">전체 ${total}개 수업 완료</div><h2 class="hero-t">모두 마쳤어요</h2></div></div><p class="hero-k">${esc(APP.homeDone)}</p><button class="btn primary big" data-act="review">복습 퀴즈 풀기</button>${weekStrip()}</div>`;
+  return `<header class="apphead"><a class="hub2" href="../index.html">‹ 전체 앱</a><div class="brand2"><h1>${esc(APP.title)}</h1><p>${esc(APP.subtitle)}</p></div></header>
+  ${hero}
+  <dl class="stats"><div><dt>마친 수업</dt><dd class="num">${dn}<small>/${total}</small></dd></div><div><dt>퀴즈 정답률</dt><dd class="num">${acc===null?'–':acc+'<small>%</small>'}</dd></div><div><dt>실습 완료</dt><dd class="num">${tasks}</dd></div></dl>
+  <h2 class="h2">학습 로드맵</h2>
+  <ol class="timeline">${stages}</ol>
+  <h2 class="h2">바로 가기</h2>
   <div class="grid2">
     <button class="item" data-act="review" ${dn?'':'disabled'}><div class="body"><div class="t">복습 퀴즈</div><div class="s">${dn? '마친 수업에서 10문제':'수업 하나를 마치면 열려요'}</div></div>${chev}</button>
     <button class="item" data-nav="templates"><div class="body"><div class="t">${esc(APP.cards.templates[0])}</div><div class="s">${esc(APP.cards.templates[1])} ${TEMPLATES.reduce((a,c)=>a+c.items.length,0)}개</div></div>${chev}</button>
@@ -212,31 +355,37 @@ function viewHome(){
 /* ---- 수업 ---- */
 function viewLessons(){
   if(ui.lesson){ const l=LMAP[ui.lesson]; if(l) return viewLesson(l); ui.lesson=null; }
-  const groups=STAGES.map(s=>`<div class="sec-title">${esc(s.title)}</div><p class="muted small" style="margin:-6px 0 10px">${esc(s.desc)}</p><div class="list">${s.lessons.map(l=>{ const p=lp(l.id); return `<button class="item" data-lesson="${l.id}"><span class="dot ${p.done?'done':''}"></span><div class="body"><div class="t">${esc(l.title)}</div><div class="s">${l.min}분${p.quiz? ' · 퀴즈 '+p.quiz.ok+'/'+p.quiz.total:''}${p.task?' · 실습 완료':''}</div></div>${chev}</button>`; }).join('')}</div>`).join('');
-  return `<div class="topbar"><div class="brand"><h1>수업</h1><small>${doneCount()} / ${LESSONS.length} 마침</small></div></div>${groups}`;
+  const next=LESSONS.find(l=>!lp(l.id).done); const dn=doneCount(); const total=LESSONS.length;
+  const groups=STAGES.map((s,si)=>{ const n=s.lessons.length; const d=s.lessons.filter(l=>lp(l.id).done).length;
+    const rows=s.lessons.map(l=>{ const p=lp(l.id); const cur=next&&next.id===l.id; const meta=[`${l.min}분`]; if(p.quiz) meta.push('퀴즈 '+p.quiz.ok+'/'+p.quiz.total); if(p.task) meta.push('실습 완료');
+      return `<li><button class="lrow ${p.done?'done':''} ${cur?'cur':''}" data-lesson="${l.id}"><span class="lr-n num">${p.done?icCheck:LESSONS.indexOf(l)+1}</span><span class="lr-b"><span class="lr-t">${esc(l.title)}</span><span class="lr-s">${meta.join(' · ')}</span></span>${cur?'<span class="pill accent">다음</span>':chev}</button></li>`; }).join('');
+    return `<section class="stagebox" id="stage-${s.id}"><div class="sb-head"><div><h2>${esc(s.title)}</h2><p>${esc(s.desc)}</p></div><span class="sb-pc num">${d}/${n}</span></div><div class="bar"><i style="width:${Math.round(d/n*100)}%"></i></div><ol class="curri">${rows}</ol></section>`; }).join('');
+  return `<header class="apphead"><div class="brand2"><h1>커리큘럼</h1><p>${STAGES.length}단계 ${total}수업 · ${dn}개 마침</p></div></header>
+  <div class="bar big"><i style="width:${total?Math.round(dn/total*100):0}%"></i></div>${groups}`;
 }
 function viewLesson(l){
   const p=lp(l.id); const qz=ui.qz||{};
   const formulas=(l.formulas||[]).map((f,i)=>`<div class="prompt"><div class="t">${esc(f[0])}</div><pre>${esc(f[1])}</pre><p class="small muted" style="margin-top:6px">${esc(f[2]||'')}</p><div class="tools"><button class="btn sm" data-copyf="${l.id}:${i}">복사</button>${APP.tts?`<button class="btn sm ghost" data-say="${l.id}:${i}">▶ 듣기</button>`:''}</div></div>`).join('');
   const dict=(l.dict||[]).map((d,i)=>{ const k=l.id+':'+i; const st=ui.dict[k]; const typed=ui.dictTyped[k]||''; return `<div class="prompt"><div class="t">${i+1}번 문장</div><div class="row"><button class="btn sm" data-dsay="${k}">▶ 듣기</button><button class="btn sm ghost" data-dsay="${k}" data-slow="1">천천히</button></div><textarea class="ta small" id="dict-${l.id}-${i}" placeholder="들리는 대로 영어로 쓰세요. 철자가 틀려도 괜찮아요." style="margin-top:8px">${esc(typed)}</textarea><div class="row" style="margin-top:8px"><button class="btn sm primary" data-dcheck="${k}">확인</button>${st?`<button class="btn sm ghost" data-dreset="${k}">다시</button>`:''}</div>${st?`<div class="feedback ${st.pct>=80?'ok':'bad'}">${st.pct}% 일치${st.pct>=80?' · 잘 들었어요':st.pct>=50?' · 거의 다 왔어요':' · 한 번 더 들어 보세요'}</div><pre style="margin-top:8px">${esc(d[0])}</pre><p class="small muted" style="margin-top:4px">${esc(d[1]||'')}</p>`:''}</div>`; }).join(''); const prompts=l.prompts.map((pr,i)=>`<div class="prompt"><div class="t">${esc(pr[0])}</div><pre>${esc(pr[1])}</pre><div class="tools"><button class="btn sm" data-copy="${l.id}:${i}">복사</button><button class="btn sm ghost" data-tolab="${l.id}:${i}">도우미에게 바로 묻기</button></div></div>`).join('');
-  const quiz=l.quiz.map((q,qi)=>{ const st=qz[qi]; return `<div class="card" style="padding:14px 16px"><div style="font-weight:600">${qi+1}. ${esc(q.q)}</div><div class="opts">${q.o.map((o,oi)=>{ let cls=''; if(st!=null){ if(oi===q.a) cls='right'; else if(oi===st) cls='wrong'; else cls='dim'; } return `<button class="opt ${cls}" data-qz="${qi}" data-oi="${oi}" ${st!=null?'disabled':''}><span class="k">${oi+1}</span><span>${esc(o)}</span></button>`; }).join('')}</div>${st!=null? (st===q.a? `<div class="feedback ok">맞았어요!</div>`:`<div class="feedback bad">정답은 ${q.a+1}번이에요.</div>`):''}</div>`; }).join('');
+  const quiz=l.quiz.map((q,qi)=>{ const st=qz[qi]; return `<div class="qbox ${st!=null?(st===q.a?'is-ok':'is-bad'):''}"><div class="qnum">문제 ${qi+1} / ${l.quiz.length}</div><div class="qq">${esc(q.q)}</div><div class="opts">${q.o.map((o,oi)=>{ let cls=''; if(st!=null){ if(oi===q.a) cls='right'; else if(oi===st) cls='wrong'; else cls='dim'; } return `<button class="opt ${cls}" data-qz="${qi}" data-oi="${oi}" ${st!=null?'disabled':''}><span class="k">${oi+1}</span><span>${esc(o)}</span></button>`; }).join('')}</div>${st!=null? (st===q.a? `<div class="feedback ok">맞았어요!</div>`:`<div class="feedback bad">정답은 ${q.a+1}번이에요. 위 본문에서 다시 확인해 보세요.</div>`):''}</div>`; }).join('');
   const answered=Object.keys(qz).length; const correct=l.quiz.filter((q,qi)=>qz[qi]===q.a).length;
-  return `<button class="back" data-act="back-lessons">‹ 수업 목록</button>
-  <div class="topbar"><div class="brand"><h1>${esc(l.title)}</h1><small>${esc(l.stageTitle)} · ${l.min}분</small></div>${p.done? `<span class="pill ok">마침</span>`:''}</div>
-  <div class="card hero"><div class="key"><ul class="key">${l.key.map(k=>`<li>${esc(k)}</li>`).join('')}</ul></div></div>
-  <div class="sec-title">자세히</div>
-  <div class="card body">${l.body.map(b=>`<p>${esc(b)}</p>`).join('')}</div>
-  ${formulas? `<div class="sec-title">${esc(APP.sec.steps)}</div><div class="stack">${formulas}</div>`:''}
-  ${dict? `<div class="sec-title">받아쓰기</div><div class="stack">${dict}</div>`:''}
-  <div class="sec-title">${esc(APP.sec.prompts)}</div>
-  <div class="stack">${prompts}</div>
-  <div class="sec-title">확인 퀴즈</div>
-  <div class="stack">${quiz}${answered===l.quiz.length? `<p class="small muted">퀴즈 ${correct} / ${l.quiz.length} 맞았어요.</p>`:''}</div>
-  <div class="sec-title">실습 과제</div>
-  <button class="check ${p.task?'on':''}" data-act="task" data-lesson="${l.id}"><span class="box">${p.task?'✓':''}</span><span>${esc(l.task)}</span></button>
-  <div style="margin-top:16px">${p.done? `<button class="btn ghost full" data-act="undone" data-lesson="${l.id}">마침 표시 지우기</button>` : `<button class="btn primary full" data-act="done" data-lesson="${l.id}" ${answered===l.quiz.length?'':'disabled'}>${answered===l.quiz.length?'이 수업 마쳤어요':'퀴즈를 모두 풀면 마칠 수 있어요'}</button>`}</div>
-  ${(()=>{ const i=LESSONS.indexOf(l); const n=LESSONS[i+1]; return n? `<button class="item" style="margin-top:10px" data-lesson="${n.id}"><div class="body"><div class="s">다음 수업</div><div class="t">${esc(n.title)}</div></div>${chev}</button>`:''; })()}`;
+  const idx=LESSONS.indexOf(l); const prev=LESSONS[idx-1], nxt=LESSONS[idx+1];
+  const sec=[['sec-key','핵심'],['sec-body','본문']]; if(formulas) sec.push(['sec-steps',APP.sec.steps]); if(dict) sec.push(['sec-dict','받아쓰기']); if(prompts) sec.push(['sec-prompts','클로드']); sec.push(['sec-quiz', answered===l.quiz.length? `퀴즈 ${correct}/${l.quiz.length}`:`퀴즈 ${answered}/${l.quiz.length}`]); sec.push(['sec-task', p.task?'과제 완료':'과제']);
+  const chip=([id,t])=>`<button class="chip ${(id==='sec-quiz'&&answered===l.quiz.length)||(id==='sec-task'&&p.task)?'ok':''}" data-jump="${id}">${(id==='sec-quiz'&&answered===l.quiz.length)||(id==='sec-task'&&p.task)?icCheck:''}${esc(t)}</button>`;
+  return `<div class="lhead"><div class="lh-in"><button class="back" data-act="back-lessons">‹ 커리큘럼</button><span class="lh-pos num">${idx+1} / ${LESSONS.length}</span></div><div class="readbar"><i></i></div></div>
+  <header class="lhero"><div class="eyb">${esc(l.stageTitle)}</div><h1>${esc(l.title)}</h1><div class="meta">${icClock}<span>약 ${l.min}분</span>${p.done? `<span class="sep"></span><span class="pill ok">${icCheck} 마침</span>`:''}</div></header>
+  <nav class="chips" aria-label="이 수업의 구성">${sec.map(chip).join('')}</nav>
+  <section id="sec-key" class="keycard"><h2 class="h2">이 수업의 핵심</h2><ul class="key">${l.key.map(k=>`<li>${esc(k)}</li>`).join('')}</ul></section>
+  <section id="sec-body"><h2 class="h2">자세히</h2><div class="prose">${l.body.map(b=>`<p>${esc(b)}</p>`).join('')}</div></section>
+  ${formulas? `<section id="sec-steps"><h2 class="h2">${esc(APP.sec.steps)}</h2><div class="stack">${formulas}</div></section>`:''}
+  ${dict? `<section id="sec-dict"><h2 class="h2">받아쓰기</h2><div class="stack">${dict}</div></section>`:''}
+  ${prompts? `<section id="sec-prompts"><h2 class="h2">${esc(APP.sec.prompts)}</h2><div class="stack">${prompts}</div></section>`:''}
+  <section id="sec-quiz"><h2 class="h2">확인 퀴즈</h2><div class="stack">${quiz}${answered===l.quiz.length? `<p class="qsum ${correct===l.quiz.length?'ok':''}">${correct===l.quiz.length?'모두 맞았어요.':`${l.quiz.length}문제 중 ${correct}문제 맞았어요. 틀린 문제는 본문에서 다시 확인해 보세요.`}</p>`:''}</div></section>
+  <section id="sec-task"><h2 class="h2">실습 과제</h2><button class="check ${p.task?'on':''}" data-act="task" data-lesson="${l.id}"><span class="box">${p.task?'✓':''}</span><span>${esc(l.task)}</span></button><p class="small muted" style="margin-top:8px">과제를 해 봤다면 눌러서 표시하세요.</p></section>
+  <div class="finish">${p.done? `<div class="done-note">${icCheck}<span>이 수업을 마쳤어요</span></div><button class="btn ghost full" data-act="undone" data-lesson="${l.id}">마침 표시 지우기</button>` : `<button class="btn primary big" data-act="done" data-lesson="${l.id}" ${answered===l.quiz.length?'':'disabled'}>${answered===l.quiz.length?'이 수업 마쳤어요':`퀴즈를 모두 풀면 마칠 수 있어요 (${answered}/${l.quiz.length})`}</button>`}</div>
+  <nav class="pager" aria-label="이전·다음 수업">${prev? `<button class="pg" data-lesson="${prev.id}"><small>이전 수업</small><span>${esc(prev.title)}</span></button>`:'<span></span>'}${nxt? `<button class="pg next" data-lesson="${nxt.id}"><small>다음 수업</small><span>${esc(nxt.title)}</span></button>`:''}</nav>`;
 }
+
 
 /* ---- 템플릿 ---- */
 function viewTemplates(){
@@ -294,8 +443,9 @@ function viewMore(){
 function promptText(ref){ if(ref.startsWith('t:')){ const [,ci,ti]=ref.split(':'); return TEMPLATES[+ci].items[+ti][1]; } const [lid,i]=ref.split(':'); return LMAP[lid].prompts[+i][1]; }
 document.addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return; const d=b.dataset;
+  if(d.jump){ const el=document.getElementById(d.jump); if(el) el.scrollIntoView({behavior:'smooth', block:'start'}); return; }
   if(d.nav){ if(d.mode) ui.lab.mode=d.mode; go(d.nav, {lesson:null, stage:null}); return; }
-  if(d.stage){ go('lessons', {lesson:null}); const el=[...document.querySelectorAll('.sec-title')].find(x=>x.textContent.startsWith(STAGES.find(s=>s.id===d.stage).title.slice(0,3))); if(el) el.scrollIntoView(); return; }
+  if(d.stage){ go('lessons', {lesson:null}); const el=document.getElementById('stage-'+d.stage); if(el) el.scrollIntoView({block:'start'}); return; }
   if(d.lesson && !d.act){ ui.qz={}; go('lessons', {lesson:d.lesson}); return; }
   if(d.copy){ copyText(promptText(d.copy)); return; }
   if(d.copyf){ const [lid,i]=d.copyf.split(':'); copyText(LMAP[lid].formulas[+i][1]); return; }
@@ -331,6 +481,7 @@ document.addEventListener('click', e=>{
     case 'do-import': { const ta=$('#importTa'); const txt=(ta?ta.value:'').trim(); try{ const o=JSON.parse(txt); if(!o||typeof o!=='object'||!o.lessons) throw 0; state=migrate(o); commit(); ui.importText=''; toast('진도를 가져왔어요'); render(); }catch(err){ ui.importText=txt; toast('형식이 맞지 않아요'); render(); } break; }
   }
 });
+window.addEventListener('scroll', ()=>{ const i=document.querySelector('.readbar>i'); if(!i) return; const h=document.documentElement; const max=h.scrollHeight-h.clientHeight; i.style.width=(max>0? Math.min(100, Math.round(h.scrollTop/max*100)):100)+'%'; }, {passive:true});
 document.addEventListener('input', e=>{ if(!e.target) return; if(e.target.id==='labIn') ui.lab.prompt=e.target.value; else if(/^dict-/.test(e.target.id)){ const m=e.target.id.match(/^dict-(.+)-(\d+)$/); if(m) ui.dictTyped[m[1]+':'+m[2]]=e.target.value; } });
 function speak(txt, slow){ if(!('speechSynthesis' in window)){ toast('이 브라우저는 소리를 지원하지 않아요'); return; } const t=APP.tts||{}; const lang=t.lang||'en-US'; const u=new SpeechSynthesisUtterance(txt); u.lang=lang; const base=t.rate||0.9; u.rate=slow? Math.max(0.5, base*0.7) : base; const vs=speechSynthesis.getVoices().filter(v=>v.lang&&v.lang.toLowerCase().replace('_','-').startsWith(lang.slice(0,2).toLowerCase())); if(vs.length){ u.voice=vs.find(v=>v.lang.replace('_','-')===lang)||vs[0]; } else if(!speak.warned){ speak.warned=true; toast('영어 음성이 없는 기기예요. Edge·Chrome이나 휴대폰에서 열면 들려요'); } speechSynthesis.cancel(); speechSynthesis.speak(u); }
 function normEn(s){ return String(s||'').toLowerCase().replace(/[’‘]/g,"'").replace(/\bgonna\b/g,'going to').replace(/\bwanna\b/g,'want to').replace(/\bgotta\b/g,'got to').replace(/\bkinda\b/g,'kind of').replace(/'/g,'').replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim(); }
