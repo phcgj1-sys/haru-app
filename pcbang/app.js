@@ -486,7 +486,7 @@ function sanitizeNative(o) {
 $('#nativeApply').addEventListener('click', function () {
   try {
     var o = decodeNative($('#nativeIn').value);
-    S.native = o; save(); renderSpec(); renderNativeNet();
+    S.native = o; if (!S.seat && o.seat) { S.seat = String(o.seat); seatPill(); } save(); renderSpec(); renderNativeNet();
     $('#nativeMsg').innerHTML = '<span class="pill ok">적용했어요</span>';
     toast('점검 프로그램 결과를 적용했어요');
   } catch (e) { $('#nativeMsg').innerHTML = '<span class="pill bad">읽지 못했어요: ' + esc(e.message) + '</span>'; }
@@ -1096,11 +1096,17 @@ function saveShop() { store.set(STORE_KEY, shop); }
 function seatKeyOf(seat, computer) { seat = String(seat || '').trim(); return seat ? 'seat:' + seat : computer ? 'pc:' + String(computer).trim().toUpperCase() : 'x:' + Date.now() + Math.random().toString(36).slice(2, 6); }
 function addToShop(items, fileSeat) {
   var added = 0, errors = 0, lastKey = null, keys = {};
+  // 한 좌석이 내보낸 웹 결과 + 점검 프로그램 결과가 붙어 있으면, 좌석 번호가 있는 쪽을 따름
+  items.forEach(function (it, i) {
+    var nx = items[i + 1];
+    if (it.kind === 'web' && !it.data.seat && nx && nx.kind === 'native' && (nx.data.seat || nx.data.computer)) it.data.seat = nx.data.seat ? String(nx.data.seat) : '';
+    if (it.kind === 'web' && !it.data.seat && nx && nx.kind === 'native' && !nx.data.seat && nx.data.computer) it.pairComputer = nx.data.computer;
+  });
   items.forEach(function (it) {
     if (it.kind === 'error') { errors++; return; }
     var seat = it.kind === 'web' ? it.data.seat : (it.data.seat != null ? String(it.data.seat) : '');
     if (!seat && fileSeat) seat = fileSeat;
-    var key = seatKeyOf(seat, it.kind === 'native' ? it.data.computer : '');
+    var key = seatKeyOf(seat, it.kind === 'native' ? it.data.computer : it.pairComputer || '');
     // 같은 글에 웹 결과 + 점검 프로그램 결과가 함께 있으면 같은 좌석으로 묶음
     if (!seat && it.kind === 'native' && lastKey) key = lastKey;
     var e = shop[key] || { key: key, seat: seat, computer: '', at: 0 };
