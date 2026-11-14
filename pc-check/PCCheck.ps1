@@ -970,7 +970,9 @@ function Get-HistoryPath { return (Join-Path $script:WorkDir 'history.json') }
 function Read-History {
     $p = Get-HistoryPath
     if (-not (Test-Path $p)) { return @() }
-    try { return @(Get-Content -Raw -Encoding UTF8 $p | ConvertFrom-Json) } catch { return @() }
+    # 5.1 의 ConvertFrom-Json 은 JSON 배열을 통째로 하나의 개체로 내보내므로 직접 풀어서 반환
+    try { $j = (Get-Content -Raw -Encoding UTF8 $p) | ConvertFrom-Json; foreach ($x in $j) { $x } } catch { }
+
 }
 function Add-Comparison($Data, $Dx, $History) {
     $me = [string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')
