@@ -15,6 +15,8 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    timeout-minutes: 20
+
     defaults:
       run:
         working-directory: pc-check
@@ -68,6 +70,7 @@ jobs:
         run: ./tests/CI-Run.ps1 -ToolCheck
 
       - name: Build EXE
+        timeout-minutes: 6
         shell: powershell
         run: ./build/Build-Exe.ps1 -OutDir "$env:RUNNER_TEMP\PCCheck"
 

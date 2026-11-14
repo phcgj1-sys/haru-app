@@ -932,7 +932,9 @@ $findHtml
 
 <h2>A/S · 상담용 요약</h2>
 <div class="card"><pre id="sumtext">$(HtmlEnc $summary)</pre>
-<div class="btns"><button class="pri" id="cpbtn" onclick="copySummary()">요약 복사</button><button onclick="openAll(true);window.print()">인쇄 / PDF 저장</button><button onclick="openAll(true)">모두 펼치기</button></div></div>
+<p class="sub" style="margin-top:8px">원격 상담을 받을 때는 이 요약과 함께, 보고서와 같은 폴더에 있는 같은 이름의 <b>.json</b> 파일을 보내 주세요 (상담사가 같은 보고서를 열어 볼 수 있습니다).</p>
+<div class="btns"><button class="pri" id="cpbtn" onclick="copySummary()">요약 복사</button>
+<button onclick="openAll(true);window.print()">인쇄 / PDF 저장</button><button onclick="openAll(true)">모두 펼치기</button></div></div>
 
 <h2>상세 기록</h2>
 <details class="sec"><summary>시스템 정보</summary><div><table class="kv">
