@@ -508,6 +508,7 @@ document.addEventListener('keydown', e=>{ if(!S) return; if(e.key==='Enter'&&S.a
 
 loadLocal(); applySkin(); render(); Sync.init(); AI.init();
 if(location.hash==='#review'){ history.replaceState(null,'',location.pathname); if(missCount()||doneCount()) startReview(); }
+{ const m=location.hash.match(/^#lesson=(l\d+)$/); if(m&&LMAP[m[1]]){ history.replaceState(null,'',location.pathname); ui.qz={}; go('lessons',{lesson:m[1]}); } }
 })();
 </script>
 </body></html>

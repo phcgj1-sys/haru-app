@@ -76,14 +76,21 @@ a.card>span:last-child{flex:1;min-width:0}
 .ms-row button{min-height:44px;padding:8px 14px;border-radius:10px;border:0;background:var(--fg);color:var(--bg);font:inherit;font-weight:700;font-size:14px;cursor:pointer}
 .ms-msg{font-weight:600;color:var(--fg)!important}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.lsr{margin:0 0 14px}
+.lsr ul{list-style:none;margin:0;padding:0;border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden}
+.lsr li+li{border-top:1px solid var(--line)}
+.lsr a{display:block;padding:11px 14px;text-decoration:none;color:inherit;min-height:48px}
+.lsr a b{display:block;font-size:15px;font-weight:700}
+.lsr a span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
 </style>
 </head>
 <body>
 <div class="app">
   <h1>하루 학습</h1>
   <p class="sub">하루 15분, 매일. 32가지 앱을 한곳에서.</p>
-  <input class="appq" id="appq" type="search" placeholder="앱 찾기 (예: 엑셀, 강화학습, 일본어)" aria-label="앱 찾기" autocomplete="off">
+  <input class="appq" id="appq" type="search" placeholder="앱·수업 찾기 (예: 엑셀, 어텐션, 연말정산)" aria-label="앱과 수업 찾기" autocomplete="off">
   <p class="muted-empty" id="appq-empty" hidden>찾는 앱이 없어요. 다른 낱말로 찾아보세요.</p>
+  <div class="lsr" id="lsr" hidden><h2 class="h2 grp">수업</h2><ul id="lsr-list"></ul><p class="muted-empty" id="lsr-more" hidden></p></div>
   <a class="resume review" id="review" href="#"><span><div class="rk">오늘의 복습</div><div class="rt" id="reviewT"></div><div class="rs" id="reviewS"></div></span><span class="go">복습하기</span></a>
   <a class="resume" id="resume" href="#"><span><div class="rk">이어서 학습</div><div class="rt" id="resumeT"></div><div class="rs" id="resumeS"></div></span><span class="go">계속하기</span></a>
   <h2 class="h2 grp">외국어</h2>
@@ -164,7 +171,18 @@ a.card>span:last-child{flex:1;min-width:0}
     q.addEventListener('input', function(){ var v=q.value.trim().toLowerCase(); var shown=0;
       Array.prototype.forEach.call(document.querySelectorAll('a.card'), function(a){ var hit=!v || a.textContent.toLowerCase().indexOf(v)>=0; a.hidden=!hit; if(hit) shown++; });
       Array.prototype.forEach.call(document.querySelectorAll('.grid'), function(g){ var any=g.querySelector('a.card:not([hidden])'); g.hidden=!any; var h=g.previousElementSibling; while(h && !(h.tagName==='H2')){ if(h.classList.contains('grp-note')) h.hidden=!any; h=h.previousElementSibling; } if(h) h.hidden=!any; });
-      empty.hidden=shown>0; var r=document.getElementById('resume'); if(r&&r.classList.contains('show')) r.style.display=v?'none':''; });
+      var r=document.getElementById('resume'); if(r&&r.classList.contains('show')) r.style.display=v?'none':''; var rv=document.getElementById('review'); if(rv&&rv.classList.contains('show')) rv.style.display=v?'none':'';
+      lessonSearch(v, shown); });
+    var idxState=0, lsr=document.getElementById('lsr'), list=document.getElementById('lsr-list'), more=document.getElementById('lsr-more');
+    function esc(t){ return String(t).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+    function lessonSearch(v, shownApps){
+      if(v.length<2){ lsr.hidden=true; empty.hidden=shownApps>0||!v; return; }
+      if(!window.HARU_INDEX){ if(idxState===0){ idxState=1; var sc=document.createElement('script'); sc.src='search-index.js'; sc.onload=function(){ idxState=2; lessonSearch(q.value.trim().toLowerCase(), countShown()); }; sc.onerror=function(){ idxState=0; }; document.head.appendChild(sc); } return; }
+      var hits=window.HARU_INDEX.filter(function(x){ return (x[3]+' '+x[4]).toLowerCase().indexOf(v)>=0; });
+      list.innerHTML=hits.slice(0,20).map(function(x){ return '<li><a href="'+x[0]+'/index.html#lesson='+x[2]+'"><b>'+esc(x[3])+'</b><span>'+esc(x[1])+'</span></a></li>'; }).join('');
+      more.hidden=hits.length<=20; more.textContent='수업 '+hits.length+'개 중 20개만 보여요. 낱말을 더 붙여 좁혀 보세요.';
+      lsr.hidden=hits.length===0; empty.hidden=shownApps>0||hits.length>0; }
+    function countShown(){ return document.querySelectorAll('a.card:not([hidden])').length; }
   })();
   var KEYS={'cap/index.html':'ai_capstone_study_v1','llm/index.html':'ai_llm_scratch_study_v1','mm/index.html':'ai_multimodal_study_v1','gen/index.html':'ai_gen_audio_study_v1','nlp/index.html':'ai_nlp_study_v1','rl/index.html':'ai_rl_study_v1','cv/index.html':'ai_cv_study_v1','found/index.html':'ai_found_math_study_v1','re/index.html':'ai_reverse_eng_study_v1','ml/index.html':'ai_ml_dl_study_v1','claude/index.html':'claude_study_v1','excel/index.html':'excel_study_v1','sheets/index.html':'sheets_study_v1','listen/index.html':'listen_study_v1','basics/index.html':'basics_study_v1','media/index.html':'media_study_v1','writing/index.html':'writing_study_v1','money/index.html':'money_study_v1','homepage/index.html':'homepage_study_v1','youtube/index.html':'youtube_study_v1','github/index.html':'github_study_v1','linux/index.html':'linux_slack_study_v1','ai/index.html':'ai_llm_eng_study_v1','tools/index.html':'ai_tools_mcp_study_v1','agent/index.html':'ai_agent_eng_study_v1','auto/index.html':'ai_autonomy_study_v1','multi/index.html':'ai_multiagent_study_v1','infra/index.html':'ai_infra_ops_study_v1','safety/index.html':'ai_safety_align_study_v1'};
   var best=null;
