@@ -334,7 +334,7 @@ function Invoke-Collect {
             $ev += Get-EventsSafe 'System' 4101 'Display' $since
             $ev += Get-EventsSafe 'System' @(13, 14, 153) 'nvlddmkm' $since
             foreach ($p in 'amdkmdag', 'amdwddmg', 'igfx', 'igfxn') { $ev += @(Get-EventsSafe 'System' $null $p $since | Where-Object { $_.Level -le 2 }) }
-            $wer = @(Get-EventsSafe 'Application' 1001 'Windows Error Reporting' $since 300 | Where-Object { (Get-EventText $_) -match 'LiveKernelEvent' -and (Get-EventText $_) -match '\b(141|117|1a1|1a8)\b' })
+            $wer = @(Get-EventsSafe 'Application' 1001 'Windows Error Reporting' $since 300 | Where-Object { (Get-EventText $_) -match 'LiveKernelEvent' -and (Get-EventText $_) -match 'P1:\s*(141|117)\b' })
             $ev += $wer
             $D.GpuEvents = @($ev | Sort-Object TimeCreated -Descending | Select-Object -First 300 | ForEach-Object {
                 $txt = Get-EventText $_; $xid = $null
@@ -1093,7 +1093,7 @@ function Invoke-Tool([string]$Key) {
 # =====================================================================
 #  화면 (WinForms)
 # =====================================================================
-function Test-GuiLayout($root) {
+function Test-GuiLayout($root, [int]$RootW = 0, [int]$RootH = 0) {
     # 글자 잘림 · 컨트롤 겹침 · 부모 영역 밖으로 나감을 화면 없이 자동 검사
     $issues = New-Object System.Collections.ArrayList
     $stack = New-Object System.Collections.Stack
@@ -1101,9 +1101,11 @@ function Test-GuiLayout($root) {
     while ($stack.Count) {
         $parent = $stack.Pop()
         $kids = @($parent.Controls)
+        $pw = $parent.ClientSize.Width; $ph = $parent.ClientSize.Height
+        if ($parent -eq $root -and $RootW -gt 0) { $pw = $RootW; $ph = $RootH }
         foreach ($c in $kids) {
             $name = "$($c.GetType().Name) '$($c.Text)'"
-            if ($c.Right -gt $parent.ClientSize.Width -or $c.Bottom -gt $parent.ClientSize.Height) { [void]$issues.Add("$name 이(가) 부모 영역 밖 ($($c.Bounds) / $($parent.ClientSize))") }
+            if ($c.Right -gt $pw -or $c.Bottom -gt $ph -or $c.Left -lt 0 -or $c.Top -lt 0) { [void]$issues.Add("$name 이(가) 부모 영역 밖 ($($c.Bounds) / ${pw}x${ph})") }
             if ($c.Text -and ($c -is [Windows.Forms.Button] -or ($c -is [Windows.Forms.Label] -and -not $c.AutoSize))) {
                 $sz = [Windows.Forms.TextRenderer]::MeasureText([string]$c.Text, $c.Font)
                 $avail = $c.ClientSize.Width - $(if ($c -is [Windows.Forms.Button]) { 10 } else { 0 })
@@ -1142,48 +1144,47 @@ function Show-Gui {
 
     $f = New-Object Windows.Forms.Form
     $f.Text = "$($script:AppName) v$($script:AppVersion)"
-    $f.ClientSize = New-Object Drawing.Size(760, 600)
-    $f.MinimumSize = New-Object Drawing.Size(700, 560)
     $f.StartPosition = 'CenterScreen'; $f.Font = $font; $f.BackColor = [Drawing.Color]::FromArgb(246, 247, 249)
-    $f.AutoScaleDimensions = New-Object Drawing.SizeF(96, 96)
-    $f.AutoScaleMode = 'Dpi'
+    $f.AutoScaleMode = 'None'   # 배치는 아래 $doLayout 이 화면 배율($s)과 창 크기로 직접 계산
+    $s = $SimScale
+    if ($SimScale -eq 1.0) { try { $g = $f.CreateGraphics(); $s = [math]::Max(1.0, $g.DpiX / 96.0); $g.Dispose() } catch { $s = 1.0 } }
 
     $title = New-Object Windows.Forms.Label
     $title.Text = 'PC 원클릭 진단'; $title.Font = New-Object Drawing.Font('Malgun Gothic', (16 * $SimScale), [Drawing.FontStyle]::Bold)
-    $title.Location = '20,16'; $title.AutoSize = $true
+    $title.AutoSize = $true
     $desc = New-Object Windows.Forms.Label
     $desc.Text = '갑자기 꺼짐 · 블루스크린 · 그래픽카드(VRAM) · RAM · 디스크 문제를 Windows 기록으로 분석합니다.'
-    $desc.Location = '22,52'; $desc.AutoSize = $true; $desc.ForeColor = [Drawing.Color]::DimGray
+    $desc.AutoEllipsis = $true; $desc.ForeColor = [Drawing.Color]::DimGray
 
-    $daysLbl = New-Object Windows.Forms.Label; $daysLbl.Text = '분석 기간'; $daysLbl.Location = '22,90'; $daysLbl.AutoSize = $true
-    $daysBox = New-Object Windows.Forms.ComboBox; $daysBox.DropDownStyle = 'DropDownList'; $daysBox.Location = '92,86'; $daysBox.Width = 110
+    $daysLbl = New-Object Windows.Forms.Label; $daysLbl.Text = '분석 기간'; $daysLbl.AutoSize = $true
+    $daysBox = New-Object Windows.Forms.ComboBox; $daysBox.DropDownStyle = 'DropDownList'
     foreach ($o in '7일', '30일', '90일', '180일') { [void]$daysBox.Items.Add($o) }
     $daysBox.SelectedItem = $(if ($Days -le 7) { '7일' } elseif ($Days -le 30) { '30일' } elseif ($Days -le 90) { '90일' } else { '180일' })
 
     $start = New-Object Windows.Forms.Button
-    $start.Text = '▶  검사 시작'; $start.Font = $bold; $start.Size = '200,44'; $start.Location = '538,78'; $start.Anchor = 'Top,Right'
+    $start.Text = '▶  검사 시작'; $start.Font = $bold
     $start.BackColor = [Drawing.Color]::FromArgb(36, 87, 197); $start.ForeColor = [Drawing.Color]::White; $start.FlatStyle = 'Flat'; $start.FlatAppearance.BorderSize = 0
 
-    $bar = New-Object Windows.Forms.ProgressBar; $bar.Location = '22,134'; $bar.Size = '716,10'; $bar.Anchor = 'Top,Left,Right'
-    $status = New-Object Windows.Forms.Label; $status.Location = '22,150'; $status.Size = '716,22'; $status.Anchor = 'Top,Left,Right'; $status.ForeColor = [Drawing.Color]::DimGray
+    $bar = New-Object Windows.Forms.ProgressBar
+    $status = New-Object Windows.Forms.Label; $status.AutoEllipsis = $true; $status.ForeColor = [Drawing.Color]::DimGray
     $status.Text = $(if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { '준비됨 (관리자 권한)' } else { '준비됨 — ⚠ 관리자 권한이 아니어서 일부 항목이 빠질 수 있습니다' })
 
-    $score = New-Object Windows.Forms.Label; $score.Font = $big; $score.Location = '22,180'; $score.Size = '150,60'; $score.Text = '—'; $score.TextAlign = 'MiddleLeft'
-    $grade = New-Object Windows.Forms.Label; $grade.Font = $bold; $grade.Location = '24,240'; $grade.AutoSize = $true; $grade.Text = '상태 점수'
+    $score = New-Object Windows.Forms.Label; $score.Font = $big; $score.Text = '—'; $score.TextAlign = 'MiddleLeft'
+    $grade = New-Object Windows.Forms.Label; $grade.Font = $bold; $grade.AutoEllipsis = $true; $grade.Text = '상태 점수'
 
     $list = New-Object Windows.Forms.ListView
-    $list.View = 'Details'; $list.FullRowSelect = $true; $list.HeaderStyle = 'Nonclickable'; $list.Location = '180,182'; $list.Size = '558,230'; $list.Anchor = 'Top,Left,Right,Bottom'
-    [void]$list.Columns.Add('의심 원인 / 발견 사항', 380); [void]$list.Columns.Add('점수', 60); [void]$list.Columns.Add('가능성', 90)
+    $list.View = 'Details'; $list.FullRowSelect = $true; $list.HeaderStyle = 'Nonclickable'
+    [void]$list.Columns.Add('의심 원인 / 발견 사항', 300); [void]$list.Columns.Add('점수', [int](60 * $s)); [void]$list.Columns.Add('가능성', [int](90 * $s))
     $tip = New-Object Windows.Forms.ToolTip
 
-    $report = New-Object Windows.Forms.Button; $report.Text = '📄 보고서 열기'; $report.Location = '22,280'; $report.Size = '146,36'; $report.Enabled = $false
-    $folder = New-Object Windows.Forms.Button; $folder.Text = '📁 저장 폴더'; $folder.Location = '22,322'; $folder.Size = '146,36'; $folder.Enabled = $false
+    $report = New-Object Windows.Forms.Button; $report.Text = '📄 보고서 열기'; $report.Enabled = $false
+    $folder = New-Object Windows.Forms.Button; $folder.Text = '📁 저장 폴더'; $folder.Enabled = $false
 
-    $grp = New-Object Windows.Forms.GroupBox; $grp.Text = '정밀 검사 (공식 출처에서 받아 실행)'; $grp.Location = '22,424'; $grp.Size = '716,160'; $grp.Anchor = 'Left,Right,Bottom'
-    $x = 14; $y = 26; $i = 0
+    $grp = New-Object Windows.Forms.GroupBox; $grp.Text = '정밀 검사 (공식 출처에서 받아 실행)'
+    $toolBtns = New-Object System.Collections.ArrayList
     foreach ($t in $script:ExternalTools) {
         $b = New-Object Windows.Forms.Button
-        $b.Text = $t.Label; $b.Tag = $t.Key; $b.Size = '220,56'; $b.Location = New-Object Drawing.Point($x, $y)
+        $b.Text = $t.Label; $b.Tag = $t.Key
         $tip.SetToolTip($b, "$($t.Desc)`n`n$($t.Help)")
         $b.Add_Click({
             param($sender, $e)
@@ -1193,8 +1194,7 @@ function Show-Gui {
             if ($r.Ok) { [void][Windows.Forms.MessageBox]::Show($f, $r.Help, $sender.Text, 'OK', 'Information') }
             else { [void][Windows.Forms.MessageBox]::Show($f, "실행하지 못했습니다.`n$($r.Error)", $sender.Text, 'OK', 'Warning') }
         })
-        $grp.Controls.Add($b)
-        $i++; $x += 230; if ($i % 3 -eq 0) { $x = 14; $y += 64 }
+        $grp.Controls.Add($b); [void]$toolBtns.Add($b)
     }
 
     $state = @{ Result = $null }
@@ -1237,12 +1237,55 @@ function Show-Gui {
     })
 
     $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $grp))
-    if ($SimScale -ne 1.0) { $f.Scale((New-Object Drawing.SizeF($SimScale, $SimScale))) }
+
+    # ---- 배치: 창 크기(W,H)와 배율($s)로 모든 위치를 계산 (작은 화면·고배율에서도 겹치지 않게)
+    $doLayout = {
+        param([int]$W, [int]$H)
+        $u = { param([double]$v) [int][math]::Round($v * $s) }
+        $m = & $u 20
+        $title.Location = New-Object Drawing.Point($m, (& $u 14))
+        $desc.SetBounds($m + (& $u 2), (& $u 48), $W - 2 * $m, (& $u 24))
+        $daysLbl.Location = New-Object Drawing.Point($m + (& $u 2), (& $u 90))
+        $daysBox.SetBounds($m + (& $u 74), (& $u 86), (& $u 110), $daysBox.Height)
+        $start.SetBounds($W - $m - (& $u 200), (& $u 78), (& $u 200), (& $u 44))
+        $bar.SetBounds($m, (& $u 134), $W - 2 * $m, (& $u 10))
+        $status.SetBounds($m, (& $u 150), $W - 2 * $m, (& $u 24))
+        $grpH = & $u 150; $grpTop = $H - $grpH - (& $u 14)
+        $grp.SetBounds($m, $grpTop, $W - 2 * $m, $grpH)
+        $top = & $u 184; $leftW = & $u 150
+        $score.SetBounds($m, $top, $leftW, (& $u 56))
+        $grade.SetBounds($m + (& $u 2), $top + (& $u 58), $leftW, (& $u 26))
+        $report.SetBounds($m, $top + (& $u 92), $leftW, (& $u 36))
+        $folder.SetBounds($m, $top + (& $u 134), $leftW, (& $u 36))
+        $lx = $m + $leftW + (& $u 10)
+        $list.SetBounds($lx, $top, $W - $m - $lx, [math]::Max((& $u 80), $grpTop - (& $u 10) - $top))
+        $list.Columns[0].Width = [math]::Max((& $u 120), $list.ClientSize.Width - $list.Columns[1].Width - $list.Columns[2].Width - 4)
+        $pad = & $u 12; $gap = & $u 10; $bh = & $u 52
+        $bw = [int][math]::Floor(($grp.ClientSize.Width - 2 * $pad - 2 * $gap) / 3)
+        for ($k = 0; $k -lt $toolBtns.Count; $k++) {
+            $col = $k % 3; $row = [math]::Floor($k / 3)
+            $toolBtns[$k].SetBounds($pad + $col * ($bw + $gap), (& $u 26) + $row * ($bh + $gap), $bw, $bh)
+        }
+    }
+    # 화면 작업 영역에 맞춘 창 크기 (1366x768 + 125% 같은 작은 화면 대응)
+    $wa = [Windows.Forms.Screen]::PrimaryScreen.WorkingArea
+    $cw = [math]::Min([int](760 * $s), $wa.Width - 40); $ch = [math]::Min([int](600 * $s), $wa.Height - 60)
+    $f.ClientSize = New-Object Drawing.Size($cw, $ch)
+    $f.MinimumSize = New-Object Drawing.Size([math]::Min([int](700 * $s), $wa.Width), [math]::Min([int](560 * $s), $wa.Height))
+    & $doLayout $f.ClientSize.Width $f.ClientSize.Height
+    $f.Add_Resize({ & $doLayout $f.ClientSize.Width $f.ClientSize.Height })
+
     if ($SmokeTest) {
-        # CI 등 화면 없는 환경: 컨트롤 생성까지만 검증
+        # CI 등 화면 없는 환경: 여러 창 크기에서 배치를 계산해 글자 잘림·겹침 검사
         $f.CreateControl(); $n = $f.Controls.Count
-        $issues = @(Test-GuiLayout $f)
+        $issues = @()
+        foreach ($sz in @(@(760, 600), @(700, 540), @(760, 534))) {
+            $W = [int]($sz[0] * $s); $H = [int]($sz[1] * $s)
+            & $doLayout $W $H
+            foreach ($i in @(Test-GuiLayout $f $W $H)) { $issues += "[$W x $H] $i" }
+        }
         foreach ($i in $issues) { Write-Output "GUI LAYOUT ISSUE: $i" }
+        & $doLayout 760 600
         if ($env:PCCHECK_SHOT -and $SimScale -eq 1.0) {
             # 화면 캡처 (CI 산출물로 디자인 확인)
             $bmp = New-Object Drawing.Bitmap($f.Width, $f.Height)
