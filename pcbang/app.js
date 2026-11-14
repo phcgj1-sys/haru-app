@@ -42,6 +42,7 @@ applyTheme();
 function showTab(name) {
   $$('.tabs button').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false'); });
   $$('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
+  if (name === 'home') renderSummary();
   if (name === 'games') renderGames();
   if (name === 'log') renderShop();
   if (name === 'fix') renderFixes();
@@ -400,6 +401,7 @@ function renderSpec() {
     kv('· 운영체제', esc(nat.osName || '-'));
     if (nat.power) kv('· 전원 관리', esc(nat.power));
     if (nat.secureBoot || nat.tpm) kv('· 보안 부팅 / TPM', esc(nat.secureBoot || '-') + ' / ' + esc(nat.tpm || '-'));
+    devKv(nat, kv);
     if (nat.disks) kv('· 저장 장치', nat.disks.map(function (x) { return esc(x.name) + ' 남은 ' + x.free + '/' + x.size + 'GB'; }).join('<br>'));
   }
   $('#detKv').innerHTML = rows.join('');
@@ -412,6 +414,22 @@ function renderSpec() {
   $('#detWarn').innerHTML = w.join('');
   $('#cpuIn').value = S.manual.cpu || ''; $('#gpuIn').value = S.manual.gpu || ''; $('#ramIn').value = S.manual.ram || ''; $('#osIn').value = S.manual.os || '';
   showMatch();
+}
+// 점검 프로그램이 읽은 장치 정보 (내 사양 탭·좌석 보고서 공용)
+function devKv(nat, kv) {
+  if (nat.computer || nat.seat) kv('· PC 이름', esc(nat.computer || '-') + (nat.seat ? ' (좌석 ' + esc(nat.seat) + ')' : ''));
+  if (nat.displays && nat.displays.length) kv('· 모니터', nat.displays.map(function (d) { return esc(d.name || '모니터') + ' ' + esc(d.res) + ' ' + (d.hz || '-') + 'Hz' + (d.maxHz ? ' / 최대 ' + d.maxHz + 'Hz' : '') + (d.primary ? ' (주 모니터)' : ''); }).join('<br>'));
+  else if (nat.monitors && nat.monitors.length) kv('· 모니터', nat.monitors.map(esc).join(', ') + (nat.monitorMaxHz ? ' · 최대 ' + nat.monitorMaxHz + 'Hz' : ''));
+  if (nat.gpuLive) { var g = nat.gpuLive; kv('· 그래픽 상태', (g.tempC != null ? g.tempC + '°C' : '') + (g.util != null ? ' · 사용률 ' + g.util + '%' : '') + (g.powerW != null ? ' · ' + fmt(g.powerW, 0) + '/' + fmt(g.powerLimitW, 0) + 'W' : '') + (g.pcieGen ? ' · PCIe ' + g.pcieGen + '.0 x' + g.pcieWidth + (g.pcieWidthMax ? '(최대 x' + g.pcieWidthMax + ')' : '') : '') + (g.fanPct != null ? ' · 팬 ' + g.fanPct + '%' : '')); }
+  if (nat.ramRated) kv('· 램 정격', nat.ramRated + 'MT/s' + (nat.ramXmpOff ? ' <span class="pill warn">XMP 꺼짐 의심</span>' : ''));
+  if (nat.memUsedPct != null) kv('· 메모리 사용', nat.memUsedPct + '%');
+  if (nat.physDisks && nat.physDisks.length) kv('· 디스크', nat.physDisks.map(function (d) { return esc(d.name) + ' ' + esc(d.media) + '/' + esc(d.bus) + ' ' + (d.sizeGB || '') + 'GB · ' + esc(d.health || '-'); }).join('<br>') + (nat.diskless ? '<br><span class="pill info">노하드 환경</span>' : ''));
+  if (nat.mice && nat.mice.length) kv('· 마우스', nat.mice.map(esc).join(', ') + (nat.mouseSens ? ' · 포인터 속도 ' + nat.mouseSens + '/20' : '') + (nat.mouseAccel ? ' · 가속 켜짐' : ''));
+  if (nat.keyboards && nat.keyboards.length) kv('· 키보드', nat.keyboards.map(esc).join(', '));
+  if (nat.audio && nat.audio.length) kv('· 오디오', nat.audio.map(esc).join(', '));
+  if (nat.vgc || nat.hvci) kv('· 뱅가드 / 메모리 무결성', esc(nat.vgc || '-') + ' / ' + esc(nat.hvci || '-'));
+  if (nat.gameMode || nat.hags) kv('· 게임 모드 / HAGS', esc(nat.gameMode || '-') + ' / ' + esc(nat.hags || '-'));
+  if (nat.topProcs && nat.topProcs.length) kv('· CPU 많이 쓰는 프로그램', nat.topProcs.slice(0, 5).map(function (t) { return esc(t.name) + ' ' + fmt(t.pct, 0) + '%'; }).join(', '));
 }
 function showMatch() {
   var c = $('#cpuIn').value.trim(), g = $('#gpuIn').value.trim(), out = [];
@@ -447,10 +465,19 @@ function sanitizeNative(o) {
   if (!o || typeof o !== 'object') return null;
   var num = function (v) { var n = +v; return v == null || v === '' || !isFinite(n) ? null : n; };
   var str = function (v) { return v == null ? null : String(v).slice(0, 200); };
-  ['cores', 'threads', 'ramGB', 'ramSpeed', 'ramSticks', 'hz', 'osBuild', 'cpuMHz', 'cpuLoad', 'uptimeH'].forEach(function (k) { if (k in o) o[k] = num(o[k]); });
-  ['cpu', 'os', 'osName', 'power', 'adapter', 'time', 'secureBoot', 'tpm'].forEach(function (k) { if (k in o) o[k] = str(o[k]); });
+  ['cores', 'threads', 'ramGB', 'ramSpeed', 'ramSticks', 'hz', 'osBuild', 'cpuMHz', 'cpuLoad', 'uptimeH', 'monitorMaxHz', 'ramRated', 'memUsedPct', 'sysFreePct', 'mouseSens', 'v'].forEach(function (k) { if (k in o) o[k] = num(o[k]); });
+  ['cpu', 'os', 'osName', 'power', 'adapter', 'time', 'secureBoot', 'tpm', 'computer', 'disklessWhy', 'hvci', 'vgc', 'vgk', 'wuService', 'gameMode', 'hags', 'diskTypes'].forEach(function (k) { if (k in o) o[k] = str(o[k]); });
+  if ('seat' in o) o.seat = o.seat == null ? null : String(o.seat).slice(0, 20);
+  ['ramXmpOff', 'lowDisk', 'diskless', 'rebootPending', 'mouseAccel'].forEach(function (k) { if (k in o) o[k] = o[k] === true; });
+  var strArr = function (a) { return (Array.isArray(a) ? a : a == null ? [] : [a]).slice(0, 20).map(str).filter(Boolean); };
+  ['monitors', 'mice', 'keyboards', 'audio', 'warns'].forEach(function (k) { if (k in o) o[k] = strArr(o[k]); });
   var arr = function (a) { return Array.isArray(a) ? a.filter(function (x) { return x && typeof x === 'object'; }) : []; };
-  o.gpus = arr(o.gpus).map(function (g) { return { name: str(g.name), vram: num(g.vram), driver: str(g.driver), virtual: !!g.virtual }; });
+  var arr1 = function (a) { return arr(Array.isArray(a) ? a : a == null ? [] : [a]); };
+  o.gpus = arr1(o.gpus).map(function (g) { return { name: str(g.name), vram: num(g.vram), driver: str(g.driver), driverDate: /^\d{4}-\d{2}-\d{2}$/.test(g.driverDate || '') ? g.driverDate : null, virtual: !!g.virtual }; });
+  o.physDisks = arr1(o.physDisks).map(function (d) { return { name: str(d.name), media: str(d.media), bus: str(d.bus), health: str(d.health), status: str(d.status), sizeGB: num(d.sizeGB) }; });
+  o.displays = arr1(o.displays).map(function (d) { return { name: str(d.name), res: str(d.res), hz: num(d.hz), maxHz: num(d.maxHz), primary: d.primary === true }; });
+  o.topProcs = arr1(o.topProcs).slice(0, 10).map(function (t) { return { name: str(t.name), pct: num(t.pct) }; });
+  if (o.gpuLive && typeof o.gpuLive === 'object') { var gl = o.gpuLive, nl = { name: str(gl.name), driver: str(gl.driver) }; ['tempC', 'util', 'clockMHz', 'clockMaxMHz', 'powerW', 'powerLimitW', 'pcieGen', 'pcieWidth', 'pcieWidthMax', 'fanPct'].forEach(function (k) { nl[k] = num(gl[k]); }); o.gpuLive = nl; } else delete o.gpuLive;
   o.disks = arr(o.disks).map(function (d) { return { name: str(d.name), size: num(d.size), free: num(d.free) }; });
   o.pings = arr(o.pings).map(function (p) { return { name: str(p.name), host: str(p.host), isGateway: p.isGateway === true, sent: num(p.sent), recv: num(p.recv) || 0, loss: num(p.loss) || 0, avg: num(p.avg), min: num(p.min), max: num(p.max), jitter: num(p.jitter) }; });
   o.tcp = arr(o.tcp).map(function (t) { return { name: str(t.name), host: str(t.host), port: num(t.port), ok: t.ok === true, n: num(t.n) || 0, fail: num(t.fail) || 0, avg: num(t.avg), min: num(t.min) }; });
@@ -967,15 +994,20 @@ function problems(st) {
   (nat.gpus || []).forEach(function (g) {
     if (g.driverDate && !g.virtual) { var age = (now - Date.parse(g.driverDate)) / 864e5; if (age > 365) add('drv', 'warn', '그래픽 드라이버가 오래됨 (' + g.driverDate + ')', '최신 게임 패치는 새 드라이버를 기준으로 맞춰요. NVIDIA 앱/AMD Adrenalin으로 업데이트하세요.', '드라이버 오래됨'); }
   });
-  var temp = nat.gpuLive && (nat.gpuLive.temp != null ? nat.gpuLive.temp : nat.gpuLive.temperature);
+  var temp = nat.gpuLive ? nat.gpuLive.tempC : null;
   if (temp != null && temp >= 85) add('hot', 'bad', '그래픽카드 온도 ' + temp + '°C', '먼지 청소, 케이스 팬 동작, 그래픽카드 팬을 확인하세요. 계속 높으면 서멀 그리스를 다시 바르세요.', 'GPU 과열');
   (nat.disks || []).forEach(function (d) { if (d.size && d.free != null && d.free / d.size < 0.1) add('disk', 'warn', d.name + ' 드라이브 여유 공간 ' + d.free + 'GB (' + Math.round(d.free / d.size * 100) + '%)', '게임 패치가 실패할 수 있어요. 필요 없는 파일과 게임을 정리하세요.', '디스크 부족'); });
+  if (nat.memUsedPct >= 85) add('mem', 'warn', '메모리 사용량 ' + nat.memUsedPct + '% (점검 시점)', '백그라운드 프로그램을 확인하세요. 게임 중 끊김의 원인이 돼요.' + (nat.topProcs && nat.topProcs.length ? ' CPU를 많이 쓰는 프로그램: ' + nat.topProcs.slice(0, 3).map(function (t) { return t.name; }).join(', ') : ''), '메모리 부족');
+  if (nat.topProcs && nat.topProcs.length && nat.topProcs[0].pct >= 25) add('bgcpu', 'warn', '백그라운드 프로그램이 CPU를 많이 씀: ' + nat.topProcs[0].name + ' ' + Math.round(nat.topProcs[0].pct) + '%', '모르는 프로그램이면 채굴·광고 프로그램일 수 있어요. 작업 관리자에서 확인하고 이미지에서 지우세요.', '백그라운드 CPU');
+  if (/켜짐/.test(nat.hvci || '')) add('hvci', 'info', '메모리 무결성(HVCI) 켜짐', '보안 기능이지만 게임 성능이 몇 % 떨어질 수 있어요. Windows 보안 → 장치 보안 → 코어 격리에서 바꿀 수 있어요(발로란트 등은 꺼도 실행돼요).', 'HVCI 켜짐');
+  if (nat.diskless) add('dl', 'info', '노하드(디스크리스) 환경' + (nat.disklessWhy ? ': ' + nat.disklessWhy : ''), '재부팅하면 좌석의 기록이 지워져요. 결과는 공유 폴더(-Share)로 모으세요. 설정 변경(전원·주사율 등)은 서버 이미지에 해야 유지돼요.', '노하드');
   (nat.physDisks || []).forEach(function (d) { if (d.health && !/healthy|정상/i.test(d.health)) add('diskh', 'bad', '디스크 상태 이상: ' + (d.name || '') + ' (' + d.health + ')', '곧 고장 날 수 있어요. 데이터를 백업하고 교체를 준비하세요.', '디스크 이상'); });
   if (nat.mouseAccel) add('accel', 'info', '포인터 정확도 향상(마우스 가속) 켜짐', '제어판 → 마우스 → 포인터 옵션 → "포인터 정확도 향상" 끄기 (FPS 게임 조준이 일정해져요).', '마우스 가속');
   // 사양 부족 게임
   var fails = GAMES.filter(function (g) { return judge(g, sp, st.opt || S.opt).level === 'fail'; }).map(function (g) { return g.short || g.name; });
   if (fails.length) add('spec', 'warn', '사양 부족: ' + fails.join(', '), '게임 판정의 "부족" 부품(그래픽/CPU/RAM)부터 업그레이드하세요.', '사양 부족 ' + fails.length + '개');
-  return p;
+  var ord = { bad: 0, warn: 1, info: 2 };
+  return p.sort(function (a, b) { return ord[a.lv] - ord[b.lv]; });
 }
 function renderSummary() {
   var sp = spec();
@@ -1181,7 +1213,7 @@ function seatReportHTML(r) {
   var d = new Date(r.at || Date.now());
   var h = '<div class="stack"><div class="row between"><div class="h2">' + esc(r.seat) + (/^\d+$/.test(String(r.seat)) ? '번 좌석' : '') + '</div><span class="small muted">' + d.toLocaleString('ko-KR') + '</span></div>' +
     '<dl class="kv"><dt>CPU</dt><dd>' + esc(r.cpu) + (n.cores ? ' · ' + n.cores + '코어 ' + n.threads + '스레드' : '') + '</dd><dt>그래픽</dt><dd>' + esc(r.gpu) + (r.sp.vram ? ' · ' + fmt(r.sp.vram, 0) + 'GB' : '') + '</dd><dt>RAM</dt><dd>' + (r.ram ? esc(r.ram) + 'GB' : '-') + (n.ramSpeed ? ' · ' + n.ramSpeed + 'MT/s' : '') + '</dd><dt>운영체제</dt><dd>' + esc(n.osName || (r.st.det && r.st.det.osName) || '-') + '</dd><dt>모니터</dt><dd>' + (r.hz ? r.hz + 'Hz' : '-') + '</dd>' +
-    (n.adapter ? '<dt>네트워크</dt><dd>' + esc(n.adapter) + '</dd>' : '') + (r.gw != null ? '<dt>게이트웨이</dt><dd>' + fmt(r.gw, 1) + 'ms · 손실 ' + (r.gwLoss || 0) + '%</dd>' : '') + (r.ext != null ? '<dt>외부 지연</dt><dd>' + fmt(r.ext) + 'ms</dd>' : '') + '</dl>';
+    (n.adapter ? '<dt>네트워크</dt><dd>' + esc(n.adapter) + '</dd>' : '') + (r.gw != null ? '<dt>게이트웨이</dt><dd>' + fmt(r.gw, 1) + 'ms · 손실 ' + (r.gwLoss || 0) + '%</dd>' : '') + (r.ext != null ? '<dt>외부 지연</dt><dd>' + fmt(r.ext) + 'ms</dd>' : '') + (function () { var x = []; devKv(n, function (k, v) { x.push('<dt>' + k.replace(/^· /, '') + '</dt><dd>' + v + '</dd>'); }); return x.join(''); })() + '</dl>';
   if (r.e.history && r.e.history.length) h += '<div class="h3">지난 점검과 달라진 점</div><ul class="fixlist small">' + r.e.history.slice().reverse().map(function (x) { return '<li><b>' + esc(x.from) + ' → ' + esc(x.at) + '</b><br>' + x.ch.map(esc).join('<br>') + '</li>'; }).join('') + '</ul>';
   h += r.pr.length ? '<div class="h3">조치할 것</div><ol class="fixlist">' + r.pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : p.lv === 'warn' ? '확인' : '참고') + '</span> <b>' + esc(p.t) + '</b>' + (p.fix ? '<div class="small muted">' + esc(p.fix) + '</div>' : '') + '</li>'; }).join('') + '</ol>' : '<div class="okbox">문제가 없어요.</div>';
   h += '<div class="h3">게임별 판정 (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</div><div class="tblwrap"><table><tbody>' + GAMES.map(function (g, i) { var j = r.games[i], lv = LV[j.level]; return '<tr><td>' + g.rank + '. ' + esc(g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (j.fps != null ? '약 ' + fmt(j.fps) + 'fps' : '-') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
