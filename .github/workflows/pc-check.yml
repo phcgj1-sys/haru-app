@@ -59,6 +59,8 @@ jobs:
         run: |
           $env:PCCHECK_SHOT = Join-Path $env:RUNNER_TEMP 'gui.png'
           powershell -NoProfile -STA -File ./PCCheck.ps1 -Mode Gui -GuiSmokeTest
+          if (Test-Path $env:PCCHECK_SHOT) { Write-Host ("GUIPNG:" + [Convert]::ToBase64String([IO.File]::ReadAllBytes($env:PCCHECK_SHOT))) }
+
 
       - name: External tool download and integrity
         if: success() || failure()
