@@ -410,20 +410,20 @@ function Get-Diagnosis {
 
     $meta = Get-Prop $Data 'Meta'
     $days = [int](Get-Prop $meta 'Days'); if ($days -le 0) { $days = 30 }
-    $shut = Get-Arr (Get-Prop $Data 'Shutdowns')
-    $bugEv = Get-Arr (Get-Prop $Data 'BugChecks')
-    $dumps = Get-Arr (Get-Prop $Data 'Dumps')
-    $gpuEv = Get-Arr (Get-Prop $Data 'GpuEvents')
-    $whea = Get-Arr (Get-Prop $Data 'Whea')
-    $diskEv = Get-Arr (Get-Prop $Data 'DiskEvents')
-    $disks = Get-Arr (Get-Prop $Data 'Disks')
-    $memDiag = Get-Arr (Get-Prop $Data 'MemDiag')
-    $nv = Get-Arr (Get-Prop $Data 'NvSmi')
-    $therm = Get-Arr (Get-Prop $Data 'Thermal')
-    $dimms = Get-Arr (Get-Prop $Data 'Dimms')
-    $gpus = Get-Arr (Get-Prop $Data 'Gpus')
-    $drvInst = Get-Arr (Get-Prop $Data 'DriverInstalls')
-    $oc = Get-Arr (Get-Prop $Data 'OcTools')
+    $shut = @(Get-Arr (Get-Prop $Data 'Shutdowns'))
+    $bugEv = @(Get-Arr (Get-Prop $Data 'BugChecks'))
+    $dumps = @(Get-Arr (Get-Prop $Data 'Dumps'))
+    $gpuEv = @(Get-Arr (Get-Prop $Data 'GpuEvents'))
+    $whea = @(Get-Arr (Get-Prop $Data 'Whea'))
+    $diskEv = @(Get-Arr (Get-Prop $Data 'DiskEvents'))
+    $disks = @(Get-Arr (Get-Prop $Data 'Disks'))
+    $memDiag = @(Get-Arr (Get-Prop $Data 'MemDiag'))
+    $nv = @(Get-Arr (Get-Prop $Data 'NvSmi'))
+    $therm = @(Get-Arr (Get-Prop $Data 'Thermal'))
+    $dimms = @(Get-Arr (Get-Prop $Data 'Dimms'))
+    $gpus = @(Get-Arr (Get-Prop $Data 'Gpus'))
+    $drvInst = @(Get-Arr (Get-Prop $Data 'DriverInstalls'))
+    $oc = @(Get-Arr (Get-Prop $Data 'OcTools'))
     $sys = Get-Prop $Data 'System'
 
     # ---- 1) 블루스크린 코드 모으기 (이벤트 + 덤프, 같은 사건은 중복 제거)
@@ -633,7 +633,7 @@ function Get-Diagnosis {
     if ((Get-Prop $sys 'FastStartup') -eq 1 -and ($plCount + $crashes.Count) -gt 0) {
         & $find 'info' 'DRIVER' '빠른 시작(Fast Startup) 켜짐' '종료/부팅 관련 문제가 있으면 제어판 > 전원 옵션에서 "빠른 시작 켜기"를 꺼 보세요.' 0
     }
-    $errs = Get-Arr (Get-Prop $Data 'Errors')
+    $errs = @(Get-Arr (Get-Prop $Data 'Errors'))
     if (-not (Get-Prop $meta 'IsAdmin')) { & $find 'info' 'META' '관리자 권한 없이 실행됨' '일부 기록(덤프 파일 등)을 읽지 못했을 수 있습니다. 원클릭검사.bat 으로 실행하세요.' 0 }
     if ($errs.Count) { & $find 'info' 'META' "일부 항목 수집 실패 $($errs.Count) 건" (($errs | ForEach-Object { "$(Get-Prop $_ 'Step'): $(Get-Prop $_ 'Msg')" }) -join ' / ') 0 }
 

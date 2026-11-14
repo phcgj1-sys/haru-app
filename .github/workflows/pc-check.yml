@@ -85,13 +85,24 @@ jobs:
           try { $b = Install-BlueScreenView; Write-Host "BlueScreenView: $b" }
           catch { Write-Host "::warning::BlueScreenView 다운로드 실패: $($_.Exception.Message)" }
 
-      - name: 배포 패키지 만들기
-        shell: pwsh
+      - name: 단일 실행 파일(EXE) 만들기
+        shell: powershell
         run: |
           $pkg = Join-Path $env:RUNNER_TEMP 'PCCheck'
           New-Item -ItemType Directory -Force $pkg | Out-Null
           Copy-Item ./PCCheck.ps1, ./*.bat, ./README.md, ./THIRD-PARTY.md -Destination $pkg
-          Compress-Archive -Path "$pkg/*" -DestinationPath (Join-Path $env:RUNNER_TEMP 'PCCheck.zip') -Force
+          # 관리자 권한 요청이 내장된 .exe (ps2exe)
+          Install-Module ps2exe -Force -Scope CurrentUser
+          Invoke-ps2exe -inputFile ./PCCheck.ps1 -outputFile (Join-Path $pkg 'PC원클릭진단.exe') -noConsole -STA -requireAdmin `
+            -title 'PC 원클릭 진단' -product 'PC 원클릭 진단' -version '2.0.0.0' -description '갑작스런 종료·그래픽카드·RAM 진단'
+          if (-not (Test-Path (Join-Path $pkg 'PC원클릭진단.exe'))) { throw 'EXE 생성 실패' }
+
+      - name: 배포 ZIP 만들기
+        shell: pwsh
+        run: |
+          $pkg = Join-Path $env:RUNNER_TEMP 'PCCheck'
+          Compress-Archive
+ -Path "$pkg/*" -DestinationPath (Join-Path $env:RUNNER_TEMP 'PCCheck.zip') -Force
 
       - uses: actions/upload-artifact@v4
         with:
