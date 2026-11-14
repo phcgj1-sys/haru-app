@@ -288,7 +288,36 @@ It '백그라운드 수집: 진행 상황 전달 후 데이터 반환' {
     [void](Get-Diagnosis -Data $data)
 }
 
+Write-Host "`n[영어]" -ForegroundColor Cyan
+It '영어 보고서·요약에 한글이 남지 않음 (모든 시나리오)' {
+    $script:UiLang = 'en'
+    try {
+        $left = @{}
+        $all = @($scenarios.Keys | ForEach-Object { New-Scenario $scenarios[$_].Data })
+        $x = New-Scenario @{ Shutdowns = @([ordered]@{ T = (T 1); Code = ''; PowerButton = $true; Sleep = $true }); DriverInstalls = @([ordered]@{ T = (T 9); Msg = 'NVIDIA driver' }); GpuEvents = @([ordered]@{ T = (T 8); Source = 'Display'; Id = 4101; Xid = 79; Msg = 'x' }); OcTools = @('MSIAfterburner'); GpuSensors = @([ordered]@{ Index = 0; TempC = 95; FanRPM = 2000 }) }
+        $x.System.CrashDump = 0; $x.System.PageFiles = 0; $x.System.IsVM = $true; $x.System.FastStartup = 1; $x.System.CPU = 'Intel(R) Core(TM) i9-14900K'; $x.System.BIOSDate = (T 2000); $x.Meta.IsAdmin = $false
+        $x.Gpus[0].DriverDate = (T 800); $x.Errors = @([ordered]@{ Step = 'disk'; Msg = 'x' }); $x.MemDiag = @([ordered]@{ T = (T 1); Id = 1202; Failed = $true; Msg = 'x' })
+        $x.Disks = @([ordered]@{ Name = 'SSD'; Media = 'SSD'; Bus = 'NVMe'; SizeGB = 1; Health = 'Warning'; TempC = 75; WearPct = 95; ReadErr = 3 }); $x.Thermal = @(95)
+        $x.Dimms = @([ordered]@{ Slot = 'A'; SizeGB = 8; ConfiguredMHz = 3600; RatedMHz = 2133; Part = 'X'; DDR = 'DDR4' }, [ordered]@{ Slot = 'B'; SizeGB = 16; ConfiguredMHz = 3600; RatedMHz = 2133; Part = 'Y'; DDR = 'DDR4' })
+        $x.Whea = @(17, 18, 19, 47 | ForEach-Object { [ordered]@{ T = (T 2); Id = $_; Level = 3; Comp = 'x'; Msg = 'x' } })
+        $x.BugChecks = @('0x116', '0x1A', '0x124', '0x9F', '0x12345' | ForEach-Object { [ordered]@{ T = (T 3); Code = $_ } })
+        $all += $x
+        foreach ($d in $all) {
+            $dx = Get-Diagnosis -Data $d
+            $dx.Previous = [ordered]@{ Created = (T 3); Health = 50; New = [ordered]@{ PowerLoss = 1; Bsod = 0; Gpu = 0; Whea = 0; Disk = 0 }; NewTotal = 1 }
+            foreach ($txt in @((New-HtmlReport -Data $d -Dx $dx), (Get-SummaryText $d $dx))) {
+                foreach ($m in [regex]::Matches($txt, '[^<>"]{0,25}[가-힣]+[^<>"]{0,25}')) { $left[$m.Value.Trim()] = 1 }
+            }
+        }
+        $dx2 = Get-Diagnosis -Data (New-Scenario @{}); $dx2.Previous = [ordered]@{ Created = (T 3); Health = 90; New = [ordered]@{ PowerLoss = 0; Bsod = 0; Gpu = 0; Whea = 0; Disk = 0 }; NewTotal = 0 }
+        foreach ($m in [regex]::Matches((New-HtmlReport -Data (New-Scenario @{}) -Dx $dx2), '[^<>"]{0,25}[가-힣]+[^<>"]{0,25}')) { $left[$m.Value.Trim()] = 1 }
+        foreach ($t in $script:ExternalTools) { foreach ($s in $t.Label, $t.Desc, $t.Help) { if ((Tr $s) -match '[가-힣]') { $left[(Tr $s)] = 1 } } }
+        Assert-Eq $left.Count 0 ("남은 한글: " + (($left.Keys | Select-Object -First 40) -join ' ¦ '))
+    } finally { $script:UiLang = 'ko' }
+}
+
 Write-Host "`n[소스 규칙]" -ForegroundColor Cyan
+
 
 
 It 'PCCheck.ps1 은 UTF-8 BOM (PowerShell 5.1 한글 깨짐 방지)' {

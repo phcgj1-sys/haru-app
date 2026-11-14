@@ -9,6 +9,7 @@
 .PARAMETER Days     분석 기간(일), 1~365
 .PARAMETER OutDir   보고서 저장 폴더 (기본: 바탕화면\PC진단)
 .PARAMETER FromJson 저장된 진단 데이터(JSON)로 보고서를 다시 생성 (원격 상담용)
+.PARAMETER Lang     보고서·화면 언어: auto(기본, Windows 언어) · ko · en
 .PARAMETER LoadOnly 함수만 불러오고 실행하지 않음 (테스트용)
 #>
 [CmdletBinding()]
@@ -19,17 +20,18 @@ param(
     [string]$FromJson,
     [switch]$NoOpen,
     [switch]$GuiSmokeTest,
+    [ValidateSet('auto', 'ko', 'en')][string]$Lang = 'auto',
     [switch]$LoadOnly
 )
 
 $script:AppName    = 'PC 원클릭 진단'
-$script:AppVersion = '2.0.0'
+$script:AppVersion = '2.1.0'
 $script:IsWin      = ($env:OS -eq 'Windows_NT')
 
 # =====================================================================
 #  공통 유틸
 # =====================================================================
-function HtmlEnc($s) { if ($null -eq $s) { return '' }; return [System.Net.WebUtility]::HtmlEncode([string]$s) }
+function HtmlEnc($s) { if ($null -eq $s) { return '' }; return [System.Net.WebUtility]::HtmlEncode((Tr ([string]$s))) }
 
 function Format-T($dt) { if ($null -eq $dt) { return '' }; return ([datetime]$dt).ToString('yyyy-MM-ddTHH:mm:ss') }
 function ConvertTo-Date($s) {
@@ -817,11 +819,11 @@ function Get-TimelineSvg($Data) {
     $end = (ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created')); if (-not $end) { $end = Get-Date }
     $end = $end.Date
     $series = [ordered]@{
-        '꺼짐' = @{ C = 'var(--c-psu)'; T = @(Get-Arr (Get-Prop $Data 'Shutdowns') | ForEach-Object { Get-Prop $_ 'T' }) }
+        '갑자기 꺼짐' = @{ C = 'var(--c-psu)'; T = @(Get-Arr (Get-Prop $Data 'Shutdowns') | ForEach-Object { Get-Prop $_ 'T' }) }
         '블루스크린' = @{ C = 'var(--c-bsod)'; T = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { Get-Prop $_ 'T' }) }
         '그래픽' = @{ C = 'var(--c-gpu)'; T = @(Get-Arr (Get-Prop $Data 'GpuEvents') | ForEach-Object { Get-Prop $_ 'T' }) }
         'WHEA' = @{ C = 'var(--c-whea)'; T = @(Get-Arr (Get-Prop $Data 'Whea') | ForEach-Object { Get-Prop $_ 'T' }) }
-        '디스크' = @{ C = 'var(--c-disk)'; T = @(Get-Arr (Get-Prop $Data 'DiskEvents') | ForEach-Object { Get-Prop $_ 'T' }) }
+        '디스크 오류' = @{ C = 'var(--c-disk)'; T = @(Get-Arr (Get-Prop $Data 'DiskEvents') | ForEach-Object { Get-Prop $_ 'T' }) }
     }
     $bins = @{}
     $max = 1
@@ -895,7 +897,7 @@ function Get-SummaryText($Data, $Dx) {
         [void]$L.Add('의심 원인:')
         $i = 0; foreach ($x in $Dx.Causes | Select-Object -First 3) { $i++; [void]$L.Add("  $i. $($x.Name) — $($x.Score)점(가능성 $($x.Confidence)): $(@($x.Reasons | Select-Object -First 2) -join '; ')") }
     }
-    return ($L -join "`r`n")
+    return (Tr ($L -join "`r`n"))
 }
 
 function New-HtmlReport {
@@ -946,13 +948,13 @@ function New-HtmlReport {
 :root{--bg:#f5f6f8;--fg:#14181d;--muted:#5b6570;--line:#dfe3e8;--card:#fff;--soft:#eef1f4;--bad:#c62828;--warn:#a85d00;--ok:#2e7d32;--info:#3b6fd4;--accent:#2457c5;
 --c-psu:#e0533d;--c-bsod:#2457c5;--c-gpu:#8e44ad;--c-whea:#d49a00;--c-disk:#16857a}
 @media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1114;--fg:#e9edf1;--muted:#9aa4ae;--line:#2a2f36;--card:#171a1f;--soft:#1f242a;--bad:#ff6b6b;--warn:#ffb74d;--ok:#66bb6a;--info:#7aa7ff;--accent:#7aa7ff}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 "Malgun Gothic","맑은 고딕","Segoe UI",system-ui,sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 "Malgun Gothic","Segoe UI",system-ui,sans-serif}
 main{max-width:980px;margin:0 auto;padding:28px 16px 80px}
 header{display:flex;gap:24px;align-items:center;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
 .ring{position:relative;width:128px;height:128px;flex:none}.ring svg{transform:rotate(-90deg)}.ring circle{fill:none;stroke-width:12}
 .ring .bg{stroke:var(--soft)}.ring .fg{stroke-linecap:round}.ring.ok .fg{stroke:var(--ok)}.ring.warn .fg{stroke:var(--warn)}.ring.bad .fg{stroke:var(--bad)}
 .ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:34px;line-height:1}.ring small{position:absolute;left:0;bottom:26px;width:100%;text-align:center;color:var(--muted);font-size:12px}
-.hd h1{margin:0;font-size:22px}.hd .grade{font-size:18px;font-weight:700;margin:4px 0}.sub{color:var(--muted);font-size:13px;margin:0}
+.hd{flex:1;min-width:260px}.hd h1{margin:0;font-size:22px}.hd .grade{font-size:18px;font-weight:700;margin:4px 0}.sub{color:var(--muted);font-size:13px;margin:0}
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:16px 0}
 .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}.stat b{display:block;font-size:24px;line-height:1.2}.stat span{color:var(--muted);font-size:12px}
 .stat.hot b{color:var(--bad)}
@@ -1083,6 +1085,7 @@ $(ConvertTo-HtmlTable (Get-Prop $Data 'DriverInstalls') @('T','Msg') @('시간',
 진단은 Windows 기록에 기반한 추정입니다. 하드웨어 교체 전에 정밀 검사(VRAM·RAM·부하 테스트)로 확인하세요.</footer>
 </main><script>$js</script></body></html>
 "@
+    if ($script:UiLang -eq 'en') { $html = (Tr $html).Replace('<html lang="ko">', '<html lang="en">') }
     return $html
 }
 
@@ -1168,20 +1171,36 @@ function Select-WindowsAsset($assets) {
     if ($x64.Count) { $c = $x64 }
     return ($c | Sort-Object @{ e = { if ($_.name -match '\.exe$') { 0 } else { 1 } } } | Select-Object -First 1)
 }
+# API 한도 초과(공유 IP 등) 시 쓰는 검증된 고정 버전 — SHA-256 은 GitHub 릴리스가 제공한 값
+$script:MemtestPinned = @{ Tag = 'v0.5.0'; Name = 'memtest_vulkan-v0.5.0.exe'; Sha256 = '09e67704210762ae8d8ad70fe6d71275eefbe815cc2c0658cd5afc8e231d0df6' }
+function Get-MemtestAsset([switch]$UsePinned) {
+    if (-not $UsePinned) {
+        try {
+            $h = @{}; if ($env:GITHUB_TOKEN) { $h.Authorization = "Bearer $($env:GITHUB_TOKEN)" }
+            $rel = Invoke-RestMethod 'https://api.github.com/repos/GpuZelenograd/memtest_vulkan/releases/latest' -Headers $h -UserAgent "PCCheck/$($script:AppVersion)" -ErrorAction Stop
+            $a = Select-WindowsAsset @($rel.assets)
+            if ($a) {
+                $sha = $null; if ($a.digest -match '^sha256:([0-9a-fA-F]{64})$') { $sha = $Matches[1] }
+                return [pscustomobject]@{ Name = $a.name; Url = $a.browser_download_url; Sha256 = $sha; Source = 'api' }
+            }
+        } catch { Write-PCLog "github api failed, using pinned: $($_.Exception.Message)" }
+    }
+    $p = $script:MemtestPinned
+    return [pscustomobject]@{ Name = $p.Name; Url = "https://github.com/GpuZelenograd/memtest_vulkan/releases/download/$($p.Tag)/$($p.Name)"; Sha256 = $p.Sha256; Source = 'pinned' }
+}
 function Install-MemtestVulkan {
+    param([switch]$UsePinned)
 
     $dir = Join-Path $script:WorkDir 'memtest_vulkan'
     $exe = Get-ChildItem $dir -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'memtest' } | Select-Object -First 1
     if (-not $exe) {
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
-        $rel = Invoke-RestMethod 'https://api.github.com/repos/GpuZelenograd/memtest_vulkan/releases/latest' -UserAgent "PCCheck/$($script:AppVersion)" -ErrorAction Stop
-        $asset = Select-WindowsAsset @($rel.assets)
-        if (-not $asset) { throw "Windows 용 파일을 찾지 못했습니다. (릴리스 파일: $((@($rel.assets) | ForEach-Object { $_.name }) -join ', '))" }
-        $sha = $null; if ($asset.digest -match '^sha256:([0-9a-fA-F]{64})$') { $sha = $Matches[1] }
-        $file = Join-Path $script:WorkDir $asset.name
-        Save-Download $asset.browser_download_url $file $sha
-        if ($asset.name -match '\.exe$') { Move-Item $file (Join-Path $dir $asset.name) -Force }
+        $asset = Get-MemtestAsset -UsePinned:$UsePinned
+        $file = Join-Path $script:WorkDir $asset.Name
+        Save-Download $asset.Url $file $asset.Sha256
+        if ($asset.Name -match '\.exe$') { Move-Item $file (Join-Path $dir $asset.Name) -Force }
         else { Expand-Archive $file -DestinationPath $dir -Force; Remove-Item $file -Force -ErrorAction SilentlyContinue }
+
         $exe = Get-ChildItem $dir -Recurse -Filter '*.exe' | Where-Object { $_.Name -match 'memtest' } | Select-Object -First 1
     }
     if (-not $exe) { throw '실행 파일을 찾지 못했습니다.' }
@@ -1318,14 +1337,14 @@ function Show-Gui {
     foreach ($t in $script:ExternalTools) {
         $b = New-Object Windows.Forms.Button
         $b.Text = $t.Label; $b.Tag = $t.Key
-        $tip.SetToolTip($b, "$($t.Desc)`n`n$($t.Help)")
+        $tip.SetToolTip($b, (Tr "$($t.Desc)`n`n$($t.Help)"))
         $b.Add_Click({
             param($sender, $e)
             $sender.Enabled = $false; $f.Cursor = 'WaitCursor'
             $r = Invoke-Tool $sender.Tag
             $f.Cursor = 'Default'; $sender.Enabled = $true
-            if ($r.Ok) { [void][Windows.Forms.MessageBox]::Show($f, $r.Help, $sender.Text, 'OK', 'Information') }
-            else { [void][Windows.Forms.MessageBox]::Show($f, "실행하지 못했습니다.`n$($r.Error)", $sender.Text, 'OK', 'Warning') }
+            if ($r.Ok) { [void][Windows.Forms.MessageBox]::Show($f, (Tr $r.Help), $sender.Text, 'OK', 'Information') }
+            else { [void][Windows.Forms.MessageBox]::Show($f, (Tr "실행하지 못했습니다.`n$($r.Error)"), $sender.Text, 'OK', 'Warning') }
         })
         $grp.Controls.Add($b); [void]$toolBtns.Add($b)
     }
@@ -1337,34 +1356,34 @@ function Show-Gui {
     $finish = {
         param($data)
         try {
-            $status.Text = '분석 중...'
+            $status.Text = Tr '분석 중...'
             $dx = Get-Diagnosis -Data $data
             $bar.Value = $bar.Maximum - 1
             $state.Result = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
             $bar.Value = $bar.Maximum
             $score.Text = "$($dx.Health)"
             $score.ForeColor = $(if ($dx.Health -ge 90) { [Drawing.Color]::SeaGreen } elseif ($dx.Health -ge 70) { [Drawing.Color]::DarkOrange } else { [Drawing.Color]::Firebrick })
-            $grade.Text = "상태: $($dx.Grade)"
+            $grade.Text = Tr "상태: $($dx.Grade)"
             foreach ($c in $dx.Causes | Select-Object -First 4) {
-                $it = New-Object Windows.Forms.ListViewItem("[원인] $($c.Name)")
-                [void]$it.SubItems.Add("$($c.Score)"); [void]$it.SubItems.Add($c.Confidence)
-                $it.Font = $bold; $it.ToolTipText = (@($c.Reasons) -join "`n"); [void]$list.Items.Add($it)
+                $it = New-Object Windows.Forms.ListViewItem((Tr "[원인] $($c.Name)"))
+                [void]$it.SubItems.Add("$($c.Score)"); [void]$it.SubItems.Add((Tr $c.Confidence))
+                $it.Font = $bold; $it.ToolTipText = (Tr (@($c.Reasons) -join "`n")); [void]$list.Items.Add($it)
             }
             foreach ($x in $dx.Findings | Where-Object { $_.Level -ne 'info' }) {
                 $tag = switch ($x.Level) { 'bad' { '[위험]' } 'warn' { '[주의]' } default { '[정상]' } }
-                $it = New-Object Windows.Forms.ListViewItem("$tag $($x.Title)")
+                $it = New-Object Windows.Forms.ListViewItem((Tr "$tag $($x.Title)"))
                 [void]$it.SubItems.Add(''); [void]$it.SubItems.Add('')
                 $it.ForeColor = $(switch ($x.Level) { 'bad' { [Drawing.Color]::Firebrick } 'warn' { [Drawing.Color]::DarkOrange } default { [Drawing.Color]::SeaGreen } })
-                $it.ToolTipText = $x.Detail; [void]$list.Items.Add($it)
+                $it.ToolTipText = (Tr $x.Detail); [void]$list.Items.Add($it)
             }
             $list.ShowItemToolTips = $true
             $report.Enabled = $true; $folder.Enabled = $true
-            $status.Text = "완료 — 보고서: $($state.Result.Html)"
+            $status.Text = (Tr '완료 — 보고서: ') + $state.Result.Html
             Start-Process $state.Result.Html
         } catch {
             Write-PCLog "gui error: $($_.Exception.Message)"
-            $status.Text = '오류가 발생했습니다.'
-            [void][Windows.Forms.MessageBox]::Show($f, "검사 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)", $script:AppName, 'OK', 'Error')
+            $status.Text = Tr '오류가 발생했습니다.'
+            [void][Windows.Forms.MessageBox]::Show($f, (Tr "검사 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)"), (Tr $script:AppName), 'OK', 'Error')
         } finally { $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default' }
     }
     # 진행 상황 갱신 타이머 (수집은 백그라운드에서, 화면은 계속 반응)
@@ -1374,32 +1393,40 @@ function Show-Gui {
         $sy = $j.Sync
         if ($sy.N -gt 0) { $bar.Maximum = $sy.N + 2; $bar.Value = [math]::Min($bar.Maximum, [int]$sy.I) }
         $dots = '.' * (1 + ([int]([DateTime]::Now.Ticks / 4000000) % 3))
-        if ($sy.Name) { $status.Text = "수집 중 ($($sy.I)/$($sy.N)): $($sy.Name) $dots" }
+        if ($sy.Name) { $status.Text = (Tr "수집 중 ($($sy.I)/$($sy.N)): $($sy.Name)") + " $dots" }
         if ($sy.Done) {
             $timer.Stop(); $state.Job = $null
             $data = Complete-CollectAsync $j
             if ($sy.Error) {
-                $status.Text = '오류가 발생했습니다.'; $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default'
-                [void][Windows.Forms.MessageBox]::Show($f, "검사 중 오류가 발생했습니다.`n$($sy.Error)`n`n로그: $($script:LogFile)", $script:AppName, 'OK', 'Error')
+                $status.Text = Tr '오류가 발생했습니다.'; $start.Enabled = $true; $daysBox.Enabled = $true; $f.Cursor = 'Default'
+                [void][Windows.Forms.MessageBox]::Show($f, (Tr "검사 중 오류가 발생했습니다.`n$($sy.Error)`n`n로그: $($script:LogFile)"), (Tr $script:AppName), 'OK', 'Error')
             } else { & $finish $data }
         }
     })
     $start.Add_Click({
         $start.Enabled = $false; $daysBox.Enabled = $false; $list.Items.Clear(); $f.Cursor = 'AppStarting'
-        $score.Text = '—'; $score.ForeColor = [Drawing.Color]::Black; $grade.Text = '검사 중'
+        $score.Text = '—'; $score.ForeColor = [Drawing.Color]::Black; $grade.Text = Tr '검사 중'
         $d = [int](([string]$daysBox.SelectedItem) -replace '\D', '')
-        $bar.Value = 0; $status.Text = '검사 준비 중...'
+        $bar.Value = 0; $status.Text = Tr '검사 준비 중...'
         try { $state.Job = Start-CollectAsync -Days $d; $timer.Start() }
         catch {
             # 백그라운드 실행이 안 되는 환경이면 기존 방식(화면 스레드)으로
             Write-PCLog "async failed, sync fallback: $($_.Exception.Message)"
-            $data = Invoke-Collect -Days $d -Progress { param($i, $n, $name) $bar.Maximum = $n + 2; $bar.Value = $i; $status.Text = "수집 중 ($i/$n): $name"; [Windows.Forms.Application]::DoEvents() }
+            $data = Invoke-Collect -Days $d -Progress { param($i, $n, $name) $bar.Maximum = $n + 2; $bar.Value = $i; $status.Text = Tr "수집 중 ($i/$n): $name"; [Windows.Forms.Application]::DoEvents() }
             & $finish $data
         }
     })
     $f.Add_FormClosing({ if ($state.Job) { try { $state.Job.PS.Stop() } catch {} } })
 
     $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $grp))
+    if ($script:UiLang -eq 'en') {
+        # 화면 글자 번역 (컨트롤 · 목록 머리글 · 기간 선택)
+        $f.Text = Tr $f.Text
+        $stack = New-Object System.Collections.Stack; $stack.Push($f)
+        while ($stack.Count) { $c = $stack.Pop(); foreach ($k in $c.Controls) { if ($k.Text) { $k.Text = Tr $k.Text }; $stack.Push($k) } }
+        foreach ($col in $list.Columns) { $col.Text = Tr $col.Text }
+        $sel = $daysBox.SelectedIndex; $items = @($daysBox.Items | ForEach-Object { Tr $_ }); $daysBox.Items.Clear(); foreach ($o in $items) { [void]$daysBox.Items.Add($o) }; $daysBox.SelectedIndex = $sel
+    }
 
     # ---- 배치: 창 크기(W,H)와 배율($s)로 모든 위치를 계산 (작은 화면·고배율에서도 겹치지 않게)
     $doLayout = {
@@ -1467,37 +1494,292 @@ function Show-Gui {
 # =====================================================================
 #  콘솔 모드
 # =====================================================================
+function Write-TrHost {
+    param([Parameter(Position = 0)]$Object = '', $ForegroundColor)
+    if ($ForegroundColor) { Write-Host (Tr ([string]$Object)) -ForegroundColor $ForegroundColor } else { Write-Host (Tr ([string]$Object)) }
+}
 function Write-ConsoleResult($Dx, $Res) {
-    Write-Host ''
-    Write-Host ("상태 점수: {0}/100 ({1})" -f $Dx.Health, $Dx.Grade) -ForegroundColor $(if ($Dx.Health -ge 90) { 'Green' } elseif ($Dx.Health -ge 70) { 'Yellow' } else { 'Red' })
+    Write-TrHost ''
+    Write-TrHost ("상태 점수: {0}/100 ({1})" -f $Dx.Health, $Dx.Grade) -ForegroundColor $(if ($Dx.Health -ge 90) { 'Green' } elseif ($Dx.Health -ge 70) { 'Yellow' } else { 'Red' })
     if (@($Dx.Causes).Count) {
-        Write-Host "`n가장 의심되는 원인" -ForegroundColor Cyan
-        $i = 0; foreach ($c in $Dx.Causes | Select-Object -First 3) { $i++; Write-Host ("  {0}. {1}  {2}점 (가능성 {3})" -f $i, $c.Name, $c.Score, $c.Confidence); foreach ($r in @($c.Reasons) | Select-Object -First 2) { Write-Host "     - $r" -ForegroundColor DarkGray } }
+        Write-TrHost "`n가장 의심되는 원인" -ForegroundColor Cyan
+        $i = 0; foreach ($c in $Dx.Causes | Select-Object -First 3) { $i++; Write-TrHost ("  {0}. {1}  {2}점 (가능성 {3})" -f $i, $c.Name, $c.Score, $c.Confidence); foreach ($r in @($c.Reasons) | Select-Object -First 2) { Write-TrHost "     - $r" -ForegroundColor DarkGray } }
     }
-    Write-Host "`n발견 사항" -ForegroundColor Cyan
-    foreach ($x in $Dx.Findings) { Write-Host ("  ● " + $x.Title) -ForegroundColor $(switch ($x.Level) { 'bad' { 'Red' } 'warn' { 'Yellow' } 'info' { 'Gray' } default { 'Green' } }) }
-    Write-Host "`n보고서: $($Res.Html)" -ForegroundColor Green
+    Write-TrHost "`n발견 사항" -ForegroundColor Cyan
+    foreach ($x in $Dx.Findings) { Write-TrHost ("  ● " + $x.Title) -ForegroundColor $(switch ($x.Level) { 'bad' { 'Red' } 'warn' { 'Yellow' } 'info' { 'Gray' } default { 'Green' } }) }
+    Write-TrHost "`n보고서: $($Res.Html)" -ForegroundColor Green
 }
 
 function Start-ConsoleMenu($Res) {
     while ($true) {
-        Write-Host "`n============ 정밀 검사 ============" -ForegroundColor Cyan
-        $i = 0; foreach ($t in $script:ExternalTools) { $i++; Write-Host (" {0}. {1}  ({2})" -f $i, $t.Label, $t.Desc) }
-        Write-Host ' 9. 보고서 다시 열기'; Write-Host ' 0. 종료'
-        $sel = Read-Host '번호 선택'
+        Write-TrHost "`n============ 정밀 검사 ============" -ForegroundColor Cyan
+        $i = 0; foreach ($t in $script:ExternalTools) { $i++; Write-TrHost (" {0}. {1}  ({2})" -f $i, $t.Label, $t.Desc) }
+        Write-TrHost ' 9. 보고서 다시 열기'; Write-TrHost ' 0. 종료'
+        $sel = Read-Host (Tr '번호 선택')
         if ($sel -eq '0' -or $sel -eq '') { return }
         if ($sel -eq '9') { Start-Process $Res.Html; continue }
         $n = 0; if ([int]::TryParse($sel, [ref]$n) -and $n -ge 1 -and $n -le $script:ExternalTools.Count) {
             $r = Invoke-Tool $script:ExternalTools[$n - 1].Key
-            if ($r.Ok) { Write-Host $r.Help -ForegroundColor Green } else { Write-Host "실패: $($r.Error)" -ForegroundColor Red }
+            if ($r.Ok) { Write-TrHost $r.Help -ForegroundColor Green } else { Write-TrHost "실패: $($r.Error)" -ForegroundColor Red }
         }
     }
+}
+
+# =====================================================================
+#  영어 번역 (출력 단계에서 적용: -Lang en)
+#   'RE:' 로 시작하면 정규식, 그 외는 고정 문구. 긴 문구부터 치환됩니다.
+# =====================================================================
+$script:UiLang = 'ko'
+$script:EnPairs = @(
+    # ---- 숫자가 들어가는 문장 (정규식)
+    @('RE:블루스크린 없이 꺼짐 (\d+) 회', 'Power-off without blue screen: $1'),
+    @('RE:갑자기 꺼짐 (\d+) 회 \(블루스크린 없음\)', 'Sudden power-off: $1 (no blue screen)'),
+    @('RE: \(이 중 (\d+) 회는 전원 버튼을 길게 눌러 끈 흔적이 있습니다 — 멈춤 후 강제 종료였을 수 있습니다\.\)', ' ($1 of these show a long power-button press — likely a forced shutdown after a freeze.)'),
+    @('RE: (\d+) 회는 절전 진입/복귀 중에 발생했습니다 \(드라이버·BIOS 절전 설정 문제가 흔함\)\.', ' $1 happened while entering/resuming from sleep (often a driver or BIOS power-setting issue).'),
+    @('RE:절전 진입/복귀 중 꺼짐 (\d+) 회', 'Power-off during sleep/resume: $1'),
+    @('RE:코드 미상 (\d+)회', 'unknown code ×$1'),
+    @('RE:(0x[0-9A-F]+ [A-Z_0-9]+) (\d+)회', '$1 ×$2'),
+    @('RE:블루스크린 (0x[0-9A-F]+) \(([A-Z_0-9]+)\)', 'Blue screen $1 ($2)'),
+    @('RE:블루스크린 (\d+) 회', 'Blue screens: $1'),
+    @('RE:그래픽 드라이버 응답 없음/오류 (\d+) 건', 'Graphics driver hangs/errors: $1'),
+    @('RE:그래픽 드라이버 오류 (\d+) 건', 'Graphics driver errors: $1'),
+    @('RE:그래픽 드라이버가 멈추거나 오류를 낸 기록입니다 \(TDR (\d+) 건\)\.', 'The graphics driver stopped responding or reported errors (TDR: $1).'),
+    @('RE:NVIDIA 드라이버가 VRAM 오류\(Xid ([\d, ]+)\)를 보고했습니다\. VRAM 검사로 확인하세요\.', 'The NVIDIA driver reported VRAM errors (Xid $1). Confirm with the VRAM test.'),
+    @('RE:그래픽 오류 직후 15분 안에 꺼짐 (\d+) 회 \(고부하 중 전력 부족 패턴\)', 'Power-off within 15 min of a graphics error: $1 (power shortage under load)'),
+    @('RE:그래픽 오류 직후 꺼짐 (\d+) 회', 'Power-off right after a graphics error: $1'),
+    @('RE:(\d{4}-\d{2}-\d{2}) 드라이버 설치 후 문제가 시작됐습니다\. 이전 버전으로 되돌려 보세요 \(DDU 사용\)\.', 'Problems started after the driver install on $1. Roll back to the previous version (use DDU).'),
+    @('RE:수정된 메모리 오류\(WHEA 47\) (\d+) 건', 'Corrected memory errors (WHEA 47): $1'),
+    @('RE:PCIe 오류\(WHEA 17\) (\d+) 건 — 그래픽카드/NVMe 슬롯', 'PCIe errors (WHEA 17): $1 — graphics card/NVMe slot'),
+    @('RE:수정된 CPU 오류\(WHEA 19\) (\d+) 건', 'Corrected CPU errors (WHEA 19): $1'),
+    @('RE:치명적 하드웨어 오류\(WHEA 18\) (\d+) 건', 'Fatal hardware errors (WHEA 18): $1'),
+    @('RE:치명적 하드웨어 오류 (\d+) 건', 'Fatal hardware errors: $1'),
+    @('RE:하드웨어가 스스로 보고한 오류입니다\. 치명적 (\d+) · 메모리 (\d+) · PCIe (\d+) · CPU (\d+) 건\.', 'Errors reported by the hardware itself. Fatal $1 · memory $2 · PCIe $3 · CPU $4.'),
+    @('RE:하드웨어 오류\(WHEA\) (\d+) 건', 'Hardware errors (WHEA): $1'),
+    @('RE:디스크 상태 이상: ', 'Disk health problem: '),
+    @('RE:상태: (\S+) — 즉시 백업하세요\.', 'Status: $1 — back up now.'),
+    @('RE:SSD 수명 소진 \((.+?) (\d+)%\)', 'SSD worn out ($1 $2%)'),
+    @('RE:복구 불가 읽기 오류 (\d+)', 'Uncorrectable read errors: $1'),
+    @('RE:디스크 읽기 오류 \((.+?)\)', 'Disk read errors ($1)'),
+    @('RE:복구되지 않은 읽기 오류 (\d+) 회\.', 'Uncorrected read errors: $1.'),
+    @('RE:SSD 온도 높음 \(([\d\.]+) °C\)', 'SSD temperature high ($1 °C)'),
+    @('RE:디스크 오류 기록 (\d+) 건', 'Disk error records: $1'),
+    @('RE:그래픽카드 ([\d\.]+) °C \(저부하인데 높음\)', 'Graphics card $1 °C (high at low load)'),
+    @('RE:그래픽카드 ([\d\.]+) °C \(Windows 센서\)', 'Graphics card $1 °C (Windows sensor)'),
+    @('RE:그래픽카드 ([\d\.]+) °C', 'Graphics card $1 °C'),
+    @('RE:그래픽카드 온도 높음: ([\d\.]+) °C', 'Graphics card temperature high: $1 °C'),
+    @('RE:메인보드 온도 센서 ([\d\.]+) °C', 'Motherboard sensor $1 °C'),
+    @('RE:오버클럭/튜닝 도구 실행 중: ', 'Overclocking/tuning tool running: '),
+    @('RE:오버클럭 도구 실행 중: ', 'Overclocking tool running: '),
+    @('RE:그래픽 드라이버가 오래됨 \((\d{4}-\d{2}-\d{2})\)', 'Graphics driver is old ($1)'),
+    @('RE: 드라이버를 최신 안정 버전으로 업데이트하세요\.', ': update the driver to the latest stable version.'),
+    @('RE:메인보드 BIOS 가 오래됨 \((\d{4}-\d{2}-\d{2})\)', 'Motherboard BIOS is old ($1)'),
+    @('RE:일부 항목 수집 실패 (\d+) 건', 'Some items could not be collected: $1'),
+    @('RE:최근 (\d+) ?일간 심각한 문제 기록 없음', 'No serious problems recorded in the last $1 days'),
+    @('RE:지난 검사\(([\d\- :]+) · (\d+)점\) 이후 새로 생긴 문제 없음 ✓', 'No new problems since the last scan ($1 · score $2) ✓'),
+    @('RE:지난 검사\(([\d\- :]+) · (\d+)점\) 이후 새 문제 (\d+) 건', '$3 new problem(s) since the last scan ($1 · score $2)'),
+    @('RE:상태 점수: (\d+)/100 \((.+?)\)', 'Health score: $1/100 ($2)'),
+    @('RE:최근 (\d+) ?일 분석', 'last $1 days analyzed'),
+    @('RE: · 최근 (\d+)일', ' · last $1 days'),
+    @('RE:\(빌드 (\d+)\)', '(build $1)'),
+    @('RE:(\d+)코어 / (\d+)스레드', '$1 cores / $2 threads'),
+    @('RE:(\d+)점\(가능성 ', '$1 pts (likelihood '),
+    @('RE:지금 할 일: ', 'Do this now: '),
+    @('RE:\(([^가-힣()]+(?:\([^가-힣()]*\))?[^가-힣()]*) 의심\)', '($1 suspected)'),
+    @('RE:수집 중 \((\d+)/(\d+)\): ', 'Collecting ($1/$2): '),
+    @('RX:(\d+)일$', '$1 days'), @('RX:(\d+) ?건', '$1'), @('RX:(\d+) ?회', '×$1'),
+    @('RE:어댑터 (\d+)', 'Adapter $1'),
+    @('RE:배율 (\d+)%', 'Scale $1%'),
+    @('RE:(\d+) 개 \(가상 머신에서는 0 이 정상\)', '$1 (0 is normal on a virtual machine)'),
+    @('RE: — 최근 (\d+) 일 분석', ' — analyzing the last $1 days'),
+
+    # ---- 원인·등급
+    @('파워(전원 공급)', 'Power supply (PSU)'), @('그래픽카드 하드웨어/VRAM', 'Graphics card hardware/VRAM'), @('기타 드라이버/소프트웨어', 'Other drivers/software'),
+    @('RAM(메모리)', 'RAM (memory)'), @('CPU·오버클럭·전압', 'CPU · overclock · voltage'), @('과열(쿨링)', 'Overheating (cooling)'), @('저장장치(SSD/HDD)', 'Storage (SSD/HDD)'),
+    @('가능성 높음', 'likelihood high'), @('가능성 중간', 'likelihood medium'), @('가능성 낮음', 'likelihood low'),
+    @('점검 필요', 'Needs attention'),
+
+    # ---- 블루스크린·Xid 설명
+    @('그래픽카드가 응답하지 않아 복구에 실패', 'Graphics card stopped responding and recovery failed'), @('그래픽카드 응답 시간 초과', 'Graphics card response timeout'),
+    @('그래픽 스케줄러 오류', 'Graphics scheduler error'), @('그래픽 메모리 관리 오류', 'Graphics memory management error'), @('그래픽 엔진 응답 없음', 'Graphics engine not responding'),
+    @('복구 불가능한 하드웨어 오류', 'Uncorrectable hardware error'), @('CPU 코어가 응답하지 않음', 'A CPU core stopped responding'), @('메모리 관리 오류', 'Memory management error'),
+    @('잘못된 메모리 접근', 'Invalid memory access'), @('메모리 페이지 목록 손상', 'Memory page list corrupted'), @('메모리 풀 손상', 'Memory pool corrupted'),
+    @('드라이버의 잘못된 메모리 요청', 'Invalid memory request by a driver'), @('커널 데이터 손상 감지', 'Kernel data corruption detected'), @('드라이버/메모리 접근 오류', 'Driver/memory access error'),
+    @('드라이버 메모리 접근 오류', 'Driver memory access error'), @('시스템 서비스 예외 (그래픽 드라이버에서 흔함)', 'System service exception (common with graphics drivers)'),
+    @('드라이버 예외 처리 실패', 'Unhandled driver exception'), @('커널 모드 예외', 'Kernel-mode exception'), @('절전/전원 전환 중 드라이버 문제', 'Driver problem during a sleep/power transition'),
+    @('드라이버 또는 SSD 펌웨어 응답 지연', 'Driver or SSD firmware not responding in time'), @('디스크에서 데이터를 읽지 못함', 'Could not read data from disk'), @('디스크 읽기 오류', 'Disk read error'),
+    @('핵심 프로세스 종료 (디스크 문제에서 흔함)', 'Critical process terminated (common with disk problems)'), @('핵심 시스템 프로세스 종료', 'Critical system process died'),
+    @('부팅 디스크 접근 불가', 'Boot disk inaccessible'), @('저장소 관리 예외', 'Storage management exception'), @('BlueScreenView 로 원인 드라이버 확인 권장', 'Check the faulting driver with BlueScreenView'),
+    @('그래픽 엔진 예외 (주로 앱/드라이버)', 'Graphics engine exception (usually app/driver)'), @('GPU 메모리 페이지 오류 (주로 앱/드라이버)', 'GPU memory page fault (usually app/driver)'),
+    @('GPU 작업 중단 (앱 오류)', 'GPU stopped processing (app error)'), @('작업 강제 종료', 'Work forcibly terminated'), @('VRAM 더블비트 ECC 오류', 'VRAM double-bit ECC error'),
+    @('내부 마이크로컨트롤러 정지', 'Internal microcontroller halt'), @('VRAM 페이지 퇴출(ECC)', 'VRAM page retirement (ECC)'), @('VRAM 페이지 퇴출 실패', 'VRAM page retirement failure'),
+    @('NVLink 오류', 'NVLink error'), @('그래픽카드가 PCIe 버스에서 떨어짐', 'Graphics card fell off the PCIe bus'), @('높은 단일비트 ECC 오류율', 'High single-bit ECC error rate'),
+    @('VRAM 오류 격리됨', 'VRAM error contained'), @('VRAM 오류 격리 실패', 'VRAM error not contained'), @('GSP 응답 시간 초과', 'GSP response timeout'),
+
+    # ---- 해결 순서
+    @('멀티탭을 빼고 벽 콘센트에 직접 연결해 보기', 'Plug the PC directly into the wall instead of a power strip'),
+    @('그래픽카드 보조전원(8핀)을 한 줄 케이블이 아니라 각각 별도 케이블로 연결', 'Use separate cables for each graphics card power connector (8-pin), not one daisy-chained cable'),
+    @('파워 정격 용량 확인: 그래픽카드 권장 파워 이상인지 (예: RTX 4070 → 650W 이상)', 'Check PSU wattage meets the graphics card recommendation (e.g. RTX 4070 → 650 W or more)'),
+    @('메뉴의 "부하 테스트(OCCT Power)" 중 꺼지면 파워 교체 1순위 (5년 이상 사용 파워는 특히 의심)', 'If the PC shuts off during the "OCCT Power" load test, replace the PSU first (especially if older than 5 years)'),
+    @('그래픽카드 오버클럭/언더볼트 설정 해제 (MSI Afterburner 기본값)', 'Remove graphics card overclock/undervolt (reset MSI Afterburner to defaults)'),
+    @('VRAM 검사(memtest_vulkan) 10분 이상 실행 → error 가 나오면 VRAM 불량', 'Run the VRAM test (memtest_vulkan) for 10+ minutes → any "error" means faulty VRAM'),
+    @('그래픽카드를 뽑았다 다시 장착, 슬롯/보조전원 단자 확인', 'Reseat the graphics card and check the slot and power connectors'),
+    @('그래도 반복되면 그래픽카드 A/S (진단 보고서 첨부)', 'If it keeps happening, send the card for warranty repair (attach this report)'),
+    @('그래픽 드라이버를 최신 "안정" 버전으로 (최근 업데이트 후 문제라면 이전 버전으로)', 'Install the latest stable graphics driver (or roll back if problems started after an update)'),
+    @('DDU(Display Driver Uninstaller)로 안전모드에서 완전 삭제 후 재설치', 'Fully remove the driver with DDU (Display Driver Uninstaller) in Safe Mode, then reinstall'),
+    @('그래픽 설정의 오버레이/녹화 기능(GeForce Experience, Adrenalin) 끄기', 'Turn off overlay/recording features (GeForce Experience, Adrenalin)'),
+    @('계속되면 그래픽카드 하드웨어 점검(VRAM 검사)으로 진행', 'If it continues, move on to hardware checks (VRAM test)'),
+    @('BIOS 에서 XMP/EXPO(메모리 오버클럭) 끄고 사용해 보기', 'Disable XMP/EXPO (memory overclock) in the BIOS and try again'),
+    @('Windows 메모리 진단 실행 (메뉴) → 더 정밀하게는 MemTest86 USB 부팅 4회 이상', 'Run Windows Memory Diagnostic (menu) → for more depth, MemTest86 from USB, 4+ passes'),
+    @('RAM 을 한 개씩만 꽂아 테스트해 불량 모듈 찾기', 'Test one RAM stick at a time to find the faulty module'),
+    @('메인보드 BIOS 업데이트', 'Update the motherboard BIOS'),
+    @('BIOS 기본값(Load Optimized Defaults)으로 초기화 → 오버클럭/언더볼트 해제', 'Reset BIOS to defaults (Load Optimized Defaults) → removes overclock/undervolt'),
+    @('메인보드 BIOS 최신 버전으로 업데이트 (Intel 13·14세대는 마이크로코드 업데이트 필수)', 'Update the motherboard BIOS (mandatory microcode update for Intel 13th/14th gen)'),
+    @('CPU 온도와 전압을 HWiNFO 로 확인', 'Check CPU temperature and voltage with HWiNFO'), @('계속되면 CPU/메인보드 점검', 'If it continues, have the CPU/motherboard checked'),
+    @('케이스 내부 먼지 청소, 팬이 모두 도는지 확인', 'Clean dust inside the case and make sure every fan spins'),
+    @('HWiNFO 로 부하 중 CPU/GPU 온도 확인 (GPU 85°C·CPU 95°C 이상이면 위험)', 'Check CPU/GPU temperatures under load with HWiNFO (GPU 85 °C / CPU 95 °C or more is dangerous)'),
+    @('써멀 페이스트 재도포, 케이스 공기 흐름 개선', 'Re-apply thermal paste and improve case airflow'),
+    @('중요한 자료를 즉시 백업', 'Back up important data now'), @('CrystalDiskInfo 로 SMART 상태 확인 (주의/나쁨이면 교체)', 'Check SMART with CrystalDiskInfo (replace if Caution/Bad)'),
+    @('SSD 펌웨어 업데이트, SATA 케이블 교체', 'Update SSD firmware, replace the SATA cable'), @('관리자 명령 프롬프트에서 chkdsk C: /scan 실행', 'Run chkdsk C: /scan in an administrator command prompt'),
+    @('BlueScreenView 로 블루스크린 원인 드라이버(.sys) 확인 (메뉴)', 'Find the faulting driver (.sys) with BlueScreenView (menu)'),
+    @('해당 드라이버(칩셋·랜·사운드·보안프로그램) 업데이트 또는 제거', 'Update or remove that driver (chipset, network, audio, security software)'),
+    @('관리자 명령 프롬프트: sfc /scannow 후 DISM /Online /Cleanup-Image /RestoreHealth', 'Administrator command prompt: sfc /scannow, then DISM /Online /Cleanup-Image /RestoreHealth'),
+    @('최근 설치한 프로그램/드라이버가 있다면 제거 또는 시스템 복원', 'Uninstall recently installed programs/drivers or use System Restore'),
+
+    # ---- 발견 사항 (고정 문구)
+    @('블루스크린 없이 꺼짐 (과열 보호 차단 가능)', 'Power-off without blue screen (possible thermal shutdown)'),
+    @('블루스크린 기록 없이 전원이 끊긴 것처럼 꺼진 기록입니다. 파워 부족·노후, 과열 보호, 전원 케이블/멀티탭 접촉 불량에서 전형적으로 나타납니다.', 'The PC turned off as if power was cut, with no blue screen. Typical of a weak or aging PSU, thermal protection, or a loose power cable/power strip.'),
+    @('블루스크린 코드가 매번 다름 (RAM 불량의 전형적 특징)', 'Blue screen codes differ every time (typical of faulty RAM)'),
+    @('VRAM(그래픽 메모리) 오류 신호', 'VRAM (graphics memory) error signals'),
+    @('그래픽카드가 연결에서 떨어짐 (Xid 79)', 'Graphics card dropped off the bus (Xid 79)'),
+    @('전원 공급 불안정, 슬롯 접촉, 과열에서 주로 발생합니다. 보조전원 케이블과 파워를 먼저 점검하세요.', 'Usually caused by unstable power, a poor slot contact, or overheating. Check the power cables and PSU first.'),
+    @('그래픽카드가 오류를 낸 뒤 바로 전원이 꺼졌습니다. 게임 등 고부하에서 파워가 버티지 못하거나 그래픽카드 자체 문제일 가능성이 큽니다.', 'The PC lost power right after a graphics error. Most likely the PSU cannot handle high load (e.g. games) or the graphics card itself is faulty.'),
+    @('그래픽 드라이버 설치 직후(3일 이내)부터 문제 시작', 'Problems began within 3 days of a graphics driver install'),
+    @('그래픽 드라이버 설치 직후부터 문제 시작', 'Problems began right after a graphics driver install'),
+    @(' PCIe 수정 오류만 있다면 대개 가벼운 문제입니다 (BIOS 에서 PCIe 세대를 Gen4/Gen3 로 고정하면 사라지는 경우가 많음).', ' Corrected PCIe errors alone are usually minor (often fixed by forcing PCIe Gen4/Gen3 in the BIOS).'),
+    @('Windows 메모리 진단에서 RAM 오류 발견', 'Windows Memory Diagnostic found RAM errors'), @('Windows 메모리 진단에서 오류 발견', 'Windows Memory Diagnostic found errors'),
+    @('RAM 불량이 거의 확실합니다. 한 개씩 꽂아 불량 모듈을 찾고 교체하세요.', 'Faulty RAM is almost certain. Test one stick at a time and replace the bad module.'),
+    @('XMP/EXPO(메모리 오버클럭) 사용 중 + 메모리 관련 오류', 'XMP/EXPO (memory overclock) enabled + memory-related errors'),
+    @('XMP/EXPO(메모리 오버클럭) 사용 중으로 보임', 'XMP/EXPO (memory overclock) appears to be enabled'),
+    @('대부분 문제없지만, 불안정하면 BIOS 에서 XMP/EXPO 를 끄고 테스트해 보세요.', 'Usually fine, but if the PC is unstable, disable XMP/EXPO in the BIOS and test.'),
+    @('블루스크린 덤프 저장이 꺼져 있음', 'Blue screen dump saving is turned off'),
+    @('블루스크린이 나도 원인 기록이 남지 않습니다. 시스템 속성 > 고급 > 시작 및 복구 > "디버깅 정보 쓰기"를 "작은 메모리 덤프" 또는 "자동 메모리 덤프"로 바꾸세요.', 'Blue screens leave no cause record. Go to System Properties > Advanced > Startup and Recovery and set "Write debugging information" to "Small memory dump" or "Automatic memory dump".'),
+    @('페이지 파일(가상 메모리)이 꺼져 있음', 'Page file (virtual memory) is turned off'),
+    @('페이지 파일이 없으면 블루스크린 덤프를 저장하지 못하고, 메모리 부족 시 프로그램이 갑자기 종료될 수 있습니다. "시스템이 관리하는 크기"로 켜 두세요.', 'Without a page file, blue screen dumps cannot be saved and programs may close suddenly when memory runs low. Set it to "System managed size".'),
+    @('가상 머신에서 실행됨', 'Running in a virtual machine'),
+    @('가상 머신은 실제 하드웨어 정보를 보여 주지 않아 RAM/온도/그래픽카드 진단이 제한됩니다.', 'Virtual machines hide real hardware details, so RAM/temperature/graphics checks are limited.'),
+    @('서로 다른 RAM 모듈 혼용', 'Mixed RAM modules'), @('서로 다른 RAM 모듈을 섞어 사용 중', 'Different RAM modules are mixed'),
+    @('용량/제품이 다른 RAM 혼용은 불안정의 원인이 될 수 있습니다.', 'Mixing RAM of different sizes/models can cause instability.'),
+    @('SSD 수명 거의 소진', 'SSD nearly worn out'), @('교체를 준비하세요.', 'Plan a replacement.'), @('SSD 고온', 'SSD hot'),
+    @('NVMe 방열판/공기 흐름을 확인하세요.', 'Check the NVMe heatsink/airflow.'),
+    @('디스크/컨트롤러 오류는 멈춤·블루스크린의 원인이 됩니다. 케이블·펌웨어·SMART 를 확인하세요.', 'Disk/controller errors cause freezes and blue screens. Check cables, firmware and SMART.'),
+    @('거의 쉬는 상태인데 온도가 높습니다. 팬 고장이나 먼지 막힘을 확인하세요.', 'Hot while nearly idle. Check for a failed fan or dust buildup.'),
+    @('부하 중 온도입니다. 85°C 이상이 계속되면 쿨링을 개선하세요.', 'This is under load. If it stays above 85 °C, improve cooling.'),
+    @('검사 시점의 온도입니다. 부하가 거의 없는데도 이 정도라면 팬·먼지·써멀을 점검하세요.', 'Temperature at scan time. If this hot with little load, check fans, dust and thermal paste.'),
+    @('HWiNFO 로 CPU 온도를 확인하세요.', 'Check the CPU temperature with HWiNFO.'),
+    @('오버클럭·언더볼트 설정을 기본값으로 돌려 테스트해 보세요.', 'Reset overclock/undervolt settings to default and test.'),
+    @('그래픽 드라이버가 1년 이상 오래됨', 'Graphics driver is over a year old'),
+    @('Intel 13·14세대 CPU + 크래시 (알려진 불안정 이슈)', 'Intel 13th/14th gen CPU + crashes (known instability issue)'),
+    @('Intel 13·14세대 CPU', 'Intel 13th/14th gen CPU'),
+    @('BIOS 를 최신(마이크로코드 0x12B 이상 포함)으로 업데이트하세요. 구버전 BIOS 는 CPU 불안정/열화 문제가 알려져 있습니다.', 'Update the BIOS to the latest version (microcode 0x12B or newer). Older BIOS versions have known CPU instability/degradation issues.'),
+    @('안정성 개선이 포함된 최신 BIOS 를 확인하세요.', 'Check for a newer BIOS with stability fixes.'),
+    @('빠른 시작(Fast Startup) 켜짐', 'Fast Startup is on'),
+    @('종료/부팅 관련 문제가 있으면 제어판 > 전원 옵션에서 "빠른 시작 켜기"를 꺼 보세요.', 'If you have shutdown/boot problems, turn off "Fast startup" in Control Panel > Power Options.'),
+    @('관리자 권한 없이 실행됨', 'Ran without administrator rights'),
+    @('일부 기록(덤프 파일 등)을 읽지 못했을 수 있습니다. 원클릭검사.bat 으로 실행하세요.', 'Some records (dump files, etc.) may not have been read. Run it with the launcher .bat file.'),
+    @('증상이 계속된다면 VRAM 검사와 RAM 검사로 직접 부하 테스트를 해 보세요. 기록이 남지 않는 순간 정전(파워 문제)일 수도 있습니다.', 'If symptoms continue, run the VRAM and RAM tests yourself. Instant power loss (a PSU problem) can leave no record.'),
+
+    # ---- 보고서 화면
+    @('PC 진단 보고서', 'PC Diagnostic Report'), @('가장 의심되는 원인', 'Most likely causes'), @('뚜렷한 원인 후보가 없습니다.', 'No clear cause candidates.'),
+    @('점수는 기록된 증거의 강도입니다 (100 = 매우 강함). 해결 순서대로 하나씩 시도하고 다시 검사해 보세요.', 'Scores show the strength of recorded evidence (100 = very strong). Try the fixes in order and scan again.'),
+    @('발견 사항', 'Findings'), @('날짜별 기록', 'Timeline'), @('A/S · 상담용 요약', 'Summary for support'),
+    @('원격 상담을 받을 때는 이 요약과 함께, 보고서와 같은 폴더에 있는 같은 이름의 <b>.json</b> 파일을 보내 주세요 (상담사가 같은 보고서를 열어 볼 수 있습니다).', 'For remote support, send this summary together with the <b>.json</b> file of the same name in the report folder (the technician can open the same report).'),
+    @('요약 복사', 'Copy summary'), @('복사했습니다', 'Copied'), @('Ctrl+C 로 복사하세요', 'Press Ctrl+C to copy'), @('인쇄 / PDF 저장', 'Print / Save PDF'), @('모두 펼치기', 'Expand all'),
+    @('상세 기록', 'Details'), @('시스템 정보', 'System information'), @('메인보드', 'Motherboard'), @('마지막 부팅', 'Last boot'), @('전원 관리', 'Power plan'),
+    @('빠른 시작', 'Fast startup'), @('켜짐', 'on'), @('꺼짐', 'off'), @('NVIDIA 실시간 상태', 'NVIDIA live status'), @('그래픽 센서 (Windows 제공)', 'Graphics sensors (from Windows)'),
+    @('갑작스런 종료 (Kernel-Power 41)', 'Unexpected shutdowns (Kernel-Power 41)'), @('예기치 않은 종료(이벤트 6008):', 'Unexpected shutdowns (event 6008):'),
+    @('그래픽 드라이버 오류 (TDR · Xid)', 'Graphics driver errors (TDR · Xid)'), @('하드웨어 오류 (WHEA)', 'Hardware errors (WHEA)'), @('디스크 오류 기록', 'Disk error records'),
+    @('그래픽 드라이버 설치 이력 · 자주 충돌한 프로그램', 'Graphics driver installs · frequently crashing programs'), @('자주 충돌한 프로그램', 'Frequently crashing programs'),
+    @('기간 내 설치 기록 없음', 'No installs in this period'), @('덤프 파일 없음', 'No dump files'), @('덤프 파일', 'Dump files'), @('기록 없음 ✓', 'No records ✓'),
+    @('실행 기록 없음 (메뉴에서 실행 가능)', 'Never run (available from the menu)'), @('❌ 오류 발견', '❌ errors found'), @('✅ 오류 없음', '✅ no errors'),
+    @('Windows 메모리 진단:', 'Windows Memory Diagnostic:'), @('날짜별 문제 기록', 'Problems by date'),
+    @('조치가 효과를 보고 있는 것으로 보입니다. 며칠 더 사용한 뒤 다시 검사해 확인하세요.', 'The fix appears to be working. Use the PC for a few more days and scan again to confirm.'),
+    @('문제가 아직 해결되지 않았습니다. 아래 1순위 원인의 다음 단계를 진행하세요.', 'The problem is not solved yet. Continue with the next step for the top cause below.'),
+    @('이 보고서는 PC 안에서만 생성되었으며 어떤 정보도 외부로 전송되지 않았습니다.', 'This report was created entirely on this PC; nothing was sent anywhere.'),
+    @('진단은 Windows 기록에 기반한 추정입니다. 하드웨어 교체 전에 정밀 검사(VRAM·RAM·부하 테스트)로 확인하세요.', 'This diagnosis is an estimate based on Windows records. Confirm with the detailed tests (VRAM, RAM, load) before replacing hardware.'),
+    @('전원 끊김/멈춤', 'Power loss/freeze'), @('파워·과열·전원 접촉 의심', 'PSU, overheating or power contact suspected'),
+    @('블루스크린 기록 없이', 'without a blue screen'), @('상담용', 'support'),
+    @('의심 원인:', 'Likely causes:'), @('블루스크린 코드:', 'Blue screen codes:'), @('보드:', 'board:'),
+    @('기록: 갑자기꺼짐', 'Records: power-offs'), @('그래픽오류', 'graphics errors'), @('디스크', 'disk'),
+    # 표 머리글
+    @('드라이버 날짜', 'Driver date'), @('속도 MHz (현재/정격)', 'Speed MHz (current/rated)'), @('사용시간(h)', 'Power-on (h)'), @('읽기오류', 'Read errors'), @('구성요소', 'Component'),
+    @('전원버튼', 'Power button'), @('VRAM 사용', 'VRAM used'), @('전력 제한', 'Power limit'),
+    @('사용률', 'Usage'), @('제조사', 'Maker'), @('프로그램', 'Program'), @('어댑터', 'Adapter'), @('그래픽카드', 'Graphics card'), @('그래픽 오류', 'Graphics errors'),
+    @('갑자기 꺼짐', 'Sudden power-offs'), @('블루스크린', 'Blue screens'), @('그래픽 드라이버 오류', 'Graphics driver errors'), @('하드웨어 오류(WHEA)', 'Hardware errors (WHEA)'), @('디스크 오류', 'Disk errors'),
+    @('저장장치', 'Storage'), @('드라이버', 'Driver'), @('그래픽 드라이버', 'Graphics driver'), @('그래픽', 'Graphics'),
+    @('상태:', 'Status:'), @('근거', 'Evidence'), @('해결 순서', 'How to fix'), @('위험', 'Critical'), @('주의', 'Warning'), @('참고', 'Info'), @('정상', 'OK'), @('양호', 'Good'),
+    @('시간', 'Time'), @('종류', 'Type'), @('추정', 'Likely'), @('코드', 'Code'), @('이름', 'Name'), @('설명', 'Description'), @('출처', 'Source'), @('내용', 'Message'),
+    @('파일', 'File'), @('크기', 'Size'), @('슬롯', 'Slot'), @('용량', 'Size'), @('모델', 'Model'), @('상태', 'Status'), @('온도', 'Temp'), @('마모', 'Wear'),
+    @('장치', 'Device'), @('팬', 'Fan'), @('횟수', 'Count'), @('클럭', 'Clock'), @('전력', 'Power'), @('예', 'yes'), @('높음', 'high'), @('중간', 'medium'), @('낮음', 'low'),
+    @('(미상)', '(unknown)'), @('기타', 'Other'), @('코어 / ', ' cores / '), @('스레드', ' threads'),
+
+    # ---- 화면(GUI)·콘솔·도구
+    @('PC 원클릭 진단', 'PC One-Click Check'),
+    @('갑자기 꺼짐 · 블루스크린 · 그래픽카드(VRAM) · RAM · 디스크 문제를 Windows 기록으로 분석합니다.', 'Analyzes sudden power-offs, blue screens, graphics card (VRAM), RAM and disk problems from Windows records.'),
+    @('분석 기간', 'Period'), @('검사 시작', 'Start scan'), @('준비됨 (관리자 권한)', 'Ready (administrator)'),
+    @('준비됨 — (주의) 관리자 권한이 아니어서 일부 항목이 빠질 수 있습니다', 'Ready — (note) not administrator, some items may be missing'),
+    @('상태 점수', 'Health score'), @('의심 원인 / 발견 사항', 'Likely causes / findings'), @('점수', 'Score'), @('가능성', 'Likelihood'),
+    @('보고서 열기', 'Open report'), @('저장 폴더 열기', 'Open folder'), @('정밀 검사 (공식 출처에서 받아 실행)', 'Detailed tests (downloaded from official sources)'),
+    @('그래픽카드 VRAM 검사', 'Graphics VRAM test'), @('블루스크린 원인 드라이버', 'Blue screen driver check'), @('RAM 검사 (재부팅)', 'RAM test (reboot)'),
+    @('온도·전압 모니터링', 'Temperature monitor'), @('파워·GPU 부하 테스트', 'PSU/GPU load test'),
+    @('memtest_vulkan (GitHub 오픈소스) · NVIDIA/AMD/Intel', 'memtest_vulkan (GitHub open source) · NVIDIA/AMD/Intel'), @('Windows 메모리 진단 (기본 내장)', 'Windows Memory Diagnostic (built in)'),
+    @('HWiNFO 공식 사이트', 'HWiNFO official site'), @('OCCT 공식 사이트', 'OCCT official site'),
+    @("새 창에서 엔터를 누르면 시작합니다.`n최소 5~10분 실행 후 'PASSed' 가 나오면 정상, 'error' 가 보이면 VRAM 불량 의심입니다.`n끝내려면 그 창에서 Ctrl+C.`n테스트 중 PC 가 꺼지면 파워/그래픽카드 전원 문제일 가능성이 큽니다.", "Press Enter in the new window to start.`nRun at least 5–10 minutes: 'PASSed' means OK, any 'error' suggests faulty VRAM.`nPress Ctrl+C in that window to stop.`nIf the PC turns off during the test, the PSU/graphics power is the likely cause."),
+    @("아래쪽 목록에서 빨간색으로 표시된 파일이 원인 후보입니다.`nnvlddmkm.sys=NVIDIA, amdkmdag.sys=AMD, ntoskrnl.exe=하드웨어/RAM 가능성.", "Files highlighted in red in the lower list are the suspects.`nnvlddmkm.sys=NVIDIA, amdkmdag.sys=AMD, ntoskrnl.exe=possibly hardware/RAM."),
+    @("작업을 저장한 뒤 '지금 다시 시작하여 문제 확인'을 선택하세요.`n결과는 재부팅 후 이 프로그램을 다시 실행하면 보고서에 표시됩니다.", "Save your work, then choose 'Restart now and check for problems'.`nAfter rebooting, run this program again to see the result in the report."),
+    @('공식 사이트에서 받아 "Sensors-only" 로 실행하세요.', 'Download it from the official site and run it in "Sensors-only" mode.'),
+    @("'Power' 테스트 10~20분 중 꺼지면 파워 문제, 'VRAM' 테스트에서 오류면 그래픽카드 문제입니다.", "If the PC turns off during a 10–20 min 'Power' test, it's the PSU; errors in the 'VRAM' test point to the graphics card."),
+    @('공식 다운로드 페이지를 열었습니다.', 'Opened the official download page.'), @('실행하지 못했습니다.', 'Could not start.'),
+    @('분석 중...', 'Analyzing...'), @('검사 준비 중...', 'Preparing...'), @('검사 중', 'Scanning'), @('완료 — 보고서: ', 'Done — report: '),
+    @('오류가 발생했습니다.', 'An error occurred.'), @('검사 중 오류가 발생했습니다.', 'An error occurred during the scan.'), @('화면을 여는 중 오류가 발생했습니다.', 'Could not open the window.'),
+    @('로그:', 'Log:'), @('[원인]', '[cause]'), @('[위험]', '[critical]'), @('[주의]', '[warning]'), @('[정상]', '[ok]'),
+    @('번호 선택', 'Choose a number'), @('보고서 다시 열기', 'Open report again'), @('종료', 'Exit'), @('정밀 검사', 'Detailed tests'), @('보고서:', 'Report:'), @('실패:', 'Failed:'),
+    @('파일 무결성 검증 실패 (SHA256 불일치)', 'File integrity check failed (SHA-256 mismatch)'), @('실행 파일을 찾지 못했습니다.', 'Executable not found.'),
+    @('Windows 용 파일을 찾지 못했습니다.', 'No Windows file found.'), @('릴리스 파일:', 'release files:'),
+    @('Windows 에서만 검사할 수 있습니다. (-FromJson 으로 보고서 재생성은 가능)', 'Scanning works only on Windows. (-FromJson can still rebuild a report.)'),
+    @('시스템 정보', 'System info'), @('갑작스런 종료 기록', 'Shutdown records'), @('블루스크린 기록', 'Blue screen records'), @('메모리 진단 결과', 'Memory diagnostic results'),
+    @('드라이버 설치·앱 충돌·온도', 'Driver installs · app crashes · temperature')
+)
+
+function Get-EnTable {
+    if ($script:EnRe) { return }
+    $re = New-Object System.Collections.ArrayList; $lit = New-Object System.Collections.ArrayList; $rx = New-Object System.Collections.ArrayList
+    foreach ($p in $script:EnPairs) {
+        if ($p[0].StartsWith('RE:')) { [void]$re.Add(@((New-Object Text.RegularExpressions.Regex($p[0].Substring(3))), $p[1])) }
+        elseif ($p[0].StartsWith('RX:')) { [void]$rx.Add(@((New-Object Text.RegularExpressions.Regex($p[0].Substring(3))), $p[1])) }
+        else { [void]$lit.Add($p) }
+    }
+    $script:EnRe = $re; $script:EnRx = $rx
+    $script:EnLit = @($lit | Sort-Object { - $_[0].Length })
+}
+function Tr([string]$s) {
+    # 한국어 출력 문자열을 현재 언어로 (ko 이면 그대로)
+    if ($script:UiLang -ne 'en' -or -not $s -or $s -notmatch '[가-힣]') { return $s }
+    Get-EnTable
+    foreach ($r in $script:EnRe) { $s = $r[0].Replace($s, $r[1]) }
+    foreach ($p in $script:EnLit) { if ($s.Contains($p[0])) { $s = $s.Replace($p[0], $p[1]) } }
+    foreach ($r in $script:EnRx) { $s = $r[0].Replace($s, $r[1]) }
+    return $s
+}
+function Get-DefaultLang {
+    try { if ((Get-Culture).TwoLetterISOLanguageName -eq 'ko') { return 'ko' } } catch {}
+    return 'en'
 }
 
 # =====================================================================
 #  진입점
 # =====================================================================
 if ($LoadOnly) { return }
+if ($Lang -eq 'auto') { $script:UiLang = Get-DefaultLang } else { $script:UiLang = $Lang }
 
 $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
@@ -1524,7 +1806,7 @@ if (-not $script:IsWin) { Write-Error 'Windows 에서만 검사할 수 있습니
 
 if ($Mode -eq 'Gui') {
     try {
-        if ($GuiSmokeTest) { foreach ($s in 1.0, 1.25, 1.5, 2.0) { Write-Output "배율 $([int]($s * 100))%"; Show-Gui -Days $Days -OutDir $OutDir -SmokeTest -SimScale $s } }
+        if ($GuiSmokeTest) { foreach ($lg in 'ko', 'en') { $script:UiLang = $lg; foreach ($s in 1.0, 1.25, 1.5, 2.0) { Write-Output "[$lg] 배율 $([int]($s * 100))%"; Show-Gui -Days $Days -OutDir $OutDir -SmokeTest -SimScale $s } } }
         else { Show-Gui -Days $Days -OutDir $OutDir }
         return
     }
@@ -1536,7 +1818,7 @@ if ($Mode -eq 'Gui') {
         Write-PCLog "gui failed, relaunch console: $($_.Exception.Message)"
         if (-not $PSCommandPath) {
             # EXE(ps2exe)로 실행된 경우: 스크립트 경로가 없으므로 오류만 안내
-            try { [void][Windows.Forms.MessageBox]::Show("화면을 여는 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)", $script:AppName) } catch {}
+            try { [void][Windows.Forms.MessageBox]::Show((Tr "화면을 여는 중 오류가 발생했습니다.`n$($_.Exception.Message)`n`n로그: $($script:LogFile)"), (Tr $script:AppName)) } catch {}
             return
         }
 
@@ -1545,8 +1827,8 @@ if ($Mode -eq 'Gui') {
     }
 }
 
-Write-Host "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분석" -ForegroundColor Cyan
-$data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, $name) }
+Write-TrHost "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분석" -ForegroundColor Cyan
+$data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, (Tr $name)) }
 $dx = Get-Diagnosis -Data $data
 $res = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
 Write-ConsoleResult $dx $res

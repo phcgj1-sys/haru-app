@@ -67,7 +67,10 @@ jobs:
       - name: External tool download and integrity
         if: success() || failure()
         shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: ./tests/CI-Run.ps1 -ToolCheck
+
 
       - name: Build EXE
         timeout-minutes: 6
@@ -78,7 +81,7 @@ jobs:
         shell: pwsh
         run: |
           $pkg = Join-Path $env:RUNNER_TEMP 'PCCheck'
-          Copy-Item ./PCCheck.ps1, ./*.bat, ./README.md, ./THIRD-PARTY.md -Destination $pkg
+          Copy-Item ./PCCheck.ps1, ./*.bat, ./README.md, ./THIRD-PARTY.md, ./CHANGELOG.md -Destination $pkg
           Compress-Archive -Path "$pkg/*" -DestinationPath (Join-Path $env:RUNNER_TEMP 'PCCheck.zip') -Force
           Get-ChildItem $pkg | Format-Table Name, Length | Out-String | Write-Host
 
