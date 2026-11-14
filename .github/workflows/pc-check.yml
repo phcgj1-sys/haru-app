@@ -10,6 +10,8 @@ on:
 permissions:
   contents: read
 
+# Inline scripts stay ASCII-only: the runner writes them without a BOM and
+# Windows PowerShell 5.1 would misread Korean text. Korean lives in the .ps1 files.
 jobs:
   windows:
     runs-on: windows-latest
@@ -19,94 +21,65 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: 단위·시나리오 테스트 (Windows PowerShell 5.1)
+      - name: Unit and scenario tests (Windows PowerShell 5.1)
         shell: powershell
         run: ./tests/Run-Tests.ps1
 
-      - name: 단위·시나리오 테스트 (PowerShell 7)
+      - name: Unit and scenario tests (PowerShell 7)
         if: success() || failure()
         shell: pwsh
         run: ./tests/Run-Tests.ps1
 
-      - name: PSScriptAnalyzer (오류 + 5.1 호환성)
+      - name: PSScriptAnalyzer (errors + 5.1 compatibility)
         if: success() || failure()
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
-          $settings = @{
-            Rules = @{
-              PSUseCompatibleSyntax   = @{ Enable = $true; TargetVersions = @('5.1', '7.0') }
-              PSUseCompatibleCmdlets  = @{ Compatibility = @('desktop-5.1.14393.206-windows') }
-            }
-          }
-          $all = Invoke-ScriptAnalyzer -Path ./PCCheck.ps1 -Settings $settings
-          $all += Invoke-ScriptAnalyzer -Path ./PCCheck.ps1 -Severity Error
-          $all | Sort-Object Line -Unique | Format-Table Severity, Line, RuleName, Message -AutoSize -Wrap | Out-String -Width 220 | Write-Host
+          $settings = @{ Rules = @{
+              PSUseCompatibleSyntax  = @{ Enable = $true; TargetVersions = @('5.1', '7.0') }
+              PSUseCompatibleCmdlets = @{ Compatibility = @('desktop-5.1.14393.206-windows') } } }
+          $all = @(Invoke-ScriptAnalyzer -Path ./PCCheck.ps1 -Settings $settings) + @(Invoke-ScriptAnalyzer -Path ./PCCheck.ps1 -Severity Error)
           $bad = @($all | Where-Object { $_.Severity -eq 'Error' -or $_.RuleName -like 'PSUseCompatible*' })
-          if ($bad.Count) { throw "분석 오류 $($bad.Count) 건" }
+          $bad | Format-Table Severity, Line, RuleName, Message -AutoSize -Wrap | Out-String -Width 220 | Write-Host
+          if ($bad.Count) { throw "analyzer findings: $($bad.Count)" }
 
-      - name: 실제 PC 검사 실행 (5.1, 무인 모드)
+      - name: Real scan on this machine (Windows PowerShell 5.1)
         if: success() || failure()
         shell: powershell
-        run: |
-          $out = Join-Path $env:RUNNER_TEMP 'report'
-          $sw = [Diagnostics.Stopwatch]::StartNew()
-          $r = ./PCCheck.ps1 -Mode Silent -Days 30 -OutDir $out | Select-Object -Last 1
-          Write-Host "소요 시간: $([int]$sw.Elapsed.TotalSeconds)초"
-          if (-not (Test-Path $r.Html)) { throw 'HTML 보고서 없음' }
-          $j = Get-Content -Raw -Encoding UTF8 $r.Json | ConvertFrom-Json
-          Write-Host "수집 실패 항목: $(@($j.Errors).Count)"
-          $j.Errors | Format-Table | Out-String | Write-Host
-          Write-Host "GPU: $(@($j.Gpus).Count) · 디스크: $(@($j.Disks).Count) · RAM: $(@($j.Dimms).Count) · 종료기록: $(@($j.Shutdowns).Count)"
-          if (-not $j.System.OS) { throw '시스템 정보 수집 실패' }
-          if (@($j.Errors).Count -gt 0) { throw '수집 단계 오류 발생' }
-          ./PCCheck.ps1 -Mode Silent -FromJson $r.Json -OutDir (Join-Path $env:RUNNER_TEMP 'rerender') -NoOpen
+        run: ./tests/CI-Run.ps1
 
-      - name: 실제 PC 검사 실행 (PowerShell 7)
+      - name: Real scan on this machine (PowerShell 7)
         if: success() || failure()
         shell: pwsh
-        run: |
-          $r = ./PCCheck.ps1 -Mode Silent -Days 7 -OutDir (Join-Path $env:RUNNER_TEMP 'report7') | Select-Object -Last 1
-          $j = Get-Content -Raw $r.Json | ConvertFrom-Json
-          if (@($j.Errors).Count -gt 0) { $j.Errors | Format-Table | Out-String | Write-Host; throw '수집 단계 오류 발생' }
+        run: ./tests/CI-Run.ps1
 
-      - name: 화면(GUI) 생성 검사
+      - name: GUI construction
         if: success() || failure()
         shell: powershell
         run: powershell -NoProfile -STA -File ./PCCheck.ps1 -Mode Gui -GuiSmokeTest
 
-      - name: 외부 도구 다운로드·무결성 검사
+      - name: External tool download and integrity
         if: success() || failure()
         shell: powershell
-        run: |
-          . ./PCCheck.ps1 -LoadOnly
-          $script:WorkDir = Join-Path $env:RUNNER_TEMP 'tools'
-          $p = Install-MemtestVulkan; Write-Host "memtest_vulkan: $p"
-          try { $b = Install-BlueScreenView; Write-Host "BlueScreenView: $b" }
-          catch { Write-Host "::warning::BlueScreenView 다운로드 실패: $($_.Exception.Message)" }
+        run: ./tests/CI-Run.ps1 -Tools
 
-      - name: 단일 실행 파일(EXE) 만들기
+      - name: Build EXE
         shell: powershell
-        run: |
-          $pkg = Join-Path $env:RUNNER_TEMP 'PCCheck'
-          New-Item -ItemType Directory -Force $pkg | Out-Null
-          Copy-Item ./PCCheck.ps1, ./*.bat, ./README.md, ./THIRD-PARTY.md -Destination $pkg
-          # 관리자 권한 요청이 내장된 .exe (ps2exe)
-          Install-Module ps2exe -Force -Scope CurrentUser
-          Invoke-ps2exe -inputFile ./PCCheck.ps1 -outputFile (Join-Path $pkg 'PC원클릭진단.exe') -noConsole -STA -requireAdmin `
-            -title 'PC 원클릭 진단' -product 'PC 원클릭 진단' -version '2.0.0.0' -description '갑작스런 종료·그래픽카드·RAM 진단'
-          if (-not (Test-Path (Join-Path $pkg 'PC원클릭진단.exe'))) { throw 'EXE 생성 실패' }
+        run: ./build/Build-Exe.ps1 -OutDir "$env:RUNNER_TEMP\PCCheck"
 
-      - name: 배포 ZIP 만들기
+      - name: Package ZIP
         shell: pwsh
         run: |
           $pkg = Join-Path $env:RUNNER_TEMP 'PCCheck'
-          Compress-Archive
- -Path "$pkg/*" -DestinationPath (Join-Path $env:RUNNER_TEMP 'PCCheck.zip') -Force
+          Copy-Item ./PCCheck.ps1, ./*.bat, ./README.md, ./THIRD-PARTY.md -Destination $pkg
+          Compress-Archive -Path "$pkg/*" -DestinationPath (Join-Path $env:RUNNER_TEMP 'PCCheck.zip') -Force
+          Get-ChildItem $pkg | Format-Table Name, Length | Out-String | Write-Host
 
       - uses: actions/upload-artifact@v4
+        if: success() || failure()
         with:
           name: PCCheck
+          if-no-files-found: ignore
           path: |
             ${{ runner.temp }}/PCCheck.zip
-            ${{ runner.temp }}/report/*.html
+            ${{ runner.temp }}/report-*/*.html
