@@ -21,6 +21,8 @@ Remove-TypeData System.Array -ErrorAction SilentlyContinue
 function Say($t, $c) { if ($c) { Write-Host $t -ForegroundColor $c } else { Write-Host $t } }
 function R1($v) { if ($null -eq $v) { return $null } return [math]::Round([double]$v, 1) }
 function Avg($a) { $l = @($a | Where-Object { $null -ne $_ }); if (-not $l.Count) { return $null }; return R1 (($l | Measure-Object -Average).Average) }
+# 게임이 아닌 프로그램(브라우저·런처·메신저·녹화 등)
+$skipRx = '^(dwm|explorer|chrome|msedge|msedgewebview2|firefox|whale|discord|powershell|pwsh|conhost|steamwebhelper|steam|EpicGamesLauncher|Battle\.net|LeagueClientUx|LeagueClientUxRender|RiotClientUx|RiotClientUxRender|obs64|KakaoTalk|nvcontainer|NVIDIA Share|GameBar|ApplicationFrameHost|TextInputHost|SearchHost|SearchApp|ShellExperienceHost|StartMenuExperienceHost|Overwolf|PresentMon.*|nvidia-smi)$'
 function Mx($a) { $l = @($a | Where-Object { $null -ne $_ }); if (-not $l.Count) { return $null }; return R1 (($l | Measure-Object -Maximum).Maximum) }
 
 $base = $PSScriptRoot; if (-not $base) { $base = [Environment]::GetFolderPath('Desktop') }
@@ -60,9 +62,10 @@ if ($Delay -lt 0) { $Delay = 20 }
 # ---------- PresentMon 준비 ----------
 $pm = $null; $pmMajor = 2
 function FindPM {
-  $c = @(Get-ChildItem -Path $base -Filter 'PresentMon*.exe' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'arm' } | Sort-Object Name -Descending)
+  $ver = { if ($_.Name -match '(\d+(\.\d+)+)') { try { [version]$matches[1] } catch { [version]'0.0' } } else { [version]'0.0' } }
+  $c = @(Get-ChildItem -Path $base -Filter 'PresentMon*.exe' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'arm' } | Sort-Object $ver -Descending)
   if ($c.Count) { return $c[0].FullName }
-  $c = @(Get-ChildItem -Path $env:TEMP -Filter 'PresentMon*-x64.exe' -ErrorAction SilentlyContinue | Sort-Object Name -Descending)
+  $c = @(Get-ChildItem -Path $env:TEMP -Filter 'PresentMon*-x64.exe' -ErrorAction SilentlyContinue | Sort-Object $ver -Descending)
   if ($c.Count) { return $c[0].FullName }
   return $null
 }
@@ -70,25 +73,29 @@ if ($isAdmin) {
   $pm = FindPM
   if (-not $pm) {
     Say 'FPS 측정 도구(PresentMon, 인텔 공개 프로그램)를 내려받는 중...' Yellow
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch {}
+    $url = $null; $name = $null; $size = 0
     try {
-      [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-      $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/GameTechDev/PresentMon/releases/latest' -TimeoutSec 15 -Headers @{ 'User-Agent' = 'pcbang-check' }
+      $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/GameTechDev/PresentMon/releases/latest' -TimeoutSec 15 -Headers @{ 'User-Agent' = 'pcbang-check' } -ErrorAction Stop
       $asset = @($rel.assets | Where-Object { $_.name -match '^PresentMon-[\d\.]+-x64\.exe$' })[0]
-      if ($asset) {
-        $dest = Join-Path $base $asset.name
-        try { Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $dest -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop } catch {
-          $dest = Join-Path $env:TEMP $asset.name
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $dest -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
-        }
-        if (Test-Path $dest) { $pm = $dest }
-      }
+      if ($asset) { $url = $asset.browser_download_url; $name = $asset.name; $size = [long]$asset.size }
     } catch {}
+    # GitHub API는 매장 IP 하나당 시간당 60회 제한 → 실패하면 고정 버전 주소
+    if (-not $url) { $name = 'PresentMon-2.3.1-x64.exe'; $url = 'https://github.com/GameTechDev/PresentMon/releases/download/v2.3.1/' + $name }
+    foreach ($dir in @($base, $env:TEMP)) {
+      $dest = Join-Path $dir $name; $tmp = $dest + '.tmp'
+      try {
+        Invoke-WebRequest -Uri $url -OutFile $tmp -UseBasicParsing -TimeoutSec 60 -ErrorAction Stop
+        if ($size -and (Get-Item $tmp).Length -ne $size) { throw 'size' }
+        if ((Get-Item $tmp).Length -lt 100000) { throw 'small' }
+        Move-Item $tmp $dest -Force -ErrorAction Stop; $pm = $dest; break
+      } catch { Remove-Item $tmp -ErrorAction SilentlyContinue }
+    }
     if (-not $pm) {
       Say '  내려받지 못했어요. https://github.com/GameTechDev/PresentMon/releases 에서' Red
       Say '  PresentMon-버전-x64.exe 를 받아 이 폴더에 넣으면 FPS도 잴 수 있어요. (이번에는 FPS 없이 진행)' Red
     }
   }
-  if ($pm -and ((Split-Path $pm -Leaf) -match 'PresentMon-?(\d+)\.')) { $pmMajor = [int]$matches[1] }
 }
 
 # ---------- nvidia-smi ----------
@@ -113,6 +120,7 @@ $extHost = '168.126.63.1'
 Say ''
 Say ("게임을 켜고 실제로 플레이하세요. {0}초 뒤에 측정을 시작해서 {1}초 동안 기록해요." -f $Delay, $Seconds) Green
 Say '시작·끝날 때 "삑" 소리가 나요. 측정 중에는 게임만 하세요(이 창은 그대로 두세요).'
+try { $null = Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor; $null = Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -Filter "Name LIKE '%engtype_3D%'" } catch {}
 for ($i = $Delay; $i -gt 0; $i--) { Write-Host -NoNewline ("`r  시작까지 {0,3}초  " -f $i); Start-Sleep -Seconds 1 }
 Write-Host ''
 try { [Console]::Beep(880, 250) } catch {}
@@ -124,8 +132,8 @@ $nvCsv = Join-Path $env:TEMP ("pcbang_nv_{0}.csv" -f $PID)
 Remove-Item $pmCsv, $nvCsv -ErrorAction SilentlyContinue
 $pmProc = $null
 if ($pm) {
-  if ($pmMajor -ge 2) { $pmArgs = @('--output_file', ('"{0}"' -f $pmCsv), '--timed', ($Seconds + 1), '--terminate_after_timed', '--stop_existing_session') }
-  else { $pmArgs = @('-output_file', ('"{0}"' -f $pmCsv), '-timed', ($Seconds + 1), '-terminate_after_timed', '-stop_existing_session') }
+  # PresentMon 1.x~2.x 모두 -옵션 형식을 받음. 다른 프로그램 세션을 건드리지 않게 전용 세션 이름 사용
+  $pmArgs = @('-output_file', ('"{0}"' -f $pmCsv), '-timed', ($Seconds + 1), '-terminate_after_timed', '-session_name', 'pcbang_game', '-stop_existing_session')
   try { $pmProc = Start-Process -FilePath $pm -ArgumentList $pmArgs -WindowStyle Hidden -PassThru -ErrorAction Stop } catch { $pmProc = $null }
 }
 $nvProc = $null
@@ -136,14 +144,14 @@ if ($smi) {
 $tl = New-Object System.Collections.ArrayList
 $gpuByPid = @{}
 $gameSrv = $null
+$pingGw = New-Object System.Net.NetworkInformation.Ping; $pingEx = New-Object System.Net.NetworkInformation.Ping; $pingGs = New-Object System.Net.NetworkInformation.Ping
 $swAll = [System.Diagnostics.Stopwatch]::StartNew()
 for ($sec = 0; $sec -lt $Seconds; $sec++) {
-  $tick = [System.Diagnostics.Stopwatch]::StartNew()
-  $pgGw = $null; $pgEx = $null; $pgGs = $null
-  try { if ($gateway) { $pgGw = (New-Object System.Net.NetworkInformation.Ping).SendPingAsync($gateway, 900) } } catch {}
-  try { $pgEx = (New-Object System.Net.NetworkInformation.Ping).SendPingAsync($extHost, 900) } catch {}
-  try { if ($gameSrv) { $pgGs = (New-Object System.Net.NetworkInformation.Ping).SendPingAsync($gameSrv, 900) } } catch {}
-  $smp = [ordered]@{ t = $sec; cpu = $null; core = $null; gpu = $null; mem = $null; gw = $null; ext = $null; gs = $null }
+    $pgGw = $null; $pgEx = $null; $pgGs = $null
+  try { if ($gateway) { $pgGw = $pingGw.SendPingAsync($gateway, 900) } } catch {}
+  try { $pgEx = $pingEx.SendPingAsync($extHost, 900) } catch {}
+  try { if ($gameSrv) { $pgGs = $pingGs.SendPingAsync($gameSrv, 900) } } catch {}
+  $smp = [ordered]@{ t = [math]::Round($swAll.Elapsed.TotalSeconds, 1); cpu = $null; core = $null; gpu = $null; mem = $null; gw = $null; ext = $null; gs = $null }
   try {
     $cp = @(Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -OperationTimeoutSec 2)
     $tot = $cp | Where-Object { $_.Name -eq '_Total' } | Select-Object -First 1
@@ -153,18 +161,19 @@ for ($sec = 0; $sec -lt $Seconds; $sec++) {
   } catch {}
   try {
     $eng = @(Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -Filter "Name LIKE '%engtype_3D%'" -OperationTimeoutSec 2)
-    $sum = 0
+    $byEng = @{}
     foreach ($e in $eng) {
-      $u = [double]$e.UtilizationPercentage; $sum += $u
+      $u = [double]$e.UtilizationPercentage
+      $ek = ($e.Name -replace '^pid_\d+_', ''); if ($byEng.ContainsKey($ek)) { $byEng[$ek] += $u } else { $byEng[$ek] = $u }
       if ($u -gt 0 -and $e.Name -match '^pid_(\d+)_') { $k = [int]$matches[1]; if ($gpuByPid.ContainsKey($k)) { $gpuByPid[$k] += $u } else { $gpuByPid[$k] = $u } }
     }
-    if ($eng.Count) { $smp.gpu = [int][math]::Min(100, $sum) }
+    if ($byEng.Count) { $smp.gpu = [int][math]::Min(100, ($byEng.Values | Measure-Object -Maximum).Maximum) }
   } catch {}
   try { $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 2; $smp.mem = [int](100 - [double]$os.FreePhysicalMemory / [double]$os.TotalVisibleMemorySize * 100) } catch {}
   # 게임 서버(TCP) 찾기: 10초마다, 그래픽을 가장 많이 쓰는 프로세스의 연결 중 웹(80/443)이 아닌 공인 IP
   if (-not $gameSrv -and ($sec % 10) -eq 5 -and $gpuByPid.Count) {
     try {
-      $gpid = ($gpuByPid.GetEnumerator() | Sort-Object Value -Descending | Where-Object { (Get-Process -Id $_.Key -ErrorAction SilentlyContinue).ProcessName -notmatch '^(dwm|explorer|chrome|msedge|firefox|whale|discord)$' } | Select-Object -First 1).Key
+      $gpid = ($gpuByPid.GetEnumerator() | Sort-Object Value -Descending | Where-Object { $pn = (Get-Process -Id $_.Key -ErrorAction SilentlyContinue).ProcessName; $pn -and $pn -notmatch $skipRx } | Select-Object -First 1).Key
       if ($gpid) {
         $cn = @(Get-NetTCPConnection -OwningProcess $gpid -State Established -ErrorAction Stop | Where-Object { $_.RemotePort -ne 443 -and $_.RemotePort -ne 80 -and $_.RemoteAddress -match '^\d+\.\d+\.\d+\.\d+$' -and $_.RemoteAddress -notmatch '^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)' })
         if ($cn.Count) { $gameSrv = $cn[0].RemoteAddress }
@@ -179,22 +188,24 @@ for ($sec = 0; $sec -lt $Seconds; $sec++) {
   $left = $Seconds - $sec - 1
   $pingTxt = '-'; if ($null -ne $smp.gw -and $smp.gw -ge 0) { $pingTxt = ('{0}ms' -f $smp.gw) } elseif ($smp.gw -eq -1) { $pingTxt = '손실' }
   Write-Host -NoNewline ("`r  남은 {0,3}초 | CPU {1,3}% | 그래픽 {2,3}% | 메모리 {3,3}% | 게이트웨이 {4}      " -f $left, $smp.cpu, $smp.gpu, $smp.mem, $pingTxt)
-  $rest = 1000 - [int]$tick.ElapsedMilliseconds
+  $rest = ($sec + 1) * 1000 - [int]$swAll.ElapsedMilliseconds
   if ($rest -gt 0) { Start-Sleep -Milliseconds $rest }
+  elseif ($rest -lt -1500) { $sec = [int][math]::Floor($swAll.ElapsedMilliseconds / 1000) - 1 }
 }
 Write-Host ''
 try { [Console]::Beep(660, 200); [Console]::Beep(990, 300) } catch {}
 Say '측정 끝. 결과를 정리하는 중...' Yellow
 
 if ($pmProc) { try { Wait-Process -Id $pmProc.Id -Timeout 15 -ErrorAction Stop } catch { try { Stop-Process -Id $pmProc.Id -Force } catch {} } }
-if ($nvProc) { try { Stop-Process -Id $nvProc.Id -Force } catch {} }
+if ($nvProc) { try { Stop-Process -Id $nvProc.Id -Force } catch {}; try { Wait-Process -Id $nvProc.Id -Timeout 3 } catch {} }
+try { $pingGw.Dispose(); $pingEx.Dispose(); $pingGs.Dispose() } catch {}
 
 # 그래픽을 가장 많이 쓴 프로세스 = 게임
 $gamePid = $null; $gameExe = $null
 try {
   foreach ($kv in ($gpuByPid.GetEnumerator() | Sort-Object Value -Descending)) {
     $pn = (Get-Process -Id $kv.Key -ErrorAction SilentlyContinue).ProcessName
-    if ($pn -and $pn -notmatch '^(dwm|explorer|chrome|msedge|firefox|whale|discord|powershell|conhost)$') { $gamePid = [int]$kv.Key; $gameExe = $pn + '.exe'; break }
+    if ($pn -and $pn -notmatch $skipRx) { $gamePid = [int]$kv.Key; $gameExe = $pn + '.exe'; break }
   }
 } catch {}
 
@@ -208,13 +219,18 @@ if ($pm) {
       $hdr = $sr.ReadLine().Split(',')
       $ix = @{}; for ($k = 0; $k -lt $hdr.Length; $k++) { $ix[$hdr[$k].Trim().ToLower()] = $k }
       $iApp = $ix['application']; $iPid = $ix['processid']
+      # 버전마다 열 이름이 다름: main/2.4+ MsBetweenPresents·MsGPUBusy, 2.1~2.3 FrameTime·GPUBusy, 2.0 CPUBusy+CPUWait, 1.x msBetweenPresents·msGPUActive
       $iFt = $null; foreach ($cn in @('msbetweenpresents', 'frametime', 'msbetweenappstart', 'msbetweendisplaychange')) { if ($ix.ContainsKey($cn)) { $iFt = $ix[$cn]; break } }
-      $iGb = $null; if ($ix.ContainsKey('msgpubusy')) { $iGb = $ix['msgpubusy'] }
+      $iCb = $ix['cpubusy']; $iCw = $ix['cpuwait']
+      $iGb = $null; foreach ($cn in @('msgpubusy', 'gpubusy', 'msgpuactive')) { if ($ix.ContainsKey($cn)) { $iGb = $ix[$cn]; break } }
+      $inv = [Globalization.CultureInfo]::InvariantCulture; $flt = [Globalization.NumberStyles]::Float
       $byApp = @{}
       while ($null -ne ($ln = $sr.ReadLine())) {
         $f = $ln.Split(',')
-        if ($null -eq $iFt -or $f.Length -le $iFt) { continue }
-        $ft = 0.0; if (-not [double]::TryParse($f[$iFt], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$ft)) { continue }
+        $ft = 0.0
+        if ($null -ne $iFt) { if ($f.Length -le $iFt -or -not [double]::TryParse($f[$iFt], $flt, $inv, [ref]$ft)) { continue } }
+        elseif ($null -ne $iCb -and $null -ne $iCw -and $f.Length -gt [math]::Max($iCb, $iCw)) { $a1 = 0.0; $b1 = 0.0; if (-not ([double]::TryParse($f[$iCb], $flt, $inv, [ref]$a1) -and [double]::TryParse($f[$iCw], $flt, $inv, [ref]$b1))) { continue }; $ft = $a1 + $b1 }
+        else { continue }
         if ($ft -le 0 -or $ft -gt 5000) { continue }
         $key = $f[$iApp] + '|' + $f[$iPid]
         if (-not $byApp.ContainsKey($key)) { $byApp[$key] = @{ ft = (New-Object System.Collections.Generic.List[double]); gb = 0.0; gbn = 0 } }
@@ -224,7 +240,7 @@ if ($pm) {
       $sr.Close()
       $pick = $null
       if ($gamePid) { $pick = @($byApp.Keys | Where-Object { $_ -match ('\|' + $gamePid + '$') })[0] }
-      if (-not $pick) { $pick = @($byApp.Keys | Where-Object { $_ -notmatch '^(dwm|explorer|chrome|msedge|firefox|whale|discord)' } | Sort-Object { $byApp[$_].ft.Count } -Descending)[0] }
+      if (-not $pick) { $pick = @($byApp.Keys | Where-Object { (($_ -split '\|')[0] -replace '\.exe$', '') -notmatch $skipRx } | Sort-Object { $byApp[$_].ft.Count } -Descending)[0] }
       if ($pick -and $byApp[$pick].ft.Count -ge 30) {
         $pmApp = ($pick -split '\|')[0]
         $arr = $byApp[$pick].ft.ToArray()
@@ -242,7 +258,7 @@ if ($pm) {
         $acc = 0.0; $bucket = 0; $cnt = 0; $mxf = 0.0
         foreach ($x in $arr) {
           $acc += $x
-          if ($acc -ge 1000.0 * ($bucket + 1)) { $fpsTl += $cnt; $ftMaxTl += (R1 $mxf); $bucket++; $cnt = 0; $mxf = 0.0 }
+          while ($acc -ge 1000.0 * ($bucket + 1)) { $fpsTl += $cnt; $ftMaxTl += (R1 $mxf); $bucket++; $cnt = 0; $mxf = 0.0 }
           $cnt++; if ($x -gt $mxf) { $mxf = $x }
         }
         if ($byApp[$pick].gbn -gt 0) { $gpuBusyRatio = R1 (($byApp[$pick].gb / $byApp[$pick].gbn) / ($tot / $n) * 100) }
@@ -259,11 +275,12 @@ if (Test-Path $nvCsv) {
     $f = $ln.Split(',') | ForEach-Object { $_.Trim() }
     if ($f.Count -ge 5) {
       $v = 0.0
-      if ([double]::TryParse($f[0], [ref]$v)) { $nvT += $v }
-      if ([double]::TryParse($f[1], [ref]$v)) { $nvU += $v }
-      if ([double]::TryParse($f[2], [ref]$v)) { $nvC += $v }
+      $inv = [Globalization.CultureInfo]::InvariantCulture; $flt = [Globalization.NumberStyles]::Float
+      if ([double]::TryParse($f[0], $flt, $inv, [ref]$v)) { $nvT += $v }
+      if ([double]::TryParse($f[1], $flt, $inv, [ref]$v)) { $nvU += $v }
+      if ([double]::TryParse($f[2], $flt, $inv, [ref]$v)) { $nvC += $v }
       if ([double]::TryParse($f[3], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { $nvP += $v }
-      if ([double]::TryParse($f[4], [ref]$v)) { $nvF += $v }
+      if ([double]::TryParse($f[4], $flt, $inv, [ref]$v)) { $nvF += $v }
     }
   }
   Remove-Item $nvCsv -ErrorAction SilentlyContinue
@@ -288,7 +305,7 @@ function PingSum($vals) {
 $ping = [ordered]@{ gwHost = $gateway; extHost = $extHost; gsHost = $gameSrv; gw = (PingSum @($tl | ForEach-Object { $_.gw })); ext = (PingSum @($tl | ForEach-Object { $_.ext })); gs = (PingSum @($tl | ForEach-Object { $_.gs })) }
 
 $gpuName = $null; $hz = $null
-try { $vc = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Microsoft Basic|Remote|Virtual|Parsec' }); if ($vc.Count) { $gpuName = ($vc | Select-Object -First 1).Name; $hz = [int]($vc | Select-Object -First 1).CurrentRefreshRate } } catch {}
+try { $vc = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Microsoft Basic|Remote|Virtual|Parsec' } | Sort-Object { [int]([int]$_.CurrentRefreshRate -gt 1) }, { [int]($_.Name -match 'NVIDIA|AMD|Radeon|Arc') } -Descending); if ($vc.Count) { $gpuName = ($vc | Select-Object -First 1).Name; $hz = [int]($vc | Select-Object -First 1).CurrentRefreshRate } } catch {}
 $cpuName = $null; try { $cpuName = ((Get-CimInstance Win32_Processor | Select-Object -First 1).Name -replace '\s+', ' ').Trim() } catch {}
 $ramGB = $null; try { $ramGB = [math]::Round(((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum) / 1GB) } catch {}
 
@@ -318,7 +335,7 @@ if ($fps) {
 if ($gpu.tempMax -ge 85) { [void]$verd.Add(('그래픽카드 최고 {0}°C - 먼지 청소·팬 확인' -f $gpu.tempMax)) }
 if ($gpu.clockStart -and $gpu.clockEnd -and $gpu.clockEnd -lt $gpu.clockStart * 0.9 -and $gpu.tempMax -ge 80) { [void]$verd.Add(('그래픽 클럭이 {0}→{1}MHz로 떨어짐 - 발열로 성능 저하(스로틀링) 의심' -f $gpu.clockStart, $gpu.clockEnd)) }
 if ((Mx $memA) -ge 90) { [void]$verd.Add(('메모리 사용 최고 {0}% - 램 부족으로 끊김 가능' -f (Mx $memA))) }
-if ($ping.gw -and ($ping.gw.loss -gt 0 -or ($ping.gw.avg -gt 3))) { [void]$verd.Add(('게임 중 게이트웨이 핑 이상(평균 {0}ms, 손실 {1}%) - 매장 안 네트워크 문제' -f $ping.gw.avg, $ping.gw.loss)) }
+if ($ping.gw -and ($ping.gw.loss -gt 0 -or ($ping.gw.avg -gt 5))) { [void]$verd.Add(('게임 중 게이트웨이 핑 이상(평균 {0}ms, 손실 {1}%) - 매장 안 네트워크 문제' -f $ping.gw.avg, $ping.gw.loss)) }
 if ($ping.ext -and ($ping.ext.loss -ge 2 -or $ping.ext.spikes -ge 3)) { [void]$verd.Add(('게임 중 외부 핑 불안정(손실 {0}%, 튐 {1}회)' -f $ping.ext.loss, $ping.ext.spikes)) }
 if (-not $verd.Count) { [void]$verd.Add('측정 중 눈에 띄는 문제가 없어요') }
 
@@ -357,11 +374,12 @@ $fname = ('game-{0}-{1}.txt' -f $tag, $stamp.ToString('yyyyMMdd-HHmm'))
 $desk = Join-Path ([Environment]::GetFolderPath('Desktop')) $fname
 try { $code | Out-File -FilePath $desk -Encoding ascii -ErrorAction Stop; Say ('  결과 파일: {0}' -f $desk) } catch {}
 if ($Share) {
-  try {
-    if (-not (Test-Path $Share)) { New-Item -ItemType Directory -Path $Share -Force | Out-Null }
-    $code | Out-File -FilePath (Join-Path $Share $fname) -Encoding ascii -ErrorAction Stop
-    Say ('  공유 폴더에도 저장: {0}' -f (Join-Path $Share $fname)) Green
-  } catch { Say '  공유 폴더 저장 실패(권한·경로 확인)' Red }
+  # 연결 안 되는 공유 폴더에서 오래 멈추지 않도록 별도 작업으로 10초까지만 기다림
+  $job = Start-Job -ScriptBlock { param($sh, $fn, $cd) try { if (-not (Test-Path $sh)) { New-Item -ItemType Directory -Path $sh -Force | Out-Null }; $cd | Out-File -FilePath (Join-Path $sh $fn) -Encoding ascii -ErrorAction Stop; 'OK' } catch { 'ERR' } } -ArgumentList $Share, $fname, $code
+  $done = Wait-Job $job -Timeout 10
+  $res = $null; if ($done) { $res = Receive-Job $job }
+  Remove-Job $job -Force -ErrorAction SilentlyContinue
+  if ($res -eq 'OK') { Say ('  공유 폴더에도 저장: {0}' -f (Join-Path $Share $fname)) Green } else { Say '  공유 폴더 저장 실패(권한·경로·연결 확인)' Red }
 }
 if ($copied) { Say '  결과 코드를 클립보드에 복사했어요. 웹 앱 [실전 테스트] 탭에 붙여넣으세요.' Green }
 Say '==============================================' Cyan
