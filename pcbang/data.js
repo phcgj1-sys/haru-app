@@ -7,16 +7,16 @@ window.RANK_SOURCE = '순위: 게임트릭스 PC방 점유율 2026-11-08';
 window.GAMES = [
   { id: 'lol', rank: 1, name: '리그 오브 레전드', short: '롤', share: '34.1%',
     min: { os: 'win10', cpu: ['i3-530', 'A6-3650'], gpu: ['Intel HD 4600', 'HD 6570', 'GT 430'], ram: 2, vram: 1, storage: '16GB' },
-    rec: { os: 'win11', cpu: ['i5-8250U', 'Ryzen 3 1200'], gpu: ['GTX 560', 'HD 6950', 'Intel UHD 630'], ram: 4, vram: 2, storage: '16GB SSD' },
-    fps: { e: 0.75,  g3060: 480, c12400: 340, cap: 500 },
-    checks: ['라이엇 뱅가드(커널 안티치트) 필요 · Windows 10 빌드 19041 이상', 'DirectX 11 필수(DX9 지원 종료) · CPU가 SSE4.2를 지원해야 함'],
+    rec: { os: 'win11', cpu: ['i5-3300', 'Ryzen 3 1200'], gpu: ['GTX 560', 'HD 6950', 'Intel UHD 630'], ram: 4, vram: 2, storage: '16GB SSD' },
+    fps: { e: 0.75,  g3060: 480, c12400: 340, cap: null },
+    checks: ['라이엇 뱅가드(커널 안티치트) 필요 · Windows 10 빌드 19041 이상', 'DirectX 11 기능 수준 11_0 필수(DX9 지원 종료, 부족하면 플레이 버튼이 비활성) · CPU가 SSE4.2를 지원해야 함'],
     src: 'support.riotgames.com 최소·권장 사양' },
   { id: 'val', rank: 2, name: '발로란트', short: '발로란트', share: '10.2%',
     min: { os: 'win10', cpu: ['Core 2 Duo E8400', 'Athlon 200GE'], gpu: ['Intel HD 4000', 'R5 230'], ram: 4, vram: 1, storage: '약 50GB' },
-    rec: { os: 'win10', cpu: ['i5-9400F', 'Ryzen 5 2600X'], gpu: ['GTX 1050 Ti', 'R7 370'], ram: 4, vram: 1, storage: '약 50GB SSD' },
-    fps: { e: 0.75,  g3060: 480, c12400: 420, cap: 900 },
+    rec: { os: 'win10', cpu: ['i5-9400F', 'Ryzen 5 2600X'], gpu: ['GTX 1050 Ti', 'R7 370', 'Arc A310'], ram: 4, vram: 1, storage: '약 50GB SSD' },
+    fps: { e: 0.75,  g3060: 480, c12400: 420, cap: null },
     tiers: '공식: 최소 30fps · 권장(i3-4150/GT 730) 60fps · 고사양(i5-9400F/GTX 1050 Ti) 144fps 이상',
-    checks: ['라이엇 뱅가드 필요 · Windows 11은 TPM 2.0과 보안 부팅(Secure Boot)이 켜져 있어야 함(VAN9001/9003 오류)', '공식 고사양 기준 = 144fps 이상'],
+    checks: ['라이엇 뱅가드 필요 · Windows 11은 TPM 2.0과 보안 부팅(Secure Boot)이 켜져 있어야 함(VAN9001/9003 오류)', '공식 고사양 기준 = 144fps 이상 · CPU가 SSE4.2 또는 AVX 지원 · 2025-07 언리얼 엔진 5로 바뀌었지만 공식 사양은 그대로'],
     src: 'support-valorant.riotgames.com 최소 사양' },
   { id: 'pubg', rank: 3, name: '배틀그라운드', short: '배그', share: '9.1%',
     min: { os: 'win10', cpu: ['i5-4430', 'FX-6300'], gpu: ['GTX 960', 'R7 370'], ram: 8, vram: 2, storage: '40GB' },
@@ -39,8 +39,8 @@ window.GAMES = [
   { id: 'sa', rank: 6, name: '서든어택', short: '서든', share: '4.5%',
     min: { os: 'win10', cpu: ['Core 2 Duo E6300'], gpu: ['7600 GT'], ram: 2, storage: '40GB' },
     rec: { os: 'win10', cpu: ['i5-2500'], gpu: ['9600 GT'], ram: 8, storage: '40GB' },
-    fps: { e: 0.75,  g3060: 520, c12400: 300, cap: null },
-    checks: ['공식 사양은 기본 해상도·기본 옵션 기준(엔진이 가벼워 CPU 단일 코어 영향이 큼)'],
+    fps: { e: 0.75,  g3060: 520, c12400: 300, cap: 200 },
+    checks: ['공식 사양은 기본 해상도·기본 옵션 기준(엔진이 가벼워 CPU 단일 코어 영향이 큼)', '게임 안 프레임 제한은 최대 200fps'],
     src: 'sa.nexon.com 설치 가이드' },
   { id: 'rbx', rank: 7, name: '로블록스', short: '로블록스', share: '4.0%',
     min: { os: 'win10', cpu: ['Core 2 Duo E8400'], gpu: ['GT 710'], ram: 2, storage: '300MB' },
@@ -209,6 +209,7 @@ Intel UHD 730|1300||uhd 730
 Intel UHD 750|1500||uhd 750
 Intel UHD 770|1700||uhd 770
 Intel Iris Xe|2800||iris xe
+Arc A310|5000|4|intel arc a310
 Arc A380|6300|6|intel arc a380
 Arc A750|13400|8|intel arc a750
 Arc A770|14500|16|intel arc a770
