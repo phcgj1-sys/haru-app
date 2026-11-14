@@ -1184,12 +1184,12 @@ function Show-Gui {
     $daysBox.SelectedItem = $(if ($Days -le 7) { '7일' } elseif ($Days -le 30) { '30일' } elseif ($Days -le 90) { '90일' } else { '180일' })
 
     $start = New-Object Windows.Forms.Button
-    $start.Text = '▶  검사 시작'; $start.Font = $bold
+    $start.Text = '검사 시작'; $start.Font = $bold
     $start.BackColor = [Drawing.Color]::FromArgb(36, 87, 197); $start.ForeColor = [Drawing.Color]::White; $start.FlatStyle = 'Flat'; $start.FlatAppearance.BorderSize = 0
 
     $bar = New-Object Windows.Forms.ProgressBar
     $status = New-Object Windows.Forms.Label; $status.AutoEllipsis = $true; $status.ForeColor = [Drawing.Color]::DimGray
-    $status.Text = $(if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { '준비됨 (관리자 권한)' } else { '준비됨 — ⚠ 관리자 권한이 아니어서 일부 항목이 빠질 수 있습니다' })
+    $status.Text = $(if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) { '준비됨 (관리자 권한)' } else { '준비됨 — (주의) 관리자 권한이 아니어서 일부 항목이 빠질 수 있습니다' })
 
     $score = New-Object Windows.Forms.Label; $score.Font = $big; $score.Text = '—'; $score.TextAlign = 'MiddleLeft'
     $grade = New-Object Windows.Forms.Label; $grade.Font = $bold; $grade.AutoEllipsis = $true; $grade.Text = '상태 점수'
@@ -1199,8 +1199,8 @@ function Show-Gui {
     [void]$list.Columns.Add('의심 원인 / 발견 사항', 300); [void]$list.Columns.Add('점수', [int](60 * $s)); [void]$list.Columns.Add('가능성', [int](90 * $s))
     $tip = New-Object Windows.Forms.ToolTip
 
-    $report = New-Object Windows.Forms.Button; $report.Text = '📄 보고서 열기'; $report.Enabled = $false
-    $folder = New-Object Windows.Forms.Button; $folder.Text = '📁 저장 폴더'; $folder.Enabled = $false
+    $report = New-Object Windows.Forms.Button; $report.Text = '보고서 열기'; $report.Enabled = $false
+    $folder = New-Object Windows.Forms.Button; $folder.Text = '저장 폴더 열기'; $folder.Enabled = $false
 
     $grp = New-Object Windows.Forms.GroupBox; $grp.Text = '정밀 검사 (공식 출처에서 받아 실행)'
     $toolBtns = New-Object System.Collections.ArrayList
@@ -1236,7 +1236,8 @@ function Show-Gui {
             $score.ForeColor = $(if ($dx.Health -ge 90) { [Drawing.Color]::SeaGreen } elseif ($dx.Health -ge 70) { [Drawing.Color]::DarkOrange } else { [Drawing.Color]::Firebrick })
             $grade.Text = "상태: $($dx.Grade)"
             foreach ($c in $dx.Causes | Select-Object -First 4) {
-                $it = New-Object Windows.Forms.ListViewItem("$($c.Icon) $($c.Name)")
+                $it = New-Object Windows.Forms.ListViewItem("[원인] $($c.Name)")
+
                 [void]$it.SubItems.Add("$($c.Score)"); [void]$it.SubItems.Add($c.Confidence)
                 $it.Font = $bold; $it.ToolTipText = (@($c.Reasons) -join "`n"); [void]$list.Items.Add($it)
             }
