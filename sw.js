@@ -1,5 +1,5 @@
 // 하루 학습 — 오프라인용 서비스 워커. 파일을 바꾸면 VERSION을 올리세요.
-const VERSION = 'haru-v54';
+const VERSION = 'haru-v55';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
 const FILES = [
   './', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',

@@ -58,6 +58,24 @@ a.card>span:last-child{flex:1;min-width:0}
 .appq{width:100%;min-height:46px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--surface);color:var(--fg);font:inherit;font-size:15.5px;margin:0 0 14px}
 .appq:focus-visible{outline:3px solid var(--fg);outline-offset:1px}
 .muted-empty{color:var(--muted);font-size:14px;margin:0 0 12px}
+.mystats{margin-top:8px}
+.ms-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+@media (min-width:480px){.ms-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.ms-grid>div{background:var(--surface);padding:12px 10px;text-align:center;display:flex;flex-direction:column;gap:2px}
+.ms-grid b{font-size:22px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.ms-grid span{font-size:12.5px;color:var(--muted)}
+.ms-days{list-style:none;margin:12px 0 0;padding:0;display:grid;grid-template-columns:repeat(14,minmax(0,1fr));gap:4px}
+.ms-days li{aspect-ratio:1;border-radius:6px;background:var(--soft)}
+.ms-days li.on{background:var(--ok)}
+.ms-days li.today{box-shadow:0 0 0 2px var(--fg)}
+.ms-backup{margin-top:12px;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:12px 14px}
+.ms-backup summary{font-weight:700;font-size:14.5px;cursor:pointer;min-height:28px}
+.ms-backup p{font-size:13.5px;color:var(--muted);margin:8px 0}
+.ms-backup textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:13px;background:var(--bg);color:var(--fg)}
+.ms-row{margin:8px 0}
+.ms-row button{min-height:44px;padding:8px 14px;border-radius:10px;border:0;background:var(--fg);color:var(--bg);font:inherit;font-weight:700;font-size:14px;cursor:pointer}
+.ms-msg{font-weight:600;color:var(--fg)!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 </style>
 </head>
 <body>
@@ -119,6 +137,23 @@ a.card>span:last-child{flex:1;min-width:0}
   </div>
   <button class="install" id="installBtn">홈 화면에 앱으로 설치</button>
   <div class="ok" id="installed">설치됐어요. 홈 화면에서 '하루 학습'을 열면 돼요.</div>
+  <section class="mystats" id="mystats" aria-labelledby="ms-h">
+    <h2 class="h2 grp" id="ms-h">내 학습 기록</h2>
+    <div class="ms-grid">
+      <div><b id="ms-done">0</b><span>마친 수업</span></div>
+      <div><b id="ms-acc">–</b><span>퀴즈 정답률</span></div>
+      <div><b id="ms-apps">0</b><span>공부한 앱</span></div>
+      <div><b id="ms-days">0</b><span>최근 14일 공부한 날</span></div>
+    </div>
+    <ol class="ms-days" id="ms-cal" aria-label="최근 14일 학습 기록"></ol>
+    <details class="ms-backup"><summary>모든 앱 진도 백업·옮기기</summary>
+      <p>아래 '복사'를 눌러 나온 글을 메모장이나 메일에 저장해 두세요. 새 기기에서는 그 글을 붙여 넣고 '불러오기'를 누르면 모든 앱 진도가 옮겨져요.</p>
+      <div class="ms-row"><button type="button" id="ms-copy">전체 진도 복사</button></div>
+      <textarea id="ms-in" rows="3" placeholder="백업해 둔 글을 여기에 붙여 넣으세요" aria-label="백업 글 붙여 넣기"></textarea>
+      <div class="ms-row"><button type="button" id="ms-load">불러오기 (지금 기기의 진도를 덮어써요)</button></div>
+      <p class="ms-msg" id="ms-msg" role="status" aria-live="polite"></p>
+    </details>
+  </section>
   <div class="note"><b>설치 방법</b><br>안드로이드(Chrome): 위 버튼이 보이면 누르세요. 안 보이면 브라우저 메뉴(⋮) → '홈 화면에 추가' 또는 '앱 설치'.<br>아이폰(Safari): 공유 버튼 → '홈 화면에 추가'.<br>진도는 이 기기에 저장돼요. 한 번 연 앱은 인터넷이 없어도 열려요. 다른 기기로 옮길 땐 각 앱의 '백업'을 쓰세요. AI 대화 기능은 claude.ai에서 열었을 때만 동작해요.</div>
 </div>
 <script>
@@ -149,6 +184,31 @@ a.card>span:last-child{flex:1;min-width:0}
     document.getElementById('reviewT').textContent='틀린 문제 '+tot+'개'+(nApps>1?' · 앱 '+nApps+'개':'');
     document.getElementById('reviewS').textContent=top.a.querySelector('.t').textContent+'부터 '+Math.min(top.n,10)+'문제 다시 풀기';
     r.classList.add('show'); })();
+  // 내 학습 기록 + 전체 백업
+  (function(){
+    function day(t){ var d=new Date(t); return d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2); }
+    var done=0, ok=0, ng=0, appsUsed=0, days={};
+    for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); var st=null; try{ st=JSON.parse(localStorage.getItem(k)); }catch(e){} if(!st||typeof st!=='object') continue;
+      var used=false;
+      if(st.lessons&&typeof st.lessons==='object'){ for(var id in st.lessons){ var p=st.lessons[id]||{}; if(p.done){ done++; used=true; } if(p.ts){ days[day(p.ts)]=1; used=true; } } }
+      if(st.quiz&&typeof st.quiz.ok==='number'){ ok+=st.quiz.ok||0; ng+=st.quiz.ng||0; if(st.quiz.ok||st.quiz.ng) used=true; }
+      if(st.daily&&typeof st.daily==='object'){ for(var dk in st.daily){ if(/^\d{4}-\d{2}-\d{2}$/.test(dk)){ days[dk]=1; used=true; } } }
+      if(st.streak&&st.streak.last){ days[st.streak.last]=1; }
+      if(used) appsUsed++; }
+    var now=Date.now(), cal='', n14=0;
+    for(var j=13;j>=0;j--){ var ds=day(now-j*86400000), on=!!days[ds]; if(on) n14++; cal+='<li class="'+(on?'on ':'')+(j===0?'today':'')+'" title="'+ds+'"><span class="sr">'+ds+(on?' 공부함':' 쉼')+'</span></li>'; }
+    document.getElementById('ms-done').textContent=done; document.getElementById('ms-acc').textContent=(ok+ng)?Math.round(ok/(ok+ng)*100)+'%':'–';
+    document.getElementById('ms-apps').textContent=appsUsed; document.getElementById('ms-days').textContent=n14; document.getElementById('ms-cal').innerHTML=cal;
+    var msg=document.getElementById('ms-msg');
+    document.getElementById('ms-copy').addEventListener('click', function(){ var all={}; for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); all[k]=localStorage.getItem(k); }
+      var txt=JSON.stringify({haru:1,at:new Date().toISOString(),data:all}); var done=function(){ msg.textContent='복사했어요. 메모장 등에 붙여 넣어 보관하세요.'; };
+      if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done,function(){ document.getElementById('ms-in').value=txt; msg.textContent='자동 복사가 안 돼요. 아래 칸의 글을 길게 눌러 직접 복사하세요.'; });
+      else { document.getElementById('ms-in').value=txt; msg.textContent='아래 칸의 글을 길게 눌러 직접 복사하세요.'; } });
+    document.getElementById('ms-load').addEventListener('click', function(){ var o=null; try{ o=JSON.parse(document.getElementById('ms-in').value.trim()); }catch(e){}
+      if(!o||o.haru!==1||!o.data||typeof o.data!=='object'){ msg.textContent='형식이 맞지 않아요. 백업할 때 복사한 글 전체를 붙여 넣어 주세요.'; return; }
+      if(!confirm('이 기기의 모든 앱 진도를 백업 내용으로 바꿀까요?')) return;
+      Object.keys(o.data).forEach(function(k){ try{ localStorage.setItem(k,o.data[k]); }catch(e){} }); msg.textContent='불러왔어요. 화면을 새로 고칠게요.'; setTimeout(function(){ location.reload(); },600); });
+  })();
   if(best){ var r=document.getElementById('resume'); r.href=best.a.getAttribute('href'); document.getElementById('resumeT').textContent=best.a.querySelector('.t').textContent; document.getElementById('resumeS').textContent=best.done+'/'+best.total+' 수업 마침 · 최근에 공부한 앱'; r.classList.add('show'); }
   if('serviceWorker' in navigator && location.protocol!=='file:'){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
   var deferred=null; var btn=document.getElementById('installBtn');
