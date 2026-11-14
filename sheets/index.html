@@ -285,7 +285,7 @@ const LESSONS=[]; STAGES.forEach((s,si)=>s.lessons.forEach((l,li)=>{ l.stage=s.i
 const LMAP={}; LESSONS.forEach(l=>LMAP[l.id]=l);
 const DAY=86400000;
 const KEY=APP.key;
-const defaults=()=>({v:1, lessons:{}, quiz:{ok:0,ng:0}, streak:{count:0,last:''}, daily:{}, lab:0, settings:{skin:'mono'}, updatedAt:0});
+const defaults=()=>({v:1, lessons:{}, quiz:{ok:0,ng:0}, streak:{count:0,last:''}, daily:{}, lab:0, miss:{}, settings:{skin:'mono'}, updatedAt:0});
 let state=defaults();
 function migrate(s){ const d=defaults(); if(!s||typeof s!=='object') return d; const DEF=defaults(); const o=Object.assign(d,s); o.settings=Object.assign({},DEF.settings,s.settings||{}); o.lessons=s.lessons||{}; o.quiz=Object.assign(DEF.quiz,s.quiz||{}); o.streak=Object.assign(DEF.streak,s.streak||{}); o.daily=s.daily||{}; return o; }
 function loadLocal(){ try{ const raw=localStorage.getItem(KEY); if(raw) state=migrate(JSON.parse(raw)); }catch(e){} }
@@ -347,7 +347,7 @@ function viewHome(){
   <ol class="timeline">${stages}</ol>
   <h2 class="h2">바로 가기</h2>
   <div class="grid2">
-    <button class="item" data-act="review" ${dn?'':'disabled'}><div class="body"><div class="t">복습 퀴즈</div><div class="s">${dn? '마친 수업에서 10문제':'수업 하나를 마치면 열려요'}</div></div>${chev}</button>
+    <button class="item" data-act="review" ${dn||missCount()?'':'disabled'}><div class="body"><div class="t">복습 퀴즈</div><div class="s">${missCount()? `틀린 문제 ${missCount()}개부터 다시 풀어요`: dn? '마친 수업에서 10문제':'수업 하나를 마치면 열려요'}</div></div>${chev}</button>
     <button class="item" data-nav="templates"><div class="body"><div class="t">${esc(APP.cards.templates[0])}</div><div class="s">${esc(APP.cards.templates[1])} ${TEMPLATES.reduce((a,c)=>a+c.items.length,0)}개</div></div>${chev}</button>
     <button class="item" data-nav="lab"><div class="body"><div class="t">${esc(APP.cards.lab[0])}</div><div class="s">${esc(APP.cards.lab[1])}</div></div>${chev}</button>
     <button class="item" data-nav="lab" data-mode="diag"><div class="body"><div class="t">${esc(APP.cards.diag[0])}</div><div class="s">${esc(APP.cards.diag[1])}</div></div>${chev}</button>
@@ -423,8 +423,10 @@ function labErr(e){ const code=e&&e.code; const map={not_granted:'이 앱이 Cla
 
 /* ---- 복습 퀴즈 ---- */
 let S=null;
-function startReview(){ const pool=[]; LESSONS.filter(l=>lp(l.id).done).forEach(l=>l.quiz.forEach(q=>pool.push({l,q}))); const q=shuffle(pool).slice(0,10); if(!q.length){ toast('마친 수업이 없어요'); return; } S={q, i:0, ok:0, ng:0, answered:false}; renderSession(); }
-function renderSession(){ const L=$('#layer'); if(!S){ L.innerHTML=''; return; } if(S.i>=S.q.length){ const acc=Math.round(S.ok/S.q.length*100); L.innerHTML=`<div class="layer"><div class="in"><div class="head"><span class="lbl">복습 퀴즈</span></div><div class="qcard" style="text-align:center"><div class="tag">완료</div><div class="q" style="font-size:26px">${acc>=80?'잘했어요!':acc>=50?'좋아요':'다시 한번 읽어 봐요'}</div><div class="sum"><div class="card"><div class="stat"><b class="num">${S.ok}</b><span>정답</span></div></div><div class="card"><div class="stat"><b class="num">${S.ng}</b><span>오답</span></div></div><div class="card"><div class="stat"><b class="num">${acc}%</b><span>정답률</span></div></div></div></div><div class="foot" style="flex-direction:column"><button class="btn primary" data-act="exit">홈으로</button></div></div></div>`; return; }
+const missMap=()=>{ const M=state.miss||{}; Object.keys(M).forEach(k=>{ const [lid,qi]=k.split(':'); if(!LMAP[lid]||!LMAP[lid].quiz[+qi]) delete M[k]; }); return M; };
+const missCount=()=>Object.keys(missMap()).length;
+function startReview(){ const M=missMap(); const miss=[], rest=[]; LESSONS.forEach(l=>l.quiz.forEach((q,qi)=>{ const k=l.id+':'+qi; if(M[k]) miss.push({l,q,k}); else if(lp(l.id).done) rest.push({l,q,k}); })); const pick=shuffle(miss).slice(0,10); const q=shuffle(pick.concat(shuffle(rest).slice(0,10-pick.length))); if(!q.length){ toast('마친 수업이 없어요'); return; } S={q, i:0, ok:0, ng:0, answered:false, missIn:pick.length}; renderSession(); }
+function renderSession(){ const L=$('#layer'); if(!S){ L.innerHTML=''; return; } if(S.i>=S.q.length){ const acc=Math.round(S.ok/S.q.length*100); L.innerHTML=`<div class="layer"><div class="in"><div class="head"><span class="lbl">복습 퀴즈</span></div><div class="qcard" style="text-align:center"><div class="tag">완료</div><div class="q" style="font-size:26px">${acc>=80?'잘했어요!':acc>=50?'좋아요':'다시 한번 읽어 봐요'}</div><div class="sum"><div class="card"><div class="stat"><b class="num">${S.ok}</b><span>정답</span></div></div><div class="card"><div class="stat"><b class="num">${S.ng}</b><span>오답</span></div></div><div class="card"><div class="stat"><b class="num">${acc}%</b><span>정답률</span></div></div></div><p class="muted small">${missCount()? `다시 볼 틀린 문제가 ${missCount()}개 남았어요. 다음 복습에 먼저 나와요.`:'틀린 문제를 모두 다시 맞혔어요.'}</p></div><div class="foot" style="flex-direction:column"><button class="btn primary" data-act="exit">홈으로</button></div></div></div>`; return; }
   const it=S.q[S.i]; const q=it.q; L.innerHTML=`<div class="layer"><div class="in"><div class="head"><button class="btn sm ghost" data-act="exit">나가기</button><div class="bar"><i style="width:${Math.round(S.i/S.q.length*100)}%"></i></div><span class="lbl num">${S.i+1} / ${S.q.length}</span></div>
   <div class="qcard"><div class="tag">${esc(it.l.title)}</div><div class="q">${esc(q.q)}</div></div>
   <div class="opts" style="margin-top:14px">${q.o.map((o,oi)=>{ let cls=''; if(S.answered){ if(oi===q.a) cls='right'; else if(oi===it.picked) cls='wrong'; else cls='dim'; } return `<button class="opt ${cls}" data-ropt="${oi}" ${S.answered?'disabled':''}><span class="k">${oi+1}</span><span>${esc(o)}</span></button>`; }).join('')}</div>
@@ -457,8 +459,8 @@ document.addEventListener('click', e=>{
   if(d.dreset){ delete ui.dict[d.dreset]; ui.dictTyped[d.dreset]=''; render(); return; }
   if(d.copytext){ if(ui.lab.diag) copyText(ui.lab.diag.rewritten); return; }
   if(d.tolab){ ui.lab.prompt=promptText(d.tolab); ui.lab.mode='ask'; ui.lab.answer=''; go('lab'); toast(AI.ready? '보내기를 누르면 바로 물어봐요' : '[ ] 안을 바꾼 뒤 복사해서 클로드 앱에 붙여 넣으세요'); return; }
-  if(d.qz!=null){ ui.qz=ui.qz||{}; if(ui.qz[d.qz]!=null) return; const l=LMAP[ui.lesson]; const q=l.quiz[+d.qz]; ui.qz[d.qz]=+d.oi; const ok=+d.oi===q.a; if(ok) state.quiz.ok++; else state.quiz.ng++; const p=Object.assign({}, lp(l.id)); const answered=Object.keys(ui.qz).length; if(answered===l.quiz.length){ p.quiz={ok:l.quiz.filter((qq,qi)=>ui.qz[qi]===qq.a).length, total:l.quiz.length}; } state.lessons[l.id]=p; touchStreak(); commit(); render(); return; }
-  if(d.ropt!=null){ if(!S||S.answered) return; const it=S.q[S.i]; it.picked=+d.ropt; S.answered=true; if(it.picked===it.q.a){ S.ok++; state.quiz.ok++; } else { S.ng++; state.quiz.ng++; } touchStreak(); commit(); renderSession(); return; }
+  if(d.qz!=null){ ui.qz=ui.qz||{}; if(ui.qz[d.qz]!=null) return; const l=LMAP[ui.lesson]; const q=l.quiz[+d.qz]; ui.qz[d.qz]=+d.oi; const ok=+d.oi===q.a; if(ok) state.quiz.ok++; else { state.quiz.ng++; state.miss=state.miss||{}; const mk=l.id+':'+d.qz; state.miss[mk]=(state.miss[mk]||0)+1; } const p=Object.assign({}, lp(l.id)); const answered=Object.keys(ui.qz).length; if(answered===l.quiz.length){ p.quiz={ok:l.quiz.filter((qq,qi)=>ui.qz[qi]===qq.a).length, total:l.quiz.length}; } state.lessons[l.id]=p; touchStreak(); commit(); render(); return; }
+  if(d.ropt!=null){ if(!S||S.answered) return; const it=S.q[S.i]; it.picked=+d.ropt; S.answered=true; state.miss=state.miss||{}; if(it.picked===it.q.a){ S.ok++; state.quiz.ok++; if(it.k) delete state.miss[it.k]; } else { S.ng++; state.quiz.ng++; if(it.k) state.miss[it.k]=(state.miss[it.k]||0)+1; } touchStreak(); commit(); renderSession(); return; }
   if(d.labmode){ ui.lab.mode=d.labmode; ui.lab.err=''; render(); return; }
   if(d.skin){ state.settings.skin=d.skin; commit(); render(); return; }
   if(d.more){ ui.more=d.more; ui.confirmReset=false; render(); return; }
