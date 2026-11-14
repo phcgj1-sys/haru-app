@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0E1116">
+<title>PC방 게임 점검</title>
+<meta name="description" content="PC방 인기 10위 게임(롤·배그·발로란트·오버워치 2·서든어택·메이플스토리 등)을 이 PC에서 돌릴 수 있는지 판정. 사양 자동 감지, CPU·그래픽 벤치마크, 인터넷 핑, 모니터 주사율, 마우스·키보드·헤드셋 점검, 좌석별 기록.">
+<meta property="og:title" content="PC방 게임 점검 · 하루 학습">
+<meta property="og:description" content="인기 10위 게임 실행 가능 판정 + 사양 감지 + 벤치마크 + 인터넷 핑 + 마우스·키보드·모니터·헤드셋 점검 + 좌석별 기록.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="apple-touch-icon" href="../icons/icon-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+:root{
+  --bg:#F5F6F8;--surface:#FFFFFF;--fg:#12161C;--muted:#5B6573;--line:#DDE1E7;--soft:#EDF0F4;
+  --accent:#2453D6;--accent-ink:#FFFFFF;--accent-soft:#E3EAFB;
+  --ok:#127A42;--ok-soft:#DFF3E7;--warn:#8A5A00;--warn-soft:#FFF1D1;--bad:#B42B23;--bad-soft:#FBE4E2;
+  --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --font:"Pretendard Variable",Pretendard,"Noto Sans KR","Malgun Gothic",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+:root[data-theme="dark"]{
+  --bg:#0E1116;--surface:#161B22;--fg:#E8ECF1;--muted:#98A3B3;--line:#2A323D;--soft:#1E252E;
+  --accent:#5B8CFF;--accent-ink:#0E1116;--accent-soft:#1C2B4D;
+  --ok:#3DD68C;--ok-soft:#10301F;--warn:#FFCC55;--warn-soft:#3A2F10;--bad:#FF7D73;--bad-soft:#3A1A18;color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15.5px;line-height:1.55;-webkit-font-smoothing:antialiased}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+h1,h2,h3{margin:0;line-height:1.3}
+p{margin:0}
+a{color:var(--accent)}
+.app{max-width:1080px;margin:0 auto;padding:14px 16px 110px}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.top h1{font-size:22px;font-weight:800;letter-spacing:-.02em}
+.top .sp{flex:1}
+.hub{font-size:13px;color:var(--muted);text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:4px 10px}
+.tabs{position:sticky;top:0;z-index:10;display:flex;gap:4px;background:var(--bg);padding:6px 0 10px;overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:8px 14px;font-weight:600;font-size:14.5px;color:var(--muted);white-space:nowrap}
+.tabs button[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.stack{display:flex;flex-direction:column;gap:12px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+.grid.sm{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row.between{justify-content:space-between}
+.h2{font-size:17px;font-weight:700}
+.h3{font-size:15px;font-weight:700}
+.muted{color:var(--muted)}
+.small{font-size:13.5px}
+.xs{font-size:12.5px}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:13px;word-break:break-all}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--soft);font-weight:600;font-size:14.5px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.big{min-height:50px;font-size:16.5px;padding:10px 22px}
+.btn.sm{min-height:32px;padding:4px 10px;font-size:13px;border-radius:8px}
+.btn[disabled]{opacity:.5;cursor:default}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:700;background:var(--soft);color:var(--muted);white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)}
+.pill.info{background:var(--accent-soft);color:var(--accent)}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;font-size:14.5px}
+.kv dt{color:var(--muted)}
+.kv dd{margin:0;min-width:0;word-break:break-word}
+.stat{display:flex;flex-direction:column}
+.stat b{font-size:26px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
+.stat span{font-size:12.5px;color:var(--muted)}
+.sumrow{gap:22px}
+.sumrow .stat b{font-size:19px}
+.bar{height:8px;border-radius:999px;background:var(--soft);overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--accent);border-radius:999px;transition:width .3s}
+.note{background:var(--soft);border-radius:10px;padding:10px 12px;font-size:13.5px;color:var(--muted)}
+.note b{color:var(--fg)}
+.warnbox{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:600}
+.badbox{background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:600}
+.okbox{background:var(--ok-soft);color:var(--ok);border-radius:10px;padding:10px 12px;font-size:14px;font-weight:600}
+select,input[type=text],input[type=number],textarea{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 10px;min-height:38px;max-width:100%}
+textarea{width:100%;min-height:90px;font-family:var(--mono);font-size:12.5px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted);min-width:0}
+label.f>input,label.f>select{width:100%;color:var(--fg)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:12.5px;white-space:nowrap}
+.tblwrap{overflow-x:auto}
+/* game cards */
+.game{display:flex;flex-direction:column;gap:10px}
+.game .gh{display:flex;align-items:center;gap:10px}
+.game .rank{width:30px;height:30px;border-radius:8px;background:var(--fg);color:var(--bg);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none}
+.game .gn{font-weight:700;font-size:16px;flex:1;min-width:0}
+.game .fps{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+.game .fps b{white-space:nowrap;font-size:28px;font-weight:800;font-variant-numeric:tabular-nums}
+.comp{display:grid;grid-template-columns:44px 1fr auto;gap:4px 8px;align-items:center;font-size:13px}
+.comp .meter{height:6px;border-radius:99px;background:var(--soft);position:relative;overflow:hidden}
+.comp .meter i{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
+details>summary{cursor:pointer;color:var(--muted);font-size:13px}
+details[open]>summary{margin-bottom:6px}
+/* test areas */
+.pad{border:2px dashed var(--line);border-radius:14px;min-height:220px;display:flex;align-items:center;justify-content:center;text-align:center;user-select:none;-webkit-user-select:none;touch-action:none;padding:16px;color:var(--muted)}
+.pad.active{border-color:var(--accent);color:var(--fg)}
+.react{min-height:240px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;user-select:none;cursor:pointer;text-align:center;padding:16px}
+.mbtns{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+.mbtns div{border:1px solid var(--line);border-radius:10px;padding:8px 4px;text-align:center;font-size:12.5px}
+.mbtns div b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.mbtns div.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.mbtns div.chat{background:var(--bad-soft);border-color:var(--bad)}
+.kb{display:flex;flex-direction:column;gap:4px;overflow-x:auto;padding-bottom:4px}
+.kb .kr{display:flex;gap:4px}
+.kb .k{flex:none;height:38px;min-width:38px;border:1px solid var(--line);border-radius:6px;background:var(--surface);font-size:11.5px;display:flex;align-items:center;justify-content:center;padding:0 4px;color:var(--muted);white-space:nowrap}
+.kb .k.done{background:var(--ok-soft);color:var(--ok);border-color:var(--ok)}
+.kb .k.down{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.kb .k.chat{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.kb .gap{flex:none;width:14px}
+canvas{max-width:100%}
+.log{max-height:180px;overflow:auto;font-family:var(--mono);font-size:12px;background:var(--soft);border-radius:8px;padding:8px}
+.hidden-on-print{}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+.steps{display:flex;flex-direction:column;gap:6px}
+.steps .st{display:flex;gap:8px;align-items:center;font-size:14px}
+.steps .st .ic{width:20px;text-align:center}
+@media (max-width:520px){.kv{grid-template-columns:1fr}.kv dt{margin-top:6px}.mbtns{grid-template-columns:repeat(3,1fr)}}
+@media print{.tabs,.top .btn,.noprint{display:none!important}body{background:#fff}}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="top">
+    <h1>PC방 게임 점검</h1>
+    <span class="pill info" id="seatPill">좌석 미지정</span>
+    <span class="sp"></span>
+    <button class="btn sm" id="themeBtn" type="button" aria-label="화면 밝기 바꾸기">어두운 화면</button>
+    <a class="hub" href="../index.html">하루 학습 홈</a>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="메뉴">
+    <button role="tab" data-tab="home" aria-selected="true">점검 시작</button>
+    <button role="tab" data-tab="games" aria-selected="false">게임 판정</button>
+    <button role="tab" data-tab="spec" aria-selected="false">내 사양</button>
+    <button role="tab" data-tab="bench" aria-selected="false">벤치마크</button>
+    <button role="tab" data-tab="net" aria-selected="false">인터넷</button>
+    <button role="tab" data-tab="dev" aria-selected="false">장비 테스트</button>
+    <button role="tab" data-tab="log" aria-selected="false">좌석 기록</button>
+  </nav>
+
+  <!-- ========== 점검 시작 ========== -->
+  <section data-panel="home" class="stack">
+    <div class="card stack">
+      <div class="h2">한 번에 점검하기</div>
+      <p class="muted small">사양 감지 → 모니터 주사율 → CPU·그래픽 측정 → 인터넷 지연 순서로 자동으로 돌아요(약 40초). 끝나면 인기 게임 10개를 이 PC에서 얼마나 잘 돌릴 수 있는지 보여 줘요. 측정 중에는 다른 창을 띄우지 마세요.</p>
+      <div class="row">
+        <label class="f" style="flex:0 1 160px">좌석 번호
+          <input type="text" id="seatIn" placeholder="예: 23" maxlength="20" autocomplete="off">
+        </label>
+        <button class="btn primary big" id="runAll" type="button">전체 자동 점검 시작</button>
+      </div>
+      <div class="steps" id="allSteps"></div>
+      <div class="bar" aria-hidden="true"><i id="allBar"></i></div>
+    </div>
+    <div id="summary" class="stack"></div>
+    <div class="card stack">
+      <div class="h3">더 정확하게: 윈도우 점검 프로그램</div>
+      <p class="small muted">브라우저는 보안 때문에 CPU 모델명, 정확한 RAM 용량, 그래픽 메모리, 게이트웨이·외부 핑(ICMP)을 읽을 수 없어요. 아래 프로그램을 실행하면 이것까지 측정하고, 결과 코드를 클립보드에 복사해 줘요. 그 코드를 <b>내 사양</b> 탭에 붙여넣으면 판정에 바로 반영돼요.</p>
+      <div class="row">
+        <a class="btn" href="pc-check.bat" download>pc-check.bat 받기</a>
+        <a class="btn" href="pc-check.ps1" download>pc-check.ps1 받기</a>
+        <button class="btn" type="button" data-goto="spec">결과 붙여넣기</button>
+      </div>
+      <p class="xs muted">두 파일을 같은 폴더에 받고 <b>pc-check.bat</b>을 더블클릭하세요. 설치나 관리자 권한은 필요 없고, 이 PC 정보는 어디로도 보내지 않아요(핑 대상에게 보내는 짧은 신호만 나가요). 윈도우가 "PC 보호" 창을 띄우면 '추가 정보 → 실행'을 누르세요.</p>
+    </div>
+  </section>
+
+  <!-- ========== 게임 판정 ========== -->
+  <section data-panel="games" class="stack" hidden>
+    <div class="card stack">
+      <div class="row between">
+        <div class="h2">PC방 인기 게임 판정</div>
+        <span class="xs muted" id="rankSrc"></span>
+      </div>
+      <div class="row">
+        <label class="f">해상도
+          <select id="optRes"><option value="1080">1920×1080 (FHD)</option><option value="1440">2560×1440 (QHD)</option><option value="2160">3840×2160 (4K)</option></select>
+        </label>
+        <label class="f">그래픽 설정
+          <select id="optPreset"><option value="low">낮음</option><option value="mid" selected>중간</option><option value="high">높음</option></select>
+        </label>
+        <label class="f">목표 프레임
+          <select id="optTarget"><option value="auto">모니터 주사율에 맞춤</option><option value="60">60</option><option value="144">144</option><option value="240">240</option></select>
+        </label>
+      </div>
+      <div id="gameWarn"></div>
+      <p class="xs muted">예상 프레임(FPS)은 공식 요구 사양과 부품별 성능 점수(PassMark 근사치)로 계산한 <b>추정치</b>예요. 드라이버·발열·백그라운드 프로그램·맵·인원 수에 따라 ±30% 정도 달라질 수 있어요.</p>
+    </div>
+    <div class="grid" id="gameGrid"></div>
+  </section>
+
+  <!-- ========== 내 사양 ========== -->
+  <section data-panel="spec" class="stack" hidden>
+    <div class="card stack">
+      <div class="row between"><div class="h2">자동 감지 결과</div><button class="btn sm" id="redetect" type="button">다시 감지</button></div>
+      <dl class="kv" id="detKv"></dl>
+      <div id="detWarn"></div>
+    </div>
+    <div class="card stack">
+      <div class="h2">사양 직접 고르기</div>
+      <p class="small muted">브라우저가 못 읽는 부품은 직접 고르세요. 모르면 윈도우에서 <b>Ctrl+Shift+Esc → 성능</b> 탭을 열면 CPU·메모리·GPU 이름이 보여요. 고른 값은 이 기기에 저장돼요.</p>
+      <div class="grid sm">
+        <label class="f">CPU (프로세서)
+          <input type="text" id="cpuIn" list="cpuList" placeholder="예: i5-12400F, 라이젠 5600" autocomplete="off">
+        </label>
+        <label class="f">그래픽카드
+          <input type="text" id="gpuIn" list="gpuList" placeholder="자동 감지값을 바꿀 때만" autocomplete="off">
+        </label>
+        <label class="f">메모리(RAM)
+          <select id="ramIn"><option value="">자동/모름</option><option>4</option><option>8</option><option>12</option><option>16</option><option>24</option><option>32</option><option>48</option><option>64</option><option>96</option><option>128</option></select>
+        </label>
+        <label class="f">운영체제
+          <select id="osIn"><option value="">자동/모름</option><option value="win11">Windows 11</option><option value="win10">Windows 10 (64비트)</option><option value="win10-32">Windows 10 (32비트)</option><option value="win7">Windows 7/8.1</option><option value="other">기타</option></select>
+        </label>
+      </div>
+      <datalist id="cpuList"></datalist>
+      <datalist id="gpuList"></datalist>
+      <div id="matchInfo" class="small"></div>
+      <div class="row"><button class="btn primary" id="saveSpec" type="button">저장하고 게임 판정 보기</button><button class="btn" id="clearSpec" type="button">직접 고른 값 지우기</button></div>
+    </div>
+    <div class="card stack">
+      <div class="h2">윈도우 점검 프로그램 결과 붙여넣기</div>
+      <p class="small muted"><b>pc-check.bat</b> 실행이 끝나면 결과 코드(<span class="mono">PCBANG1:</span>로 시작)가 클립보드에 복사돼요. 여기에 붙여넣으세요.</p>
+      <textarea id="nativeIn" placeholder="PCBANG1:..."></textarea>
+      <div class="row"><button class="btn primary" id="nativeApply" type="button">적용</button><span id="nativeMsg" class="small"></span></div>
+    </div>
+  </section>
+
+  <!-- ========== 벤치마크 ========== -->
+  <section data-panel="bench" class="stack" hidden>
+    <div class="grid">
+      <div class="card stack">
+        <div class="h2">CPU 측정</div>
+        <p class="small muted">브라우저 안에서 계산 문제를 풀어 단일 코어와 전체 코어 속도를 재요. 같은 사양 좌석끼리 비교할 때 가장 쓸모 있어요(유독 낮은 좌석 = 발열·전원 모드·백그라운드 문제 의심).</p>
+        <div class="row"><button class="btn primary" id="cpuRun" type="button">CPU 측정 (약 6초)</button></div>
+        <div class="bar"><i id="cpuBar"></i></div>
+        <div class="row" id="cpuOut"></div>
+      </div>
+      <div class="card stack">
+        <div class="h2">그래픽(GPU) 측정</div>
+        <p class="small muted">WebGL로 무거운 화면을 반복해서 그려 처리량을 재요. 화면 잠금·절전 모드면 결과가 낮게 나와요.</p>
+        <div class="row"><button class="btn primary" id="gpuRun" type="button">그래픽 측정 (약 8초)</button></div>
+        <div class="bar"><i id="gpuBar"></i></div>
+        <canvas id="gpuCanvas" width="640" height="360" style="width:100%;max-width:480px;border-radius:10px;background:#000;aspect-ratio:16/9"></canvas>
+        <div class="row" id="gpuOut"></div>
+      </div>
+    </div>
+    <div class="note">브라우저 점수는 게임 성능과 1:1로 같지 않아요. <b>게임 판정</b>은 부품 모델로 계산하고, 이 점수는 <b>같은 부품인데 성능이 제대로 나오는지</b> 확인하는 데 써요. 노트북은 전원을 꽂고 '최고 성능' 모드로 재세요.</div>
+  </section>
+
+  <!-- ========== 인터넷 ========== -->
+  <section data-panel="net" class="stack" hidden>
+    <div class="card stack">
+      <div class="h2">인터넷 지연·속도 (브라우저 측정)</div>
+      <p class="small muted">여러 서버에 짧은 요청을 20번씩 보내 응답 시간(지연), 흔들림(지터), 실패율, 다운로드 속도를 재요. 웹 요청 기준이라 게임 안의 핑보다 조금 높게 나오는 게 정상이에요.</p>
+      <div class="row"><button class="btn primary" id="netRun" type="button">인터넷 측정 (약 15초)</button></div>
+      <div class="bar"><i id="netBar"></i></div>
+      <div class="tblwrap"><table id="netTbl"><thead><tr><th>대상</th><th>지연(중간값)</th><th>최소</th><th>지터</th><th>실패</th><th>판정</th></tr></thead><tbody></tbody></table></div>
+      <div class="row" id="netSpeed"></div>
+      <div id="netVerdict"></div>
+    </div>
+    <div class="card stack">
+      <div class="h2">게이트웨이 핑·외부 핑 (윈도우 점검 프로그램)</div>
+      <p class="small muted">공유기/스위치(게이트웨이)까지, 통신사 DNS·구글·클라우드플레어까지 진짜 핑(ICMP)과 게임사 서버 접속 시간(TCP)을 재려면 <b>pc-check.bat</b>을 실행하고 결과를 <b>내 사양</b> 탭에 붙여넣으세요.</p>
+      <div id="nativeNet"><p class="small muted">아직 붙여넣은 결과가 없어요.</p></div>
+      <div class="note"><b>읽는 법</b> · 게이트웨이 핑이 1~2ms를 넘거나 손실이 있으면 <b>PC~공유기 구간</b>(랜선·랜카드·허브) 문제예요. 게이트웨이는 정상인데 외부만 높으면 <b>통신사 회선</b> 문제예요. 모든 대상이 같이 흔들리면(지터 큼) 같은 매장 안에서 누가 대용량을 받고 있는지 확인하세요.</div>
+    </div>
+  </section>
+
+  <!-- ========== 장비 테스트 ========== -->
+  <section data-panel="dev" class="stack" hidden>
+    <div class="grid">
+      <div class="card stack">
+        <div class="h2">모니터 주사율</div>
+        <p class="small muted">144Hz 모니터인데 60Hz로 잡혀 있는 경우가 PC방에서 가장 흔한 문제예요. 측정 중엔 마우스를 움직이지 마세요.</p>
+        <div class="row"><button class="btn primary" id="hzRun" type="button">주사율 측정 (3초)</button></div>
+        <div class="row" id="hzOut"></div>
+      </div>
+      <div class="card stack">
+        <div class="h2">반응 속도</div>
+        <div class="react" id="react" tabindex="0" role="button" style="background:var(--soft)">여기를 눌러 시작</div>
+        <div class="row" id="reactOut"></div>
+      </div>
+    </div>
+    <div class="card stack">
+      <div class="row between"><div class="h2">마우스: 폴링레이트·버튼·더블클릭(채터링)</div><button class="btn sm" id="mouseReset" type="button">초기화</button></div>
+      <p class="small muted">아래 영역 안에서 마우스를 <b>빠르게 원을 그리듯</b> 움직이면 폴링레이트(초당 보고 횟수)를 재요. 버튼을 하나씩 눌러 보고, 한 번 눌렀는데 두 번 눌린 것으로 잡히면(빨간색) 스위치 <b>채터링(더블클릭 고장)</b>이에요.</p>
+      <div class="pad" id="mousePad" tabindex="0">여기서 마우스를 움직이고 버튼을 눌러 보세요<br>(오른쪽 버튼 메뉴는 이 안에서 안 떠요)</div>
+      <div class="row">
+        <div class="stat"><b id="mHz">-</b><span>현재 Hz</span></div>
+        <div class="stat"><b id="mHzMax">-</b><span>최고 Hz</span></div>
+        <div class="stat"><b id="mHzAvg">-</b><span>평균 Hz(움직일 때)</span></div>
+        <div class="stat"><b id="mCps">-</b><span>초당 클릭</span></div>
+      </div>
+      <div class="mbtns" id="mBtns"></div>
+      <div id="mouseVerdict"></div>
+    </div>
+    <div class="card stack">
+      <div class="row between"><div class="h2">키보드: 모든 키·동시 입력·채터링</div><button class="btn sm" id="kbReset" type="button">초기화</button></div>
+      <p class="small muted">아래 키보드 그림을 한 번 누른 뒤(포커스), 키를 하나씩 눌러 보세요. 눌린 키는 초록색이 돼요. <b>W A S D + Shift + 스페이스</b>를 동시에 눌러 몇 개까지 동시에 잡히는지(동시 입력)도 확인하세요. 윈도우 키·Alt+Tab처럼 운영체제가 먼저 가져가는 키는 잡히지 않을 수 있어요.</p>
+      <div class="kb" id="kb" tabindex="0" aria-label="키보드 테스트 영역"></div>
+      <div class="row">
+        <div class="stat"><b id="kbCount">0</b><span>확인한 키</span></div>
+        <div class="stat"><b id="kbNow">0</b><span>지금 눌린 키</span></div>
+        <div class="stat"><b id="kbMax">0</b><span>최대 동시 입력</span></div>
+        <div class="stat"><b id="kbChat">0</b><span>채터링 의심</span></div>
+      </div>
+      <div class="small muted" id="kbLast">마지막 키: -</div>
+    </div>
+    <div class="grid">
+      <div class="card stack">
+        <div class="h2">헤드셋 소리 (왼쪽·오른쪽)</div>
+        <p class="small muted">발소리 방향이 중요한 배그·발로란트·서든어택은 좌우가 바뀌거나 한쪽이 안 들리면 치명적이에요. 소리가 작게 나요.</p>
+        <div class="row">
+          <button class="btn" type="button" data-tone="-1">왼쪽</button>
+          <button class="btn" type="button" data-tone="0">가운데</button>
+          <button class="btn" type="button" data-tone="1">오른쪽</button>
+          <button class="btn" type="button" data-tone="sweep">왼→오 이동</button>
+        </div>
+        <div class="row small" id="toneAsk"></div>
+      </div>
+      <div class="card stack">
+        <div class="h2">마이크</div>
+        <p class="small muted">허락을 누르면 마이크 소리 크기만 화면에 그려요. 녹음하거나 어디로 보내지 않아요.</p>
+        <div class="row"><button class="btn" id="micRun" type="button">마이크 켜기</button><button class="btn" id="micStop" type="button" hidden>끄기</button></div>
+        <div class="bar" style="height:14px"><i id="micBar" style="transition:none;background:var(--ok)"></i></div>
+        <div class="small muted" id="micOut"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========== 좌석 기록 ========== -->
+  <section data-panel="log" class="stack" hidden>
+    <div class="card stack">
+      <div class="row between"><div class="h2">좌석별 점검 기록</div>
+        <div class="row">
+          <button class="btn sm" id="saveRec" type="button">지금 결과 저장</button>
+          <button class="btn sm" id="copyRep" type="button">결과 글로 복사</button>
+          <button class="btn sm" id="csvRec" type="button">CSV 받기</button>
+          <button class="btn sm" id="clrRec" type="button">기록 모두 지우기</button>
+        </div>
+      </div>
+      <p class="small muted">같은 사양 좌석끼리 비교해서 <b>다른 좌석 중간값보다 20% 이상 낮은 값</b>은 노란색으로 표시해요. 기록은 이 브라우저에만 저장되니, 여러 PC를 모으려면 각 PC에서 CSV를 받아 합치거나 '결과 글로 복사'를 써서 한곳에 모으세요.</p>
+      <div class="tblwrap"><table id="recTbl"><thead><tr><th>좌석</th><th>날짜</th><th>CPU</th><th>그래픽</th><th>RAM</th><th>주사율</th><th>CPU 점수</th><th>GPU 점수</th><th>인터넷</th><th>게이트웨이</th><th>문제</th><th></th></tr></thead><tbody></tbody></table></div>
+      <p class="small muted" id="recEmpty">아직 기록이 없어요.</p>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
