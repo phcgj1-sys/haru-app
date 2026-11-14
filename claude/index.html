@@ -268,6 +268,10 @@ section[id^="sec-"]{scroll-margin-top:64px}
 .hublink{display:none!important}
 .hub2{display:inline-flex;align-items:center;min-height:32px;font-size:13.5px;font-weight:600;color:var(--muted);text-decoration:none;margin-bottom:2px}
 .hub2:hover{color:var(--fg)}
+.lsearch{margin:0 0 6px}
+.lsearch input{width:100%;min-height:46px;border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--surface);color:var(--fg);font:inherit;font-size:15.5px}
+.lsearch input:focus-visible{outline:3px solid var(--accent);outline-offset:1px}
+#lempty{margin:14px 2px}
 .feedback .qx{margin:6px 0 0;font-weight:500;color:var(--fg);line-height:1.6;font-size:14.5px}
 .keycard ul.key{margin:0;padding:0}
 
@@ -290,14 +294,15 @@ const LESSONS=[]; STAGES.forEach((s,si)=>s.lessons.forEach((l,li)=>{ l.stage=s.i
 const LMAP={}; LESSONS.forEach(l=>LMAP[l.id]=l);
 const DAY=86400000;
 const KEY=APP.key;
-const defaults=()=>({v:1, lessons:{}, quiz:{ok:0,ng:0}, streak:{count:0,last:''}, daily:{}, lab:0, miss:{}, settings:{skin:'mono'}, updatedAt:0});
+const defaults=()=>({v:1, lessons:{}, quiz:{ok:0,ng:0}, streak:{count:0,last:''}, daily:{}, lab:0, miss:{}, settings:{skin:'auto'}, updatedAt:0});
 let state=defaults();
 function migrate(s){ const d=defaults(); if(!s||typeof s!=='object') return d; const DEF=defaults(); const o=Object.assign(d,s); o.settings=Object.assign({},DEF.settings,s.settings||{}); o.lessons=s.lessons||{}; o.quiz=Object.assign(DEF.quiz,s.quiz||{}); o.streak=Object.assign(DEF.streak,s.streak||{}); o.daily=s.daily||{}; return o; }
 function loadLocal(){ try{ const raw=localStorage.getItem(KEY); if(raw) state=migrate(JSON.parse(raw)); }catch(e){} }
 function saveLocal(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 function commit(){ state.updatedAt=Date.now(); saveLocal(); Sync.schedule(); applySkin(); }
-const SKINS=[['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#F0453E']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']]];
-function applySkin(){ const sk=(state.settings&&state.settings.skin)||'mono'; const r=document.documentElement; r.setAttribute('data-skin', sk); if(APP.accent && sk==='mono'){ r.style.setProperty('--accent', APP.accent); r.style.setProperty('--accent-soft', APP.accent+'1A'); } else { r.style.removeProperty('--accent'); r.style.removeProperty('--accent-soft'); } }
+const SKINS=[['auto','기기 설정 따라',['#F7F7F5','#0F0F10','#777777']],['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#F0453E']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']]];
+const darkMQ=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null; if(darkMQ&&darkMQ.addEventListener) darkMQ.addEventListener('change',()=>applySkin());
+function applySkin(){ let sk=(state.settings&&state.settings.skin)||'auto'; if(sk==='auto') sk=(darkMQ&&darkMQ.matches)?'dark':'mono'; const r=document.documentElement; r.setAttribute('data-skin', sk); if(APP.accent && sk==='mono'){ r.style.setProperty('--accent', APP.accent); r.style.setProperty('--accent-soft', APP.accent+'1A'); } else { r.style.removeProperty('--accent'); r.style.removeProperty('--accent-soft'); } }
 const Sync={ ref:null, timer:null, writing:false, dirty:false, status:'local',
   async init(){ try{ if(!window.claude||typeof window.claude.use!=='function') return; const [db,user]=await Promise.all([window.claude.use('db'), window.claude.use('user')]); if(!db||!user) return; const id=await user.id(); if(!id) return; this.ref=db.doc('data/users/'+id+'/progress'); const snap=await this.ref.get(); if(snap.exists){ const remote=snap.data(); if((remote.updatedAt||0)>(state.updatedAt||0)){ state=migrate(JSON.parse(JSON.stringify(remote))); saveLocal(); applySkin(); render(); } else if((state.updatedAt||0)>(remote.updatedAt||0)) this.push(); } else if(state.updatedAt) this.push(); this.status='cloud'; if(ui.view==='more') render(); }catch(e){ console.warn('sync',e); } },
   schedule(){ if(!this.ref) return; clearTimeout(this.timer); this.timer=setTimeout(()=>this.push(),1500); },
@@ -321,7 +326,8 @@ function copyText(txt){ const done=()=>toast('복사했어요'); const fail=()=>
 
 const ui={view:'home', stage:null, lesson:null, more:'guide', confirmReset:false, importText:'', dict:{}, dictTyped:{}, lab:{prompt:'', answer:'', busy:false, ctl:null, err:'', diag:null, mode:'ask'}};
 function go(view, extra){ ui.view=view; Object.assign(ui, extra||{}); ui.confirmReset=false; render(); window.scrollTo(0,0); }
-function render(){ const v=ui.view; $('#app').innerHTML = v==='home'?viewHome(): v==='lessons'?viewLessons(): v==='templates'?viewTemplates(): v==='lab'?viewLab(): viewMore(); renderNav(); }
+function render(){ const v=ui.view; $('#app').innerHTML = v==='home'?viewHome(): v==='lessons'?viewLessons(): v==='templates'?viewTemplates(): v==='lab'?viewLab(): viewMore(); renderNav(); if(v==='lessons'&&!ui.lesson) filterLessons(); }
+function filterLessons(){ const q=(ui.lq||'').trim().toLowerCase(); document.querySelectorAll('.curri li').forEach(li=>{ li.hidden=!!q && !(li.dataset.q||'').includes(q); }); document.querySelectorAll('.stagebox').forEach(sb=>{ sb.hidden=!!q && !sb.querySelector('.curri li:not([hidden])'); }); const e=document.getElementById('lempty'); if(e) e.hidden=!(q && !document.querySelector('.curri li:not([hidden])')); }
 function renderNav(){ const items=[['home','오늘','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/></svg>'],['lessons','수업','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z"/><path d="M4 17a3 3 0 0 1 3-3h12"/></svg>'],['templates',APP.nav||'모음','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>'],['lab',APP.navLab||'도우미','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>'],['more','더보기','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>']];
   $('#nav').innerHTML='<div class="in">'+items.map(([k,l,i])=>`<button class="${ui.view===k?'on':''}" data-nav="${k}" aria-label="${l}">${i}<span>${l}</span></button>`).join('')+'</div>'; }
 
@@ -365,9 +371,10 @@ function viewLessons(){
   const next=LESSONS.find(l=>!lp(l.id).done); const dn=doneCount(); const total=LESSONS.length;
   const groups=STAGES.map((s,si)=>{ const n=s.lessons.length; const d=s.lessons.filter(l=>lp(l.id).done).length;
     const rows=s.lessons.map(l=>{ const p=lp(l.id); const cur=next&&next.id===l.id; const meta=[`${l.min}분`]; if(p.quiz) meta.push('퀴즈 '+p.quiz.ok+'/'+p.quiz.total); if(p.task) meta.push('실습 완료');
-      return `<li><button class="lrow ${p.done?'done':''} ${cur?'cur':''}" data-lesson="${l.id}"><span class="lr-n num">${p.done?icCheck:LESSONS.indexOf(l)+1}</span><span class="lr-b"><span class="lr-t">${esc(l.title)}</span><span class="lr-s">${meta.join(' · ')}</span></span>${cur?'<span class="pill accent">다음</span>':chev}</button></li>`; }).join('');
+      return `<li data-q="${esc((l.title+' '+l.key.join(' ')).toLowerCase())}"><button class="lrow ${p.done?'done':''} ${cur?'cur':''}" data-lesson="${l.id}"><span class="lr-n num">${p.done?icCheck:LESSONS.indexOf(l)+1}</span><span class="lr-b"><span class="lr-t">${esc(l.title)}</span><span class="lr-s">${meta.join(' · ')}</span></span>${cur?'<span class="pill accent">다음</span>':chev}</button></li>`; }).join('');
     return `<section class="stagebox" id="stage-${s.id}"><div class="sb-head"><div><h2>${esc(s.title)}</h2><p>${esc(s.desc)}</p></div><span class="sb-pc num">${d}/${n}</span></div><div class="bar"><i style="width:${Math.round(d/n*100)}%"></i></div><ol class="curri">${rows}</ol></section>`; }).join('');
   return `<header class="apphead"><div class="brand2"><h1>커리큘럼</h1><p>${STAGES.length}단계 ${total}수업 · ${dn}개 마침</p></div></header>
+  <div class="lsearch"><input id="lsearch" type="search" placeholder="수업 찾기 (제목·핵심 내용)" aria-label="수업 찾기" value="${esc(ui.lq||'')}" autocomplete="off"></div><p id="lempty" class="muted small" hidden>찾는 수업이 없어요. 다른 낱말로 찾아보세요.</p>
   <div class="bar big"><i style="width:${total?Math.round(dn/total*100):0}%"></i></div>${groups}`;
 }
 function viewLesson(l){
@@ -491,7 +498,7 @@ document.addEventListener('click', e=>{
   }
 });
 window.addEventListener('scroll', ()=>{ const i=document.querySelector('.readbar>i'); if(!i) return; const h=document.documentElement; const max=h.scrollHeight-h.clientHeight; i.style.width=(max>0? Math.min(100, Math.round(h.scrollTop/max*100)):100)+'%'; }, {passive:true});
-document.addEventListener('input', e=>{ if(!e.target) return; if(e.target.id==='labIn') ui.lab.prompt=e.target.value; else if(/^dict-/.test(e.target.id)){ const m=e.target.id.match(/^dict-(.+)-(\d+)$/); if(m) ui.dictTyped[m[1]+':'+m[2]]=e.target.value; } });
+document.addEventListener('input', e=>{ if(!e.target) return; if(e.target.id==='lsearch'){ ui.lq=e.target.value; filterLessons(); return; } if(e.target.id==='labIn') ui.lab.prompt=e.target.value; else if(/^dict-/.test(e.target.id)){ const m=e.target.id.match(/^dict-(.+)-(\d+)$/); if(m) ui.dictTyped[m[1]+':'+m[2]]=e.target.value; } });
 function speak(txt, slow){ if(!('speechSynthesis' in window)){ toast('이 브라우저는 소리를 지원하지 않아요'); return; } const t=APP.tts||{}; const lang=t.lang||'en-US'; const u=new SpeechSynthesisUtterance(txt); u.lang=lang; const base=t.rate||0.9; u.rate=slow? Math.max(0.5, base*0.7) : base; const vs=speechSynthesis.getVoices().filter(v=>v.lang&&v.lang.toLowerCase().replace('_','-').startsWith(lang.slice(0,2).toLowerCase())); if(vs.length){ u.voice=vs.find(v=>v.lang.replace('_','-')===lang)||vs[0]; } else if(!speak.warned){ speak.warned=true; toast('영어 음성이 없는 기기예요. Edge·Chrome이나 휴대폰에서 열면 들려요'); } speechSynthesis.cancel(); speechSynthesis.speak(u); }
 function normEn(s){ return String(s||'').toLowerCase().replace(/[’‘]/g,"'").replace(/\bgonna\b/g,'going to').replace(/\bwanna\b/g,'want to').replace(/\bgotta\b/g,'got to').replace(/\bkinda\b/g,'kind of').replace(/'/g,'').replace(/[^a-z0-9 ]+/g,' ').replace(/\s+/g,' ').trim(); }
 function lev(a,b){ const m=a.length,n=b.length; if(!m) return n; if(!n) return m; let prev=Array.from({length:n+1},(_,i)=>i); for(let i=1;i<=m;i++){ const cur=[i]; for(let j=1;j<=n;j++){ cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+(a[i-1]===b[j-1]?0:1)); } prev=cur; } return prev[n]; }
