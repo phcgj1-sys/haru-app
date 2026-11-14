@@ -15,7 +15,8 @@ param(
 
 $ErrorActionPreference = 'SilentlyContinue'
 $ProgressPreference = 'SilentlyContinue'
-try { [Console]::OutputEncoding = [System.Text.Encoding]::GetEncoding(949) } catch {}
+try { if ([Console]::OutputEncoding.CodePage -ne 949 -and [Globalization.CultureInfo]::CurrentCulture.TextInfo.OEMCodePage -eq 949) { [Console]::OutputEncoding = [Text.Encoding]::GetEncoding(949) } } catch {}
+Remove-TypeData System.Array -ErrorAction SilentlyContinue
 
 function Say($t, $c) { if ($c) { Write-Host $t -ForegroundColor $c } else { Write-Host $t } }
 function Round1($v) { if ($null -eq $v) { return $null } return [math]::Round([double]$v, 1) }
@@ -113,7 +114,7 @@ try {
   if ($Seat -and $Seat.Trim()) {
     $s = $Seat.Trim()
     if ($s -match '^\d{1,9}$') { $seatVal = [int]$s } else { $seatVal = $s }
-  } elseif ($computer -match '(\d{1,9})$') { $seatVal = [int]$matches[1] }
+  } elseif ($computer -match '^(?:PC|SEAT|S|좌석)?[-_]?0*(\d{1,4})$' -or $computer -match '^[A-Za-z]{1,10}[-_]0*(\d{1,4})$') { $seatVal = [int]$matches[1] }
 } catch {}
 try {
   if (-not $Share -and $PSScriptRoot) {
@@ -265,10 +266,10 @@ try {
       if ($maker -and $fn -notmatch [regex]::Escape(($maker -split ' ')[0])) { $nm = "$maker $fn" }
     } else { $nm = ("{0} {1}" -f $maker, $pc).Trim() }
     $key = (([string]$m.InstanceName) -replace '_\d+$', '') -replace '\\', '#'
-    $mons += [pscustomobject]@{ key = $key.ToUpper(); name = $nm }
+    $mons += [pscustomobject]@{ key = $key.ToUpper() + '#'; name = $nm }
   }
 } catch {}
-$result.monitors = CleanList @($mons | ForEach-Object { $_.name }) $null
+$result.monitors = [object[]](CleanList @($mons | ForEach-Object { $_.name }) $null)
 
 $dispSrc = @'
 using System;
@@ -350,7 +351,7 @@ foreach ($d in $displays) { if ($d.primary) { $prim = $d; break } }
 if (-not $prim -and $displays.Count) { $prim = $displays[0] }
 if ($prim -and $prim.hz -gt 1) { $hz = [int]$prim.hz }
 if ($prim -and $prim.maxHz) { $result.monitorMaxHz = [int]$prim.maxHz }
-if (-not $result.Contains('monitorMaxHz')) {
+if (-not $result.Contains('monitorMaxHz') -and $displays.Count -le 1) {
   # 대체 방법 (관리자 권한이 필요할 수 있음: 안 되면 건너뜀)
   try {
     $best = 0
@@ -452,7 +453,7 @@ try {
     $ops = @(@($pd.OperationalStatus) | ForEach-Object { MapOr $opMap $_ }) -join ', '
     $physDisks += [ordered]@{ name = ([string]$pd.FriendlyName).Trim(); media = (MapOr $mediaMap $pd.MediaType); bus = (MapOr $busMap $pd.BusType); health = (MapOr $healthMap $pd.HealthStatus); status = $ops; sizeGB = [math]::Round([double]$pd.Size / 1GB) }
   }
-  $pdOk = $true
+  if ($physDisks.Count) { $pdOk = $true } else { throw 'no MSFT_PhysicalDisk rows' }
 } catch {
   try {
     foreach ($dd in @(Get-CimInstance Win32_DiskDrive -OperationTimeoutSec 5 -ErrorAction Stop)) {
@@ -473,10 +474,10 @@ foreach ($dk in $disks) { Say ("      드라이브 {0} {1}GB 중 {2}GB 남음" -
 try {
   $why = @()
   if (@($physDisks | Where-Object { $_.bus -eq 'iSCSI' }).Count) { $why += 'iSCSI 디스크' }
-  if (@($physDisks | Where-Object { $_.name -match 'CCBoot|iCafe|Diskless|NxD|iSCSI|VHD|Virtual Disk' }).Count) { $why += '가상/원격 디스크 이름' }
+  if (@($physDisks | Where-Object { $_.name -match 'CCBoot|iCafe|Diskless|NxD|iSCSI' }).Count) { $why += '원격 디스크 이름' }
   $sysAny = Get-CimInstance Win32_LogicalDisk -Filter ("DeviceID='{0}'" -f $sysDrv) | Select-Object -First 1
   if ($sysAny -and [int]$sysAny.DriveType -eq 4) { $why += '시스템 드라이브가 네트워크 드라이브' }
-  if ($pdOk -and $physDisks.Count -eq 0) { $why += '로컬 디스크 없음' }
+  if ($pdOk -and $physDisks.Count -eq 0 -and $why.Count) { $why += '로컬 디스크 없음' }
   $result.diskless = ($why.Count -gt 0)
   if ($why.Count) { $result.disklessWhy = ($why -join ', '); Say ("      디스크리스(네트워크 부팅) 추정: {0}" -f $result.disklessWhy) }
 } catch {}
@@ -566,8 +567,9 @@ Say ("      게임 모드: {0} / HAGS: {1} / 마우스 가속: {2} / 재부팅 �
 # ---------- 입력 장치·오디오 ----------
 Say '[6/9] 마우스·키보드·오디오 확인' Yellow
 $vidMap = @{ '046D' = 'Logitech'; '1532' = 'Razer'; '1038' = 'SteelSeries'; '1B1C' = 'Corsair'; '0951' = 'HyperX'; '03F0' = 'HP'; '0B05' = 'ASUS'; '045E' = 'Microsoft'; '05AC' = 'Apple'; '3434' = 'Keychron'; '1E7D' = 'ROCCAT'; '2516' = 'Cooler Master'; '1AF3' = 'ZOWIE' }
-$pnpSw = [System.Diagnostics.Stopwatch]::StartNew()
 $pnpOk = [bool](Get-Command Get-PnpDeviceProperty -ErrorAction SilentlyContinue)
+if ($pnpOk) { Import-Module PnpDevice -ErrorAction SilentlyContinue }
+$pnpSw = [System.Diagnostics.Stopwatch]::StartNew()
 function DevLabel($pnpId, $fallback) {
   $label = ''
   if ($pnpId -and $pnpOk -and $pnpSw.ElapsedMilliseconds -lt 5000) {
@@ -591,15 +593,15 @@ function DevLabel($pnpId, $fallback) {
 $genRx = 'HID|PS/2|표준|규격|USB 입력|USB Input|Terminal Server|터미널 서버|Remote Desktop|원격 데스크톱|Keyboard Device|Mouse Device|키보드 장치|마우스 장치'
 try {
   $mn = @(Get-CimInstance Win32_PointingDevice -OperationTimeoutSec 5 | ForEach-Object { DevLabel $_.PNPDeviceID $_.Name })
-  $result.mice = CleanList $mn $genRx
+  $result.mice = [object[]](CleanList $mn $genRx)
 } catch {}
 try {
   $kn = @(Get-CimInstance Win32_Keyboard -OperationTimeoutSec 5 | ForEach-Object { DevLabel $_.PNPDeviceID $_.Name })
-  $result.keyboards = CleanList $kn $genRx
+  $result.keyboards = [object[]](CleanList $kn $genRx)
 } catch {}
 try {
   $an = @(Get-CimInstance Win32_SoundDevice -OperationTimeoutSec 5 | ForEach-Object { $_.Name })
-  $result.audio = CleanList $an $null
+  $result.audio = [object[]](CleanList $an $null)
 } catch {}
 if ($result.mice) { Say ("      마우스: {0}" -f ($result.mice -join ', ')) }
 if ($result.keyboards) { Say ("      키보드: {0}" -f ($result.keyboards -join ', ')) }
@@ -689,9 +691,11 @@ foreach ($h in $hosts) {
       $sw = [System.Diagnostics.Stopwatch]::StartNew()
       try {
         $task = $c.ConnectAsync($ip, 443)
-        $okc = $task.Wait(2000) -and $c.Connected; $sw.Stop()
+        $okc = $task.Wait(1500) -and $c.Connected; $sw.Stop()
         if ($i -gt 0) { if ($okc) { [void]$times.Add($sw.Elapsed.TotalMilliseconds) } else { $o.fail++ } }
       } catch { if ($i -gt 0) { $o.fail++ } } finally { $c.Close() }
+      # 처음 3번 모두 실패하면 그 서버는 막힌 것으로 보고 넘어감(오래 멈추지 않게)
+      if ($i -ge 2 -and $times.Count -eq 0) { $o.fail = 5; break }
       Start-Sleep -Milliseconds 80
     }
   } else { $o.fail = 5 }
@@ -773,7 +777,9 @@ $json = $result | ConvertTo-Json -Depth 6 -Compress
 $code = 'PCBANG1:' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($json))
 $copied = $false
 try { Set-Clipboard -Value $code -ErrorAction Stop; $copied = $true } catch { $code | clip.exe; $copied = ($LASTEXITCODE -eq 0) }
-$outFile = Join-Path $base 'pc-check-result.txt'; $saved = $false
+# 공유 폴더에서 실행하면 모든 좌석이 같은 파일을 덮어쓰므로 바탕화면에 저장
+$base2 = $base; if ($base2 -like '\\*') { $base2 = [Environment]::GetFolderPath('Desktop') }
+$outFile = Join-Path $base2 'pc-check-result.txt'; $saved = $false
 try { $code | Out-File -FilePath $outFile -Encoding ascii -ErrorAction Stop; $saved = $true } catch {
   $outFile = Join-Path ([Environment]::GetFolderPath('Desktop')) 'pc-check-result.txt'
   try { $code | Out-File -FilePath $outFile -Encoding ascii -ErrorAction Stop; $saved = $true } catch {}
