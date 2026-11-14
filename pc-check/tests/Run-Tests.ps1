@@ -147,7 +147,24 @@ It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     Assert-Eq $dx.Counts.PowerLoss 0 '전원 끊김 수'
 }
 
+It '가상 머신에서는 RAM 혼용 경고 생략, 안내 표시' {
+    $over = @{ Dimms = @([ordered]@{ Slot = 'A'; SizeGB = 8; Part = 'X' }, [ordered]@{ Slot = 'B'; SizeGB = 16; Part = 'Y' }) }
+    $d = New-Scenario $over; $d.System.IsVM = $true
+    $dx = Get-Diagnosis -Data $d
+    Assert (-not (@($dx.Findings) | Where-Object { $_.Title -match '섞어' })) '혼용 경고 없어야 함'
+    Assert (@($dx.Findings) | Where-Object { $_.Title -match '가상 머신' }) '가상 머신 안내'
+    $d2 = New-Scenario $over
+    Assert (@((Get-Diagnosis -Data $d2).Findings) | Where-Object { $_.Title -match '섞어' }) '실제 PC 에서는 혼용 경고'
+}
+It '단일 항목 목록 (5.1 배열 풀림 회귀 방지)' {
+    $d = RoundTrip (New-Scenario @{ Whea = @([ordered]@{ T = (T 1); Id = 47; Level = 3; Comp = 'Memory'; Msg = 'x' }); DriverInstalls = @([ordered]@{ T = (T 3); Msg = 'NVIDIA' }); GpuEvents = @([ordered]@{ T = (T 2); Source = 'Display'; Id = 4101; Xid = $null; Msg = 'TDR' }) })
+    $dx = Get-Diagnosis -Data $d
+    Assert-Eq $dx.Counts.Whea 1 'WHEA 1건'; Assert-Eq $dx.Counts.Gpu 1 'GPU 1건'
+    Assert (@($dx.Findings) | Where-Object { $_.Title -match '설치 직후' }) '드라이버 설치 직후 판정'
+}
+
 Write-Host "`n[유틸]" -ForegroundColor Cyan
+
 It 'Format-BugCode 정규화' {
     Assert-Eq (Format-BugCode '0x00000116') '0x116' 'hex 문자열'
     Assert-Eq (Format-BugCode 278) '0x116' '정수'

@@ -1,10 +1,10 @@
 ﻿# CI 전용: 실제 Windows 에서 무인 검사 → 결과 검증 → JSON 재분석 → 외부 도구 다운로드 검증
-param([string]$Temp = $env:RUNNER_TEMP, [switch]$Tools)
+param([string]$Temp = $env:RUNNER_TEMP, [switch]$ToolCheck)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $script = Join-Path $root 'PCCheck.ps1'
 
-if ($Tools) {
+if ($ToolCheck) {
     . $script -LoadOnly
     $script:WorkDir = Join-Path $Temp 'tools'
     $p = Install-MemtestVulkan; Write-Host "memtest_vulkan: $p"

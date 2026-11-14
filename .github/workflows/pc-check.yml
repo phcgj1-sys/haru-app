@@ -56,12 +56,14 @@ jobs:
       - name: GUI construction
         if: success() || failure()
         shell: powershell
-        run: powershell -NoProfile -STA -File ./PCCheck.ps1 -Mode Gui -GuiSmokeTest
+        run: |
+          $env:PCCHECK_SHOT = Join-Path $env:RUNNER_TEMP 'gui.png'
+          powershell -NoProfile -STA -File ./PCCheck.ps1 -Mode Gui -GuiSmokeTest
 
       - name: External tool download and integrity
         if: success() || failure()
         shell: powershell
-        run: ./tests/CI-Run.ps1 -Tools
+        run: ./tests/CI-Run.ps1 -ToolCheck
 
       - name: Build EXE
         shell: powershell
@@ -83,3 +85,5 @@ jobs:
           path: |
             ${{ runner.temp }}/PCCheck.zip
             ${{ runner.temp }}/report-*/*.html
+            ${{ runner.temp }}/gui.png
+

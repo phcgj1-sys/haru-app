@@ -255,6 +255,7 @@ function Invoke-Collect {
                 RamGB = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
                 LastBoot = (Format-T $os.LastBootUpTime); PowerPlan = $plan; FastStartup = $fast
                 Model = ("$($cs.Manufacturer) $($cs.Model)").Trim()
+                IsVM = [bool]($cs.HypervisorPresent -and ("$($cs.Manufacturer) $($cs.Model)" -match 'Virtual|VMware|QEMU|KVM|Xen|Parallels|VirtualBox|Hyper-V|Amazon EC2|Google Compute'))
             }
         } }
         @{ Name = '그래픽카드';             Run = {
@@ -573,7 +574,10 @@ function Get-Diagnosis {
     }
     $sizes = @($dimms | ForEach-Object { [int](Get-Prop $_ 'SizeGB') } | Sort-Object -Unique)
     $parts = @($dimms | ForEach-Object { [string](Get-Prop $_ 'Part') } | Where-Object { $_ } | Sort-Object -Unique)
-    if ($dimms.Count -ge 2 -and ($sizes.Count -gt 1 -or $parts.Count -gt 1)) {
+    $isVM = [bool](Get-Prop $sys 'IsVM')
+    if ($isVM) { & $find 'info' 'META' '가상 머신에서 실행됨' '가상 머신은 실제 하드웨어 정보를 보여 주지 않아 RAM/온도/그래픽카드 진단이 제한됩니다.' 0 }
+    if (-not $isVM -and $dimms.Count -ge 2 -and ($sizes.Count -gt 1 -or $parts.Count -gt 1)) {
+
         & $add 'RAM' 4 '서로 다른 RAM 모듈 혼용'
         & $find 'info' 'RAM' '서로 다른 RAM 모듈을 섞어 사용 중' '용량/제품이 다른 RAM 혼용은 불안정의 원인이 될 수 있습니다.' 0
     }
@@ -984,7 +988,7 @@ function Install-BlueScreenView {
 }
 function Start-BlueScreenView { Start-Process (Install-BlueScreenView) }
 
-$script:Tools = @(
+$script:ExternalTools = @(
     @{ Key = 'vram';  Label = '그래픽카드 VRAM 검사';  Desc = 'memtest_vulkan (GitHub 오픈소스) · NVIDIA/AMD/Intel'; Help = "새 창에서 엔터를 누르면 시작합니다.`n최소 5~10분 실행 후 'PASSed' 가 나오면 정상, 'error' 가 보이면 VRAM 불량 의심입니다.`n끝내려면 그 창에서 Ctrl+C.`n테스트 중 PC 가 꺼지면 파워/그래픽카드 전원 문제일 가능성이 큽니다."; Run = { Start-MemtestVulkan } ; Fallback = 'https://github.com/GpuZelenograd/memtest_vulkan/releases' }
     @{ Key = 'bsv';   Label = '블루스크린 원인 드라이버'; Desc = 'NirSoft BlueScreenView'; Help = "아래쪽 목록에서 빨간색으로 표시된 파일이 원인 후보입니다.`nnvlddmkm.sys=NVIDIA, amdkmdag.sys=AMD, ntoskrnl.exe=하드웨어/RAM 가능성."; Run = { Start-BlueScreenView }; Fallback = 'https://www.nirsoft.net/utils/blue_screen_of_death_viewer.html' }
     @{ Key = 'ram';   Label = 'RAM 검사 (재부팅)';     Desc = 'Windows 메모리 진단 (기본 내장)'; Help = "작업을 저장한 뒤 '지금 다시 시작하여 문제 확인'을 선택하세요.`n결과는 재부팅 후 이 프로그램을 다시 실행하면 보고서에 표시됩니다."; Run = { Start-Process "$env:SystemRoot\System32\MdSched.exe" }; Fallback = $null }
@@ -993,7 +997,7 @@ $script:Tools = @(
 )
 
 function Invoke-Tool([string]$Key) {
-    $t = $script:Tools | Where-Object { $_.Key -eq $Key } | Select-Object -First 1
+    $t = $script:ExternalTools | Where-Object { $_.Key -eq $Key } | Select-Object -First 1
     try { & $t.Run; return [pscustomobject]@{ Ok = $true; Help = $t.Help; Error = $null } }
     catch {
         Write-PCLog "tool $Key failed: $($_.Exception.Message)"
@@ -1053,7 +1057,7 @@ function Show-Gui {
 
     $grp = New-Object Windows.Forms.GroupBox; $grp.Text = '정밀 검사 (공식 출처에서 받아 실행)'; $grp.Location = '22,424'; $grp.Size = '716,160'; $grp.Anchor = 'Left,Right,Bottom'
     $x = 14; $y = 26; $i = 0
-    foreach ($t in $script:Tools) {
+    foreach ($t in $script:ExternalTools) {
         $b = New-Object Windows.Forms.Button
         $b.Text = $t.Label; $b.Tag = $t.Key; $b.Size = '220,56'; $b.Location = New-Object Drawing.Point($x, $y)
         $tip.SetToolTip($b, "$($t.Desc)`n`n$($t.Help)")
@@ -1111,7 +1115,15 @@ function Show-Gui {
     $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $grp))
     if ($SmokeTest) {
         # CI 등 화면 없는 환경: 컨트롤 생성까지만 검증
-        $f.CreateControl(); $n = $f.Controls.Count; $f.Dispose()
+        $f.CreateControl(); $n = $f.Controls.Count
+        if ($env:PCCHECK_SHOT) {
+            # 화면 캡처 (CI 산출물로 디자인 확인)
+            $bmp = New-Object Drawing.Bitmap($f.Width, $f.Height)
+            $f.DrawToBitmap($bmp, (New-Object Drawing.Rectangle(0, 0, $f.Width, $f.Height)))
+            $bmp.Save($env:PCCHECK_SHOT, [Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
+        }
+        $f.Dispose()
+
         Write-Output "GUI OK: $n controls"; return
     }
     [void]$f.ShowDialog()
@@ -1136,13 +1148,13 @@ function Write-ConsoleResult($Dx, $Res) {
 function Start-ConsoleMenu($Res) {
     while ($true) {
         Write-Host "`n============ 정밀 검사 ============" -ForegroundColor Cyan
-        $i = 0; foreach ($t in $script:Tools) { $i++; Write-Host (" {0}. {1}  ({2})" -f $i, $t.Label, $t.Desc) }
+        $i = 0; foreach ($t in $script:ExternalTools) { $i++; Write-Host (" {0}. {1}  ({2})" -f $i, $t.Label, $t.Desc) }
         Write-Host ' 9. 보고서 다시 열기'; Write-Host ' 0. 종료'
         $sel = Read-Host '번호 선택'
         if ($sel -eq '0' -or $sel -eq '') { return }
         if ($sel -eq '9') { Start-Process $Res.Html; continue }
-        $n = 0; if ([int]::TryParse($sel, [ref]$n) -and $n -ge 1 -and $n -le $script:Tools.Count) {
-            $r = Invoke-Tool $script:Tools[$n - 1].Key
+        $n = 0; if ([int]::TryParse($sel, [ref]$n) -and $n -ge 1 -and $n -le $script:ExternalTools.Count) {
+            $r = Invoke-Tool $script:ExternalTools[$n - 1].Key
             if ($r.Ok) { Write-Host $r.Help -ForegroundColor Green } else { Write-Host "실패: $($r.Error)" -ForegroundColor Red }
         }
     }
@@ -1168,8 +1180,10 @@ if ($FromJson) {
     $dx = Get-Diagnosis -Data $data
     $res = Save-Results -Data $data -Dx $dx -Dir $OutDir
     Write-ConsoleResult $dx $res
-    if (-not $NoOpen -and $Mode -ne 'Silent') { Start-Process $res.Html }
+    if ($Mode -eq 'Silent') { Write-Output $res; return }
+    if (-not $NoOpen) { Start-Process $res.Html }
     return
+
 }
 
 if (-not $script:IsWin) { Write-Error 'Windows 에서만 검사할 수 있습니다. (-FromJson 으로 보고서 재생성은 가능)'; exit 2 }
