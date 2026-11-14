@@ -255,6 +255,10 @@ function Invoke-Collect {
             $bios = Get-CimInstance Win32_BIOS
             $plan = ''
             try { $plan = ((powercfg /getactivescheme) -replace '^.*\(|\)\s*$', '') } catch {}
+            $dumpCfg = $null
+            try { $dumpCfg = [int](Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\CrashControl' -ErrorAction Stop).CrashDumpEnabled } catch {}
+            $pageFiles = $null
+            try { $pageFiles = @(Get-CimInstance Win32_PageFileUsage -ErrorAction Stop).Count } catch {}
             $fast = $null
             try { $fast = [int](Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power' -ErrorAction Stop).HiberbootEnabled } catch {}
             $D.System = [ordered]@{
@@ -264,6 +268,7 @@ function Invoke-Collect {
                 RamGB = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
                 LastBoot = (Format-T $os.LastBootUpTime); PowerPlan = $plan; FastStartup = $fast
                 Model = ("$($cs.Manufacturer) $($cs.Model)").Trim()
+                CrashDump = $dumpCfg; PageFiles = $pageFiles
                 IsVM = [bool]($cs.HypervisorPresent -and ("$($cs.Manufacturer) $($cs.Model)" -match 'Virtual|VMware|QEMU|KVM|Xen|Parallels|VirtualBox|Hyper-V|Amazon EC2|Google Compute'))
             }
         } }
@@ -592,7 +597,17 @@ function Get-Diagnosis {
     }
     $sizes = @($dimms | ForEach-Object { [int](Get-Prop $_ 'SizeGB') } | Sort-Object -Unique)
     $parts = @($dimms | ForEach-Object { [string](Get-Prop $_ 'Part') } | Where-Object { $_ } | Sort-Object -Unique)
+    # 블루스크린 기록이 남을 수 있는 설정인지 (꺼져 있으면 '문제 없음'으로 오판 가능)
+    $cd = Get-Prop $sys 'CrashDump'
+    if ($null -ne $cd -and [int]$cd -eq 0) {
+        & $find 'warn' 'META' '블루스크린 덤프 저장이 꺼져 있음' '블루스크린이 나도 원인 기록이 남지 않습니다. 시스템 속성 > 고급 > 시작 및 복구 > "디버깅 정보 쓰기"를 "작은 메모리 덤프" 또는 "자동 메모리 덤프"로 바꾸세요.' 3
+    }
+    $pf = Get-Prop $sys 'PageFiles'
+    if ($null -ne $pf -and [int]$pf -eq 0) {
+        & $find 'warn' 'META' '페이지 파일(가상 메모리)이 꺼져 있음' '페이지 파일이 없으면 블루스크린 덤프를 저장하지 못하고, 메모리 부족 시 프로그램이 갑자기 종료될 수 있습니다. "시스템이 관리하는 크기"로 켜 두세요.' 3
+    }
     $isVM = [bool](Get-Prop $sys 'IsVM')
+
     if ($isVM) { & $find 'info' 'META' '가상 머신에서 실행됨' '가상 머신은 실제 하드웨어 정보를 보여 주지 않아 RAM/온도/그래픽카드 진단이 제한됩니다.' 0 }
     if (-not $isVM -and $dimms.Count -ge 2 -and ($sizes.Count -gt 1 -or $parts.Count -gt 1)) {
 

@@ -156,7 +156,15 @@ It '가상 머신에서는 RAM 혼용 경고 생략, 안내 표시' {
     $d2 = New-Scenario $over
     Assert (@((Get-Diagnosis -Data $d2).Findings) | Where-Object { $_.Title -match '섞어' }) '실제 PC 에서는 혼용 경고'
 }
+It '덤프 저장 꺼짐·페이지 파일 없음 안내' {
+    $d = New-Scenario @{}; $d.System.CrashDump = 0; $d.System.PageFiles = 0
+    $t = @((Get-Diagnosis -Data $d).Findings | ForEach-Object { $_.Title })
+    Assert ($t -match '덤프 저장이 꺼져') '덤프'; Assert ($t -match '페이지 파일') '페이지 파일'
+    $d2 = New-Scenario @{}; $d2.System.CrashDump = 7; $d2.System.PageFiles = 1
+    Assert (-not (@((Get-Diagnosis -Data $d2).Findings | ForEach-Object { $_.Title }) -match '덤프 저장|페이지 파일')) '정상 설정은 안내 없음'
+}
 It '단일 항목 목록 (5.1 배열 풀림 회귀 방지)' {
+
     $d = RoundTrip (New-Scenario @{ Whea = @([ordered]@{ T = (T 1); Id = 47; Level = 3; Comp = 'Memory'; Msg = 'x' }); DriverInstalls = @([ordered]@{ T = (T 3); Msg = 'NVIDIA' }); GpuEvents = @([ordered]@{ T = (T 2); Source = 'Display'; Id = 4101; Xid = $null; Msg = 'TDR' }) })
     $dx = Get-Diagnosis -Data $d
     Assert-Eq $dx.Counts.Whea 1 'WHEA 1건'; Assert-Eq $dx.Counts.Gpu 1 'GPU 1건'
