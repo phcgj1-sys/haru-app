@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111111">
 <title>하루 학습</title>
-<meta name="description" content="하루 15분, 매일. 32가지 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
+<meta name="description" content="하루 15분, 매일. 외국어·생활 기초·일과 도구·AI까지 32가지 학습 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
 <meta property="og:title" content="하루 학습">
 <meta property="og:description" content="하루 15분, 매일. 외국어·생활 기초·일과 도구·개발과 AI까지 32가지 학습 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
 <meta property="og:type" content="website">
@@ -50,6 +50,8 @@ a.card>span:last-child{flex:1;min-width:0}
 .resume .rs{font-size:13px;opacity:.75;margin-top:2px}
 .resume .go{margin-left:auto;font-weight:700;font-size:14px;white-space:nowrap;background:var(--bg);color:var(--fg);border-radius:10px;padding:8px 12px}
 .h2{font-size:15px;font-weight:700;margin:0 0 10px}
+.resume.review{background:var(--surface);color:var(--fg);border:1px solid var(--line)}
+.resume.review .go{background:var(--fg);color:var(--bg)}
 .grp{margin:22px 0 10px;color:var(--muted);font-size:14px}
 .grp-note{margin:-4px 0 10px;font-size:13px;color:var(--muted);line-height:1.6}
 [hidden]{display:none!important}
@@ -61,9 +63,10 @@ a.card>span:last-child{flex:1;min-width:0}
 <body>
 <div class="app">
   <h1>하루 학습</h1>
-  <p class="sub">하루 15분, 매일. 스물두 가지 앱을 한곳에서.</p>
+  <p class="sub">하루 15분, 매일. 32가지 앱을 한곳에서.</p>
   <input class="appq" id="appq" type="search" placeholder="앱 찾기 (예: 엑셀, 강화학습, 일본어)" aria-label="앱 찾기" autocomplete="off">
   <p class="muted-empty" id="appq-empty" hidden>찾는 앱이 없어요. 다른 낱말로 찾아보세요.</p>
+  <a class="resume review" id="review" href="#"><span><div class="rk">오늘의 복습</div><div class="rt" id="reviewT"></div><div class="rs" id="reviewS"></div></span><span class="go">복습하기</span></a>
   <a class="resume" id="resume" href="#"><span><div class="rk">이어서 학습</div><div class="rt" id="resumeT"></div><div class="rs" id="resumeS"></div></span><span class="go">계속하기</span></a>
   <h2 class="h2 grp">외국어</h2>
   <div class="grid">
@@ -138,6 +141,14 @@ a.card>span:last-child{flex:1;min-width:0}
     var p=document.createElement('div'); p.className='prog show'; p.innerHTML='<i><b style="width:'+pct+'%"></b></i><span>'+done+'/'+total+' 마침</span>'; a.appendChild(p);
     if(st.updatedAt && done<total && (!best||st.updatedAt>best.t)) best={t:st.updatedAt,a:a,done:done,total:total};
   });
+  // 오늘의 복습: 앱마다 틀린 문제 수를 모아 가장 많은 앱으로 바로 복습
+  (function(){ var tot=0, top=null, nApps=0;
+    Array.prototype.forEach.call(document.querySelectorAll('a.card'), function(a){ var href=a.getAttribute('href'), k=KEYS[href]; if(!k) return; var st=null; try{ st=JSON.parse(localStorage.getItem(k)||'null'); }catch(e){} if(!st||!st.miss) return;
+      var n=Object.keys(st.miss).length; if(!n) return; tot+=n; nApps++; if(!top||n>top.n) top={n:n,a:a}; });
+    if(!top) return; var r=document.getElementById('review'); r.href=top.a.getAttribute('href')+'#review';
+    document.getElementById('reviewT').textContent='틀린 문제 '+tot+'개'+(nApps>1?' · 앱 '+nApps+'개':'');
+    document.getElementById('reviewS').textContent=top.a.querySelector('.t').textContent+'부터 '+Math.min(top.n,10)+'문제 다시 풀기';
+    r.classList.add('show'); })();
   if(best){ var r=document.getElementById('resume'); r.href=best.a.getAttribute('href'); document.getElementById('resumeT').textContent=best.a.querySelector('.t').textContent; document.getElementById('resumeS').textContent=best.done+'/'+best.total+' 수업 마침 · 최근에 공부한 앱'; r.classList.add('show'); }
   if('serviceWorker' in navigator && location.protocol!=='file:'){ navigator.serviceWorker.register('sw.js').catch(function(){}); }
   var deferred=null; var btn=document.getElementById('installBtn');

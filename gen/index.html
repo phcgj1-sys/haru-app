@@ -507,6 +507,7 @@ if('speechSynthesis' in window){ try{ speechSynthesis.getVoices(); speechSynthes
 document.addEventListener('keydown', e=>{ if(!S) return; if(e.key==='Enter'&&S.answered){ e.preventDefault(); S.i++; S.answered=false; renderSession(); } else if(/^[1-4]$/.test(e.key)&&!S.answered){ const b=document.querySelector(`[data-ropt="${+e.key-1}"]`); if(b) b.click(); } });
 
 loadLocal(); applySkin(); render(); Sync.init(); AI.init();
+if(location.hash==='#review'){ history.replaceState(null,'',location.pathname); if(missCount()||doneCount()) startReview(); }
 })();
 </script>
 </body></html>
