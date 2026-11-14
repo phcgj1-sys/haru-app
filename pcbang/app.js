@@ -9,7 +9,7 @@ var median = function (a) { if (!a.length) return NaN; var b = a.slice().sort(fu
 var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
 var store = {
   get: function (k, d) { try { var v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
-  set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }
 };
 var KEY = 'pcbang_check_v1';
 var toastT;
@@ -47,7 +47,7 @@ function showTab(name) {
   if (name === 'log') renderShop();
   if (name === 'fix') renderFixes();
   if (name === 'spec') renderSpec();
-  if (name === 'dev') { buildKeyboard(); }
+  if (name === 'dev') { buildKeyboard(); renderChk(); }
   try { history.replaceState(null, '', '#' + name); } catch (e) {}
   window.scrollTo(0, 0);
 }
@@ -654,7 +654,7 @@ function renderHz() {
   var BTN = [['왼쪽', 0], ['가운데(휠)', 1], ['오른쪽', 2], ['뒤로(4)', 3], ['앞으로(5)', 4]];
   var st;
   function reset() {
-    delete S.dev.chatter; delete S.dev.pollMax; delete S.dev.pollAvg; save();
+    delete S.dev.chatter; delete S.dev.pollMax; delete S.dev.pollAvg; delete S.dev.mBtns; delete S.dev.wheel; save();
     st = { cnt: [0, 0, 0, 0, 0], chat: [0, 0, 0, 0, 0], last: [0, 0, 0, 0, 0], up: [0, 0, 0, 0, 0], evts: [], max: 0, samples: [], clicks: [] };
     $('#mBtns').innerHTML = BTN.map(function (b) { return '<div id="mb' + b[1] + '">' + b[0] + '<b>0</b><span class="xs">채터링 0</span></div>'; }).join('') ;
     ['#mHz', '#mHzMax', '#mHzAvg', '#mCps'].forEach(function (i) { $(i).textContent = '-'; });
@@ -713,12 +713,15 @@ function renderHz() {
     // 진짜 스위치 튐: 뗀 지 20ms도 안 돼 다시 눌림(사람이 빠르게 연타해도 보통 40ms 이상 떨어져 있음)
     if (st.last[b] && st.up[b] && st.up[b] > st.last[b] && now - st.up[b] < 20 && now - st.last[b] < 100) { st.chat[b]++; }
     st.last[b] = now; st.cnt[b]++; st.clicks.push(now);
+    S.dev.mBtns = st.cnt.slice(); save();
     var el = $('#mb' + b); el.classList.add('on'); el.querySelector('b').textContent = st.cnt[b];
     el.querySelector('span').textContent = '채터링 ' + st.chat[b]; if (st.chat[b]) el.classList.add('chat');
     verdict();
   });
   window.addEventListener('mouseup', function (e) { var b = e.button; if ((b === 3 || b === 4) && !$('[data-panel="dev"]').hidden) e.preventDefault(); if (b < 0 || b > 4 || !st) return; st.up[b] = performance.now(); var el = $('#mb' + b); if (el) el.classList.remove('on'); });
   pad.addEventListener('mouseleave', function () { pad.classList.remove('active'); });
+  var wheelDir = {};
+  pad.addEventListener('wheel', function (e) { e.preventDefault(); wheelDir[e.deltaY < 0 ? 'up' : 'down'] = 1; if (wheelDir.up && wheelDir.down && !S.dev.wheel) { S.dev.wheel = true; save(); toast('휠 위·아래 확인됨'); } }, { passive: false });
   // 뒤로/앞으로 버튼이 페이지 이동을 일으키지 않게
   pad.addEventListener('mouseup', function (e) { if (e.button === 3 || e.button === 4) e.preventDefault(); });
 })();
@@ -749,7 +752,7 @@ function buildKeyboard() {
   }).join('');
   kbReset();
 }
- function kbReset() { delete S.dev.kbChat; delete S.dev.kbMax; delete S.dev.kbKeys; save(); kb = { done: {}, down: {}, max: 0, lastUp: {}, chat: 0 }; $$('#kb .k').forEach(function (e) { e.className = 'k'; }); ['#kbCount', '#kbNow', '#kbMax', '#kbChat'].forEach(function (i) { $(i).textContent = '0'; }); $('#kbLast').textContent = '마지막 키: -'; }
+ function kbReset() { delete S.dev.kbChat; delete S.dev.kbMax; delete S.dev.kbKeys; delete S.dev.kbMissing; save(); kb = { done: {}, down: {}, max: 0, lastUp: {}, chat: 0 }; $$('#kb .k').forEach(function (e) { e.className = 'k'; }); ['#kbCount', '#kbNow', '#kbMax', '#kbChat'].forEach(function (i) { $(i).textContent = '0'; }); $('#kbLast').textContent = '마지막 키: -'; }
 $('#kbReset').addEventListener('click', kbReset);
 function kbEl(code) { return $('#kb .k[data-code="' + code + '"]'); }
 function kbActive() { return !$('[data-panel="dev"]').hidden && document.activeElement && document.activeElement.id === 'kb'; }
@@ -768,6 +771,7 @@ document.addEventListener('keydown', function (e) {
   $('#kbCount').textContent = Object.keys(kb.done).length; $('#kbNow').textContent = n; $('#kbMax').textContent = kb.max; $('#kbChat').textContent = kb.chat;
   $('#kbLast').textContent = '마지막 키: ' + code + ' (' + (e.key === ' ' ? 'Space' : e.key) + ')';
   S.dev.kbMax = kb.max; S.dev.kbChat = kb.chat; S.dev.kbKeys = Object.keys(kb.done).length;
+  S.dev.kbMissing = ESS_KEYS.filter(function (k) { return !kb.done[k]; });
 });
 document.addEventListener('keyup', function (e) {
   if (!kb) return;
@@ -784,8 +788,10 @@ $('#kb').addEventListener('click', function () { $('#kb').focus(); });
 /* ---------------- 소리·마이크 ---------------- */
 var actx = null;
 function ac() { if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === 'suspended') actx.resume(); return actx; }
-$$('[data-tone]').forEach(function (b) {
-  b.addEventListener('click', function () {
+// 버튼이 나중에 그려져도 동작하도록 문서 전체에서 받음
+document.addEventListener('click', function (e) {
+  var b = e.target.closest && e.target.closest('[data-tone]'); if (!b) return;
+  (function () {
     var c = ac(), v = b.dataset.tone, now = c.currentTime;
     var o = c.createOscillator(), g = c.createGain(), p = c.createStereoPanner ? c.createStereoPanner() : null;
     o.type = 'sine'; o.frequency.value = 520;
@@ -796,8 +802,8 @@ $$('[data-tone]').forEach(function (b) {
     else { o.connect(g); g.connect(c.destination); }
     o.start(now); o.stop(now + dur + 0.05);
     var where = v === '-1' ? '왼쪽' : v === '1' ? '오른쪽' : v === '0' ? '가운데' : '왼쪽에서 오른쪽으로';
-    $('#toneAsk').innerHTML = '소리가 <b>' + where + '</b>에서 들렸나요? 반대쪽에서 들리면 헤드셋 좌우가 바뀐 거예요(윈도우 소리 설정의 모노 오디오·스피커 구성 확인).';
-  });
+    $('#toneAsk').innerHTML = '소리가 <b>' + where + '</b>에서 들렸나요? 반대쪽에서 들리면 헤드셋 좌우가 바뀐 거예요(윈도우 소리 설정의 모노 오디오·스피커 구성 확인). 위 체크리스트에 정상/불량을 눌러 주세요.';
+  })();
 });
 (function () {
   var stream = null, raf = 0;
@@ -964,6 +970,13 @@ function problems(st) {
   if (dev.chatter) add('mchat', 'bad', '마우스 더블클릭(채터링) ' + dev.chatter + '회', '마우스 스위치 고장이에요. 마우스를 교체하거나 스위치를 교체하세요. 임시로는 마우스 소프트웨어에서 디바운스 시간을 늘리세요.', '마우스 채터링');
   if (dev.kbChat) add('kchat', 'bad', '키보드 채터링 의심 ' + dev.kbChat + '회', '키를 한 번 눌렀는데 두 번 입력돼요. 해당 키캡을 빼고 청소하거나 스위치/키보드를 교체하세요.', '키보드 채터링');
   if (dev.pollMax && dev.pollMax < 200) add('poll', 'warn', '마우스 폴링레이트 낮음 (최고 ' + dev.pollMax + 'Hz)', '게이밍 마우스라면 마우스 소프트웨어에서 1000Hz로 설정하세요. 사무용 마우스(125Hz)는 FPS 게임에 불리해요.', '마우스 폴링 낮음');
+  chkState(dev).forEach(function (x) {
+    // 자동 판정만으로 불량인 항목(주사율·폴링·버튼·키·마이크)은 아래 전용 항목에서 다룸
+    if (x.st !== 'bad' || (!(dev.chk || {})[x.c.id] && ['hz', 'poll', 'mbtn', 'keys', 'mic'].indexOf(x.c.id) >= 0)) return;
+    var fixes = { screen: '불량 화소·빛샘이 눈에 띄면 모니터 A/S(무결점 보증 기간 확인) 또는 교체하세요.', audL: '단자를 끝까지 꽂고, 다른 헤드셋으로 바꿔 보세요. 같으면 PC 사운드 단자·드라이버, 다르면 헤드셋 고장이에요.', audR: '단자를 끝까지 꽂고, 다른 헤드셋으로 바꿔 보세요. 같으면 PC 사운드 단자·드라이버, 다르면 헤드셋 고장이에요.', mic: '마이크 단자·음소거 스위치·윈도우 입력 장치를 확인하세요.', mbtn: '버튼 스위치 고장이에요. 마우스를 교체하세요.', wheel: '휠 인코더 고장이에요. 청소해 보고 안 되면 교체하세요.', keys: '안 눌리는 키는 키캡을 빼고 청소하고, 그래도 안 되면 키보드를 교체하세요.' };
+    add('chk-' + x.c.id, 'bad', x.c.n + ' 불량', fixes[x.c.id] || '', x.c.n + ' 불량');
+  });
+  if (dev.note) add('note', 'info', '메모: ' + dev.note, '', '메모');
   if (dev.mic === 'none') add('mic', 'warn', '마이크가 연결되지 않았거나 권한 없음', '헤드셋 마이크 단자(분홍색)를 확인하고, 윈도우 소리 설정 → 입력 장치를 확인하세요.', '마이크 없음');
   // 인터넷(브라우저)
   if (st.net && st.net.targets) {
@@ -1027,7 +1040,7 @@ function renderSummary() {
     '<div class="tblwrap"><table><thead><tr><th>게임</th><th>판정</th><th>예상 fps (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</th></tr></thead><tbody>' +
     games.map(function (x) { var lv = LV[x.j.level]; var fl = x.j.fps != null ? fpsLabel(x.j.fps, tgt) : null; return '<tr><td>' + x.g.rank + '. ' + esc(x.g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (x.j.fps != null ? (x.j.fps >= (x.g.fps.cap || 1e9) ? x.g.fps.cap + '+' : '약 ' + fmt(x.j.fps)) + ' <span class="pill ' + fl[0] + '">' + (fl[0] === 'ok' ? '쾌적' : fl[0] === 'warn' ? '보통' : '버벅임') + '</span>' : '-') + '</td></tr>'; }).join('') +
     '</tbody></table></div>' +
-    '<p class="xs muted">마우스·키보드·헤드셋·마이크는 <a href="#dev" data-goto="dev">장비 테스트</a>에서 직접 눌러 확인하세요. 게이트웨이·외부 핑은 윈도우 점검 프로그램이 필요해요.</p></div>';
+    (function () { var cl = chkState(S.dev), ok = cl.filter(function (x) { return x.st === 'ok'; }).length; return '<div class="note"><b>다음 단계: 장비 체크리스트 ' + ok + '/' + cl.length + '</b> — 모니터 화면·헤드셋 좌우·마우스·키보드는 <a href="#dev" data-goto="dev">장비 테스트</a>에서 눌러 확인하세요. 게이트웨이·외부 핑과 보안 부팅·TPM은 윈도우 점검 프로그램이 필요해요.</div>'; })() + '</div>';
   $('#summary').innerHTML = html;
   $('#sumSave').addEventListener('click', function () { $('#shopAddThis').click(); });
 }
@@ -1043,6 +1056,71 @@ function renderFixes() {
 }
 $('#fixSearch').addEventListener('input', renderFixes);
 
+/* ---------------- 좌석 장비 체크리스트 ---------------- */
+// 게임에 꼭 필요한 키(이게 안 눌리면 바로 불만이 나옴)
+var ESS_KEYS = ['Escape', 'Tab', 'CapsLock', 'ShiftLeft', 'ControlLeft', 'AltLeft', 'Space', 'Enter', 'Backspace', 'KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'F1', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+var KEY_NAME = function (c) { return c.replace(/^Key|^Digit/, '').replace('ShiftLeft', '왼Shift').replace('ControlLeft', '왼Ctrl').replace('AltLeft', '왼Alt').replace('Arrow', '방향').replace('Escape', 'Esc'); };
+// 항목: auto(st)는 'ok'|'bad'|null(아직 모름) 과 설명을 돌려줌. manual 항목은 사람이 누름.
+var CHK = [
+  { id: 'screen', n: '모니터 화면', d: '불량 화소·얼룩·빛샘', manual: true, tool: 'color' },
+  { id: 'hz', n: '모니터 주사율', auto: function (d) { return d.hz ? [d.hz > 61 ? 'ok' : 'bad', d.hz + 'Hz'] : [null, '주사율 측정 필요']; } },
+  { id: 'audL', n: '헤드셋 왼쪽 소리', manual: true, tool: 'L' },
+  { id: 'audR', n: '헤드셋 오른쪽 소리', manual: true, tool: 'R' },
+  { id: 'mic', n: '마이크', manual: true, auto: function (d) { return d.mic === 'ok' ? ['ok', '소리 감지됨'] : d.mic === 'none' ? ['bad', '연결 안 됨/권한 없음'] : d.mic === 'low' ? [null, '소리가 작음: 말해 보세요'] : [null, '마이크 켜기로 확인']; } },
+  { id: 'mbtn', n: '마우스 버튼', manual: true, auto: function (d) { var c = d.mBtns || []; if (d.chatter) return ['bad', '채터링 ' + d.chatter + '회']; var miss = ['왼쪽', '가운데', '오른쪽'].filter(function (x, i) { return !(c[i] > 0); }); return miss.length ? [null, '안 누른 버튼: ' + miss.join(', ')] : ['ok', '왼쪽·가운데·오른쪽 확인' + (c[3] > 0 || c[4] > 0 ? ' + 옆 버튼' : '')]; } },
+  { id: 'wheel', n: '마우스 휠 굴리기', manual: true, auto: function (d) { return d.wheel ? ['ok', '위·아래 확인'] : [null, '마우스 영역에서 휠을 굴려 보세요']; } },
+  { id: 'poll', n: '마우스 폴링레이트', auto: function (d) { return d.pollMax ? [d.pollMax >= 200 ? 'ok' : 'bad', '최고 ' + d.pollMax + 'Hz'] : [null, '마우스 영역에서 빠르게 움직이기']; } },
+  { id: 'keys', n: '게임 필수 키 ' + ESS_KEYS.length + '개', manual: true, auto: function (d) { if (d.kbChat) return ['bad', '채터링 의심 ' + d.kbChat + '회']; var m = d.kbMissing; if (!m) return [null, '키보드 그림을 누르고 키를 눌러 보세요']; return m.length ? [null, '남은 키: ' + m.slice(0, 8).map(KEY_NAME).join(' ') + (m.length > 8 ? ' 외 ' + (m.length - 8) + '개' : '')] : ['ok', '모두 입력됨']; } }
+];
+function chkState(d) {
+  var chk = d.chk || {};
+  return CHK.map(function (c) {
+    var a = c.auto ? c.auto(d) : [null, c.d || ''];
+    var st = chk[c.id] || a[0];
+    return { c: c, st: st, desc: chk[c.id] ? (chk[c.id] === 'ok' ? '직접 확인: 정상' : '직접 확인: 불량') + (a[1] && c.auto ? ' · ' + a[1] : '') : a[1] };
+  });
+}
+function renderChk() {
+  var d = S.dev, list = chkState(d);
+  $('#chkList').innerHTML = list.map(function (x) {
+    var c = x.c, man = (d.chk || {})[c.id];
+    var tool = c.tool === 'color' ? '<button class="btn sm" type="button" data-color-test>화면 색 검사</button>' : c.tool ? '<button class="btn sm" type="button" data-tone="' + (c.tool === 'L' ? '-1' : '1') + '">소리 내기</button>' : '';
+    var pill = x.st === 'ok' ? '<span class="pill ok">정상</span>' : x.st === 'bad' ? '<span class="pill bad">불량</span>' : '<span class="pill">확인 전</span>';
+    return '<div class="ci"><div><div class="cn">' + esc(c.n) + ' ' + pill + '</div><div class="cd">' + esc(x.desc || '') + '</div></div><div class="ca">' + tool +
+      (c.manual ? '<button class="btn sm' + (man === 'ok' ? ' sel-ok' : '') + '" type="button" data-chk="' + c.id + '" data-v="ok" aria-pressed="' + (man === 'ok') + '">정상</button><button class="btn sm' + (man === 'bad' ? ' sel-bad' : '') + '" type="button" data-chk="' + c.id + '" data-v="bad" aria-pressed="' + (man === 'bad') + '">불량</button>' : '') + '</div></div>';
+  }).join('');
+  var ok = list.filter(function (x) { return x.st === 'ok'; }).length, bad = list.filter(function (x) { return x.st === 'bad'; }).length;
+  var sum = $('#chkSum'); sum.textContent = ok + '/' + list.length + ' 정상' + (bad ? ' · 불량 ' + bad : '');
+  sum.className = 'pill ' + (bad ? 'bad' : ok === list.length ? 'ok' : '');
+  if (document.activeElement !== $('#chkNote')) $('#chkNote').value = d.note || '';
+}
+$('#chkList').addEventListener('click', function (e) {
+  var b = e.target.closest('[data-chk]');
+  if (b) { S.dev.chk = S.dev.chk || {}; var id = b.dataset.chk; S.dev.chk[id] = S.dev.chk[id] === b.dataset.v ? undefined : b.dataset.v; if (!S.dev.chk[id]) delete S.dev.chk[id]; save(); renderChk(); return; }
+  if (e.target.closest('[data-color-test]')) colorTest();
+});
+$('#chkNote').addEventListener('input', function () { S.dev.note = this.value.trim().slice(0, 120); save(); });
+// 장비 테스트 값이 바뀌면 체크리스트도 갱신(가볍게 0.5초마다)
+setInterval(function () { if (!$('[data-panel="dev"]').hidden) renderChk(); }, 500);
+
+/* 화면 색 검사: 전체 화면 단색 → 불량 화소·빛샘 확인 */
+function colorTest() {
+  var el = $('#colorTest'), hint = $('#colorHint');
+  var colors = ['#000000', '#FFFFFF', '#FF0000', '#00FF00', '#0000FF', '#808080'], i = 0;
+  el.hidden = false; el.style.background = colors[0]; hint.hidden = false; el.focus();
+  if (el.requestFullscreen) el.requestFullscreen().catch(function () {});
+  var t = setTimeout(function () { hint.hidden = true; }, 2500);
+  function next() { i++; hint.hidden = true; if (i >= colors.length) return end(); el.style.background = colors[i]; }
+  function end() {
+    clearTimeout(t); el.hidden = true; el.removeEventListener('click', next); document.removeEventListener('keydown', key, true);
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function () {});
+    toast('화면에 이상이 있었으면 "불량", 없었으면 "정상"을 눌러 주세요');
+  }
+  function key(e) { if (el.hidden) return; e.preventDefault(); e.stopPropagation(); if (e.key === 'Escape') end(); else if (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowRight') next(); }
+  el.addEventListener('click', next); document.addEventListener('keydown', key, true);
+  document.addEventListener('fullscreenchange', function fc() { if (!document.fullscreenElement) { document.removeEventListener('fullscreenchange', fc); if (!el.hidden) end(); } });
+}
+
 /* ---------------- 좌석 결과 코드·매장 현황 ---------------- */
 function seatPill() { $('#seatPill').textContent = S.seat ? S.seat + '번 좌석' : '좌석 미지정'; $('#seatIn').value = S.seat || ''; }
 function b64enc(obj) { var bytes = new TextEncoder().encode(JSON.stringify(obj)), bin = ''; for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]); return btoa(bin); }
@@ -1055,7 +1133,7 @@ function webPayload() {
     det: { renderer: S.det.renderer || '', threads: S.det.threads || null, memGB: S.det.memGB || null, win: S.det.win || null, osName: S.det.osName || '' },
     manual: S.manual || {},
     bench: { cpuSingle: S.bench.cpuSingle || null, cpuMulti: S.bench.cpuMulti || null, gpu: S.bench.gpu || null },
-    dev: { hz: S.dev.hz || null, measuredHz: !!S.dev.hzInfo, pollMax: S.dev.pollMax || null, pollAvg: S.dev.pollAvg || null, chatter: S.dev.chatter || 0, kbChat: S.dev.kbChat || 0, kbMax: S.dev.kbMax || null, kbKeys: S.dev.kbKeys || null, react: S.dev.react || null, mic: S.dev.mic || null },
+    dev: { chk: S.dev.chk || {}, note: S.dev.note || '', mBtns: S.dev.mBtns || null, wheel: !!S.dev.wheel, kbMissing: S.dev.kbMissing || null, hz: S.dev.hz || null, measuredHz: !!S.dev.hzInfo, pollMax: S.dev.pollMax || null, pollAvg: S.dev.pollAvg || null, chatter: S.dev.chatter || 0, kbChat: S.dev.kbChat || 0, kbMax: S.dev.kbMax || null, kbKeys: S.dev.kbKeys || null, react: S.dev.react || null, mic: S.dev.mic || null },
     net: n ? { targets: n.targets.map(function (t) { return { name: t.name, med: t.med, min: t.min, jitter: t.jitter, loss: t.loss }; }), down: n.down } : null
   };
 }
@@ -1074,7 +1152,7 @@ function sanitizeWeb(o) {
     det: { renderer: str(d.renderer), threads: num(d.threads), memGB: num(d.memGB), win: ['win11', 'win10', 'win7'].indexOf(d.win) >= 0 ? d.win : null, osName: str(d.osName), at: 1 },
     manual: { cpu: str(m.cpu), gpu: str(m.gpu), ram: num(m.ram) ? String(num(m.ram)) : '', os: str(m.os) },
     bench: { cpuSingle: num(b.cpuSingle), cpuMulti: num(b.cpuMulti), gpu: num(b.gpu) },
-    dev: { hz: num(v.hz), hzInfo: v.measuredHz ? { hz: num(v.hz) } : null, pollMax: num(v.pollMax), pollAvg: num(v.pollAvg), chatter: num(v.chatter) || 0, kbChat: num(v.kbChat) || 0, kbMax: num(v.kbMax), kbKeys: num(v.kbKeys), react: num(v.react), mic: ['ok', 'low', 'none'].indexOf(v.mic) >= 0 ? v.mic : null },
+    dev: { chk: (function (c) { var o = {}; if (c && typeof c === 'object') CHK.forEach(function (x) { if (c[x.id] === 'ok' || c[x.id] === 'bad') o[x.id] = c[x.id]; }); return o; })(v.chk), note: str(v.note).slice(0, 120), mBtns: Array.isArray(v.mBtns) ? v.mBtns.slice(0, 5).map(function (n) { return num(n) || 0; }) : null, wheel: v.wheel === true, kbMissing: Array.isArray(v.kbMissing) ? v.kbMissing.filter(function (k) { return ESS_KEYS.indexOf(k) >= 0; }) : null, hz: num(v.hz), hzInfo: v.measuredHz ? { hz: num(v.hz) } : null, pollMax: num(v.pollMax), pollAvg: num(v.pollAvg), chatter: num(v.chatter) || 0, kbChat: num(v.kbChat) || 0, kbMax: num(v.kbMax), kbKeys: num(v.kbKeys), react: num(v.react), mic: ['ok', 'low', 'none'].indexOf(v.mic) >= 0 ? v.mic : null },
     net: n && Array.isArray(n.targets) ? { targets: n.targets.slice(0, 20).map(function (t) { return { name: str(t.name), med: num(t.med), min: num(t.min), jitter: num(t.jitter) || 0, loss: num(t.loss) || 0 }; }), down: num(n.down) } : null
   };
 }
@@ -1092,7 +1170,7 @@ function parseCodes(text) {
 }
 var STORE_KEY = 'pcbang_store_v1';
 var shop = store.get(STORE_KEY, {});
-function saveShop() { store.set(STORE_KEY, shop); }
+function saveShop() { if (!store.set(STORE_KEY, shop)) toast('브라우저 저장 공간이 부족해 매장 현황을 저장하지 못했어요. 백업을 받고 오래된 좌석을 지우세요.'); }
 function seatKeyOf(seat, computer) { seat = String(seat || '').trim(); return seat ? 'seat:' + seat : computer ? 'pc:' + String(computer).trim().toUpperCase() : 'x:' + Date.now() + Math.random().toString(36).slice(2, 6); }
 function addToShop(items, fileSeat) {
   var added = 0, errors = 0, lastKey = null, keys = {};
@@ -1148,7 +1226,7 @@ function shopRows() {
     return {
       e: e, st: st, sp: sp, pr: pr, games: games,
       seat: e.seat || e.computer || '-', at: e.at,
-      cpu: sp.cpu ? sp.cpu.name : (sp.cpuRaw || '-'), gpu: sp.gpu ? sp.gpu.name : (sp.gpuRaw || '-'),
+      cpu: sp.cpu ? sp.cpu.name : (sp.cpuRaw || '-').slice(0, 40), gpu: sp.gpu ? sp.gpu.name : softwareRenderer(sp.gpuRaw) ? '그래픽 가속 꺼짐' : (cleanRenderer(sp.gpuRaw) || '-').slice(0, 40),
       ram: sp.ram || (sp.ramAtLeast ? sp.ramAtLeast + '+' : null), hz: sp.hz,
       gw: gw && gw.recv ? gw.avg : null, gwLoss: gw ? gw.loss : null,
       ext: ext.length ? median(ext.map(function (x) { return x.avg; })) : webOk.length ? median(webOk.map(function (t) { return t.med; })) : null,
@@ -1275,6 +1353,25 @@ $('#shopTbl').addEventListener('click', function (e) {
   var o = e.target.closest('[data-open]'); if (o) { openSeat(o.dataset.open); return; }
   var d = e.target.closest('[data-del]');
   if (d && confirm('이 좌석 결과를 지울까요?')) { delete shop[d.dataset.del]; saveShop(); renderShop(); }
+});
+$('#shopBackup').addEventListener('click', function () {
+  var n = Object.keys(shop).length; if (!n) { toast('백업할 좌석이 없어요'); return; }
+  downloadText('pc방-매장현황-백업-' + new Date().toISOString().slice(0, 10) + '.json', JSON.stringify({ kind: 'pcbang-shop', v: 1, at: Date.now(), shop: shop }), 'application/json');
+});
+$('#shopRestore').addEventListener('change', async function () {
+  var f = this.files[0]; this.value = ''; if (!f) return;
+  try {
+    var o = JSON.parse(await f.text()); if (!o || o.kind !== 'pcbang-shop' || typeof o.shop !== 'object') throw new Error('매장 현황 백업 파일이 아니에요');
+    var n = 0;
+    Object.keys(o.shop).forEach(function (k) {
+      var e = o.shop[k]; if (!e || typeof e !== 'object') return;
+      var clean = { key: String(k).slice(0, 60), seat: String(e.seat || '').slice(0, 20), computer: String(e.computer || '').slice(0, 40), at: +e.at || Date.now(), native: e.native ? sanitizeNative(e.native) : undefined, web: e.web ? sanitizeWeb(e.web) : undefined,
+        history: Array.isArray(e.history) ? e.history.slice(-10).map(function (h) { return { at: String(h.at || '').slice(0, 30), from: String(h.from || '').slice(0, 30), ch: Array.isArray(h.ch) ? h.ch.slice(0, 20).map(function (x) { return String(x).slice(0, 200); }) : [] }; }) : undefined };
+      if (!clean.native && !clean.web) return;
+      var cur = shop[clean.key]; if (!cur || (cur.at || 0) <= clean.at) { shop[clean.key] = clean; n++; }
+    });
+    saveShop(); renderShop(); toast('좌석 ' + n + '개를 백업에서 불러왔어요');
+  } catch (err) { toast('불러오지 못했어요: ' + err.message); }
 });
 $('#shopClear').addEventListener('click', function () { var n = Object.keys(shop).length; if (!n) return; if (confirm('매장 현황의 좌석 ' + n + '개를 모두 지울까요?')) { shop = {}; saveShop(); renderShop(); } });
 $('#shopCsv').addEventListener('click', function () {
