@@ -274,7 +274,14 @@ It 'PowerShell 7 전용 문법 미사용 (??, ?., 삼항)' {
     $tern = @($ast.FindAll({ param($n) $n.GetType().Name -eq 'TernaryExpressionAst' }, $true))
     Assert-Eq ($bad.Count + $tern.Count) 0 (($bad | ForEach-Object { "$($_.Extent.StartLineNumber):$($_.Text)" }) -join ', ')
 }
+It '쉼표 우선순위 함정 없음 (a + (b), c 형태)' {
+    $tk = $null; $er = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'PCCheck.ps1'), [ref]$tk, [ref]$er)
+    $bad = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.BinaryExpressionAst] -and $n.Operator -in 'Plus', 'Minus', 'Multiply' -and $n.Right -is [System.Management.Automation.Language.ArrayLiteralAst] }, $true))
+    Assert-Eq $bad.Count 0 (($bad | ForEach-Object { "$($_.Extent.StartLineNumber): $($_.Extent.Text)" }) -join '; ')
+}
 It '배치 파일은 ASCII + CRLF' {
+
     $bat = Get-ChildItem $root -Filter *.bat
     Assert ($bat.Count -ge 1) 'bat 존재'
     foreach ($f in $bat) { $b = [IO.File]::ReadAllBytes($f.FullName); Assert (@($b | Where-Object { $_ -gt 127 }).Count -eq 0) "$($f.Name) ASCII"; Assert ([Text.Encoding]::ASCII.GetString($b) -match "`r`n") "$($f.Name) CRLF" }
