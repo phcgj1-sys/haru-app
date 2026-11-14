@@ -8,6 +8,10 @@ if ($ToolCheck) {
     . $script -LoadOnly
     $script:WorkDir = Join-Path $Temp 'tools'
     $p = Install-MemtestVulkan; Write-Host "memtest_vulkan: $p"
+    $rel = Invoke-RestMethod 'https://api.github.com/repos/GpuZelenograd/memtest_vulkan/releases/latest' -UserAgent 'PCCheck-CI'
+    $a = Select-WindowsAsset @($rel.assets)
+    Write-Host "asset: $($a.name) · digest: $(if ($a.digest) { $a.digest } else { '(없음 — SHA-256 검증 불가)' })"
+
     try { $b = Install-BlueScreenView; Write-Host "BlueScreenView: $b" }
     catch { Write-Host "::warning::BlueScreenView 다운로드 실패: $($_.Exception.Message)" }
     return
