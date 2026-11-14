@@ -26,12 +26,5 @@ $h = [IO.File]::ReadAllText($r.Html)
 if ($h -notmatch '상태:' -or $h -notmatch '</html>') { throw '보고서 내용 이상' }
 $r2 = & $script -Mode Silent -FromJson $r.Json -OutDir (Join-Path $out 'rerender') -NoOpen | Select-Object -Last 1
 if (-not (Test-Path $r2.Html)) { throw 'JSON 재분석 실패' }
-if ($env:GITHUB_ACTIONS -and $PSVersionTable.PSVersion.Major -eq 5) {
-    # 실제 Windows 보고서를 로그로 내보내 확인 (gzip + base64)
-    $ms = New-Object IO.MemoryStream
-    $gz = New-Object IO.Compression.GZipStream($ms, [IO.Compression.CompressionMode]::Compress)
-    $bytes = [IO.File]::ReadAllBytes($r.Html); $gz.Write($bytes, 0, $bytes.Length); $gz.Dispose()
-    Write-Host ('REPORTGZ:' + [Convert]::ToBase64String($ms.ToArray()))
-}
 Write-Host 'OK'
 

@@ -1036,7 +1036,38 @@ function Invoke-Tool([string]$Key) {
 # =====================================================================
 #  화면 (WinForms)
 # =====================================================================
+function Test-GuiLayout($root) {
+    # 글자 잘림 · 컨트롤 겹침 · 부모 영역 밖으로 나감을 화면 없이 자동 검사
+    $issues = New-Object System.Collections.ArrayList
+    $stack = New-Object System.Collections.Stack
+    $stack.Push($root)
+    while ($stack.Count) {
+        $parent = $stack.Pop()
+        $kids = @($parent.Controls)
+        foreach ($c in $kids) {
+            $name = "$($c.GetType().Name) '$($c.Text)'"
+            if ($c.Right -gt $parent.ClientSize.Width -or $c.Bottom -gt $parent.ClientSize.Height) { [void]$issues.Add("$name 이(가) 부모 영역 밖 ($($c.Bounds) / $($parent.ClientSize))") }
+            if ($c.Text -and ($c -is [Windows.Forms.Button] -or ($c -is [Windows.Forms.Label] -and -not $c.AutoSize))) {
+                $sz = [Windows.Forms.TextRenderer]::MeasureText([string]$c.Text, $c.Font)
+                $avail = $c.ClientSize.Width - $(if ($c -is [Windows.Forms.Button]) { 10 } else { 0 })
+                $multi = ($c -is [Windows.Forms.Label] -and $c.Height -ge $sz.Height * 2)
+                if ($sz.Width -gt $avail -and -not $multi) { [void]$issues.Add("$name 글자 잘림 (필요 $($sz.Width)px > $avail px)") }
+                if ($sz.Height -gt $c.ClientSize.Height + 2) { [void]$issues.Add("$name 높이 부족 (필요 $($sz.Height)px > $($c.ClientSize.Height)px)") }
+            }
+        }
+        for ($i = 0; $i -lt $kids.Count; $i++) {
+            for ($j = $i + 1; $j -lt $kids.Count; $j++) {
+                $a = $kids[$i]; $b = $kids[$j]
+                if ($a.Visible -and $b.Visible -and $a.Bounds.IntersectsWith($b.Bounds)) { [void]$issues.Add("겹침: $($a.GetType().Name) '$($a.Text)' ↔ $($b.GetType().Name) '$($b.Text)'") }
+            }
+        }
+        foreach ($c in $kids) { if ($c -is [Windows.Forms.GroupBox] -or $c -is [Windows.Forms.Panel]) { $stack.Push($c) } }
+    }
+    return @($issues)
+}
+
 function Show-Gui {
+
     param([int]$Days, [string]$OutDir, [switch]$SmokeTest)
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing
     [Windows.Forms.Application]::EnableVisualStyles()
@@ -1143,6 +1174,8 @@ function Show-Gui {
     if ($SmokeTest) {
         # CI 등 화면 없는 환경: 컨트롤 생성까지만 검증
         $f.CreateControl(); $n = $f.Controls.Count
+        $issues = @(Test-GuiLayout $f)
+        foreach ($i in $issues) { Write-Output "GUI LAYOUT ISSUE: $i" }
         if ($env:PCCHECK_SHOT) {
             # 화면 캡처 (CI 산출물로 디자인 확인)
             $bmp = New-Object Drawing.Bitmap($f.Width, $f.Height)
@@ -1150,7 +1183,7 @@ function Show-Gui {
             $bmp.Save($env:PCCHECK_SHOT, [Drawing.Imaging.ImageFormat]::Png); $bmp.Dispose()
         }
         $f.Dispose()
-
+        if ($issues.Count) { throw "GUI 레이아웃 문제 $($issues.Count) 건" }
         Write-Output "GUI OK: $n controls"; return
     }
     [void]$f.ShowDialog()
