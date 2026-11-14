@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#111111">
 <title>하루 학습</title>
-<meta name="description" content="하루 15분, 매일. 30가지 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
+<meta name="description" content="하루 15분, 매일. 31가지 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
 <meta property="og:title" content="하루 학습">
-<meta property="og:description" content="하루 15분, 매일. 외국어·생활 기초·일과 도구·개발과 AI까지 30가지 학습 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
+<meta property="og:description" content="하루 15분, 매일. 외국어·생활 기초·일과 도구·개발과 AI까지 31가지 학습 앱을 한곳에서. 수업·퀴즈·해설·복습을 휴대폰 앱처럼.">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
 <link rel="manifest" href="manifest.webmanifest">
@@ -92,6 +92,7 @@ a.card>span:last-child{flex:1;min-width:0}
     <a class="card" href="nlp/index.html"><span class="ic" style="background:#9A3412;font-size:13px">NLP</span><span><div class="t">자연어 처리</div><div class="s">6단계 29수업 · AI Engineering from Scratch 5단계 · TF-IDF·워드투벡 → 감성·개체명 → 어텐션·번역·요약 → 토큰화 → 임베딩·청킹·평가</div></span></a>
     <a class="card" href="gen/index.html"><span class="ic" style="background:#86198F">생성</span><span><div class="t">생성형 AI와 음성</div><div class="s">6단계 32수업 · AI Engineering from Scratch 8·6단계 · VAE·GAN·확산·플로 매칭 → 생성 평가 → 음성 인식(Whisper) → TTS·음성 복제 → 실시간 음성 비서</div></span></a>
     <a class="card" href="rl/index.html"><span class="ic" style="background:#3F6212">RL</span><span><div class="t">강화학습</div><div class="s">3단계 12수업 · AI Engineering from Scratch 9단계 · MDP·동적 계획 → Q-러닝 → DQN·정책 경사·PPO → RLHF·심투리얼·게임</div></span></a>
+    <a class="card" href="llm/index.html"><span class="ic" style="background:#1E3A8A;font-size:13px">LLM</span><span><div class="t">트랜스포머와 LLM 직접 만들기</div><div class="s">7단계 40수업 · AI Engineering from Scratch 7·10단계 · 셀프 어텐션 직접 구현 → BERT·GPT·MoE → 토크나이저·미니 GPT 사전학습 → SFT·RLHF·DPO → 양자화 → DeepSeek-V3</div></span></a>
   </div>
   <h2 class="h2 grp">AI 엔지니어링 (강의 11~19단계)</h2>
   <p class="grp-note">추천 순서: LLM 앱 만들기 → 멀티모달 → 도구·MCP → 에이전트 → 자율 시스템 → 다중 에이전트 → 인프라·운영 → 윤리·안전 → 캡스톤</p>
@@ -113,7 +114,7 @@ a.card>span:last-child{flex:1;min-width:0}
 <script>
 (function(){
   // 각 앱이 이 기기에 저장한 진도를 읽어 카드에 표시 (언어 앱은 저장 방식이 달라 제외)
-  var KEYS={'mm/index.html':'ai_multimodal_study_v1','gen/index.html':'ai_gen_audio_study_v1','nlp/index.html':'ai_nlp_study_v1','rl/index.html':'ai_rl_study_v1','cv/index.html':'ai_cv_study_v1','found/index.html':'ai_found_math_study_v1','re/index.html':'ai_reverse_eng_study_v1','ml/index.html':'ai_ml_dl_study_v1','claude/index.html':'claude_study_v1','excel/index.html':'excel_study_v1','sheets/index.html':'sheets_study_v1','listen/index.html':'listen_study_v1','basics/index.html':'basics_study_v1','media/index.html':'media_study_v1','writing/index.html':'writing_study_v1','money/index.html':'money_study_v1','homepage/index.html':'homepage_study_v1','youtube/index.html':'youtube_study_v1','github/index.html':'github_study_v1','linux/index.html':'linux_slack_study_v1','ai/index.html':'ai_llm_eng_study_v1','tools/index.html':'ai_tools_mcp_study_v1','agent/index.html':'ai_agent_eng_study_v1','auto/index.html':'ai_autonomy_study_v1','multi/index.html':'ai_multiagent_study_v1','infra/index.html':'ai_infra_ops_study_v1','safety/index.html':'ai_safety_align_study_v1'};
+  var KEYS={'llm/index.html':'ai_llm_scratch_study_v1','mm/index.html':'ai_multimodal_study_v1','gen/index.html':'ai_gen_audio_study_v1','nlp/index.html':'ai_nlp_study_v1','rl/index.html':'ai_rl_study_v1','cv/index.html':'ai_cv_study_v1','found/index.html':'ai_found_math_study_v1','re/index.html':'ai_reverse_eng_study_v1','ml/index.html':'ai_ml_dl_study_v1','claude/index.html':'claude_study_v1','excel/index.html':'excel_study_v1','sheets/index.html':'sheets_study_v1','listen/index.html':'listen_study_v1','basics/index.html':'basics_study_v1','media/index.html':'media_study_v1','writing/index.html':'writing_study_v1','money/index.html':'money_study_v1','homepage/index.html':'homepage_study_v1','youtube/index.html':'youtube_study_v1','github/index.html':'github_study_v1','linux/index.html':'linux_slack_study_v1','ai/index.html':'ai_llm_eng_study_v1','tools/index.html':'ai_tools_mcp_study_v1','agent/index.html':'ai_agent_eng_study_v1','auto/index.html':'ai_autonomy_study_v1','multi/index.html':'ai_multiagent_study_v1','infra/index.html':'ai_infra_ops_study_v1','safety/index.html':'ai_safety_align_study_v1'};
   var best=null;
   Array.prototype.forEach.call(document.querySelectorAll('a.card'), function(a){
     var href=a.getAttribute('href'), k=KEYS[href]; if(!k) return; var st=null; try{ st=JSON.parse(localStorage.getItem(k)||'null'); }catch(e){} if(!st||!st.lessons) return;
