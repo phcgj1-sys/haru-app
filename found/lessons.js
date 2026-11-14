@@ -1,4 +1,5 @@
 // AI 기초: 개발 환경과 수학 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 0 · Setup & Tooling, Phase 1 · Math Foundations을 한국어로 옮겨 정리
 window.APP={
  "title":"AI 기초: 개발 환경과 수학","subtitle":"AI Engineering from Scratch 0·1단계 · 개발 환경 → 도구·디버깅 → 선형대수·미적분 → 확률·최적화 → 수치 계산 → 통계·심화 수학","key":"ai_found_math_study_v1","homeDone":"이제 AI를 배우는 데 필요한 개발 환경과 수학의 뼈대를 갖췄어요. 공식이 막힐 때마다 작은 숫자로 손계산해 보는 습관을 이어 가세요. 다음은 '머신러닝·딥러닝 기초' 앱이에요.",
@@ -291,3 +292,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["신호·그래프·확률 과정 개념 지도","복소수: 곱셈=회전, e^(iθ)=cos+i·sin / DFT: 신호→주파수, FFT O(N log N) / 합성곱 정리: 합성곱=주파수 곱셈 / 그래프: L=D-A, 0 고윳값 수=연결 요소 수, 메시지 전달 H'=σ(A_norm·H·W) / 마르코프: 정상 분포 π·P=π / 확산: 잡음을 더하는 순방향 + 잡음을 걷는 역방향"]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

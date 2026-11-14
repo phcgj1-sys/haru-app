@@ -1,4 +1,5 @@
 // 트랜스포머와 LLM 직접 만들기 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 7 · Transformers Deep Dive, Phase 10 · LLMs from Scratch을 한국어로 옮겨 정리
 window.APP={
  "title":"트랜스포머와 LLM 직접 만들기","subtitle":"AI Engineering from Scratch 7·10단계 · 어텐션과 트랜스포머 → 트랜스포머 가족 → 효율과 규모 → 토큰과 사전학습 → 미세조정·정렬 → 경량화 → 최신 아키텍처","key":"ai_llm_scratch_study_v1","homeDone":"이제 트랜스포머의 속과 LLM이 토크나이저부터 사전학습·정렬·경량화까지 어떻게 만들어지는지 설명할 수 있어요. AI 기초 7개 앱을 모두 마쳤어요. 이어서 'AI 엔지니어링: LLM 앱 만들기' 앱(11단계)으로 가 보세요.",
@@ -331,3 +332,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["아키텍처 글 읽기 요청문","다음 모델 구조 설명을 초보자도 알게 풀어 줘: [논문/블로그 요약 또는 config 붙여 넣기]. 1) 풀려는 문제 한 줄 2) 핵심 아이디어를 일상 비유로 3) 식이 있으면 기호마다 한국어 설명과 작은 숫자 예 4) 추가 비용(파라미터, 계산, 메모리) 직접 계산 5) 쓰면 좋은 경우와 안 쓰는 경우 6) 내가 API 사용자일 때 해 볼 수 있는 일 7) 확실하지 않은 수치는 공식 문서 확인하라고 표시해 줘."]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

@@ -1,4 +1,5 @@
 // 강화학습 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 9 · Reinforcement Learning을 한국어로 옮겨 정리
 window.APP={
  "title":"강화학습","subtitle":"AI Engineering from Scratch 9단계 · 강화학습 기초 → 딥 강화학습 → RLHF·다중 에이전트·게임","key":"ai_rl_study_v1","homeDone":"이제 보상으로 배우는 강화학습의 흐름을 MDP부터 PPO·RLHF까지 설명할 수 있어요. 다음은 '트랜스포머와 LLM 직접 만들기' 앱이에요.",
@@ -112,3 +113,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["RLHF·GRPO 보상 설계 점검표","보상 출처: [사람 선호 RM / 규칙 검증기 / AI 평가자] / 해킹 점검: [길이 부풀리기, 검증기 약점, 형식만 맞추기] / KL 벌점 β: [목표 KL 정하고 적응형으로] / 보상은 오르는데 사람 평가가 정체하면 일찍 멈추기 / 검증기는 경계 사례 포함 테스트로 / GRPO 그룹 크기 G: 8 이상에서 시작 / 정확도 보상과 형식 보상을 따로 기록 / 라이브러리 API는 제공사마다 다르고 바뀌니 공식 문서 확인"]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

@@ -1,4 +1,5 @@
 // AI 도구와 프로토콜(MCP·스킬) — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 13 · Tools & Protocols 01~31수업을 한국어로 옮겨 정리 (32~45 리버스 엔지니어링 수업은 제외)
 window.APP={
  title:"AI 도구와 프로토콜: MCP·스킬",
@@ -277,3 +278,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["MCP 서버 운영 점검표 (계약·안정성·도입·적합성)","계약: 인자 스키마는 모르는 속성 거부, outputSchema 는 오류 결과도 지킴, 업무 실패는 isError 결과 / 잘못된 요청은 JSON-RPC 오류, 커서는 null 일 때만 멈춤, 헤더로 복사하는 인자에 비밀 없음 — 안정성: 전송별 취소 신호(stdio 알림, HTTP 스트림 닫기), 쉬는 시간과 최대 시간 두 제한, 변경 도구는 idempotencyKey 와 인자 지문 저장, 진행 알림은 버려도 최종 응답은 보존, 재연결은 새 요청과 다시 읽기, 지터 있는 백오프 — 도입: 이름공간 정확 비교, 버전·레코드·출처·도구 목록 해시 고정, 도구 변화와 레지스트리 상태 감시, 롤백은 승인된 고정으로만 — 적합성: 정상·거부 전송 기록, SDK 차이, 프록시 증거, 비밀 지우기, 최소 표본 수 있는 상태 점검 — 판 번호와 오류 코드는 공식 명세를 확인해요."]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

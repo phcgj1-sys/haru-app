@@ -1,4 +1,5 @@
 // AI 자율 시스템과 안전 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 15 · Autonomous Systems 22수업을 한국어로 옮겨 정리
 window.APP={
  title:"AI 자율 시스템과 안전",
@@ -207,3 +208,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["능력 숫자 해석 체크리스트 (21강)","1) 몇 % 신뢰도 기준의 숫자인가 / 2) 과제 묶음이 내 일과 닮았나 / 3) 도구·데이터가 실제만큼 지저분했나 / 4) 되돌릴 수 없는 결과가 있는 환경이었나 / 5) 평가 맥락 조작을 점검했나 / 6) 외부 기관 측정인가, 자체 측정인가 / 7) 내 과제 10~20개로 직접 재 봤나 / 결론: 받은 숫자는 천장으로 보고 내 환경에 맞춰 낮춰 잡아요."]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">방어·평가 목적의 교육 내용이에요. 허락받지 않은 시스템·서비스·프로그램을 공격하거나 우회하거나 약관을 어기는 데 쓰지 마세요. 법·규정(예: AI 기본법, EU AI Act) 설명은 법률 자문이 아니에요.</p><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

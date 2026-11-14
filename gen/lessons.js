@@ -1,4 +1,5 @@
 // 생성형 AI와 음성 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 8 · Generative AI, Phase 6 · Speech & Audio을 한국어로 옮겨 정리
 window.APP={
  "title":"생성형 AI와 음성","subtitle":"AI Engineering from Scratch 8·6단계 · 생성 모델 기초 → 확산 모델 → 영상·소리·3D 생성과 평가 → 소리와 인식 → 음성 합성 → 음성 비서","key":"ai_gen_audio_study_v1","homeDone":"이제 이미지·영상·소리를 만들어 내는 생성 모델과, 사람의 말을 듣고 말하는 음성 AI의 원리를 설명할 수 있어요. 다음은 '강화학습' 앱이에요.",
@@ -271,3 +272,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["오디오 작업별 지표 고르기 표","작업 → 먼저 볼 지표 / 같이 볼 지표. 받아쓰기(ASR) → WER / CER, RTFx, 첫 토큰 지연. 말 합성(TTS) → UTMOS 또는 MOS / 되돌려 받아쓰기 WER, 첫 소리 시간. 목소리 복제 → SECS / MOS, CER. 화자 확인 → EER / minDCF. 화자 분리 → DER / JER. 소리 분류 → top-1 또는 mAP / 클래스별 재현율. 음악 생성 → FAD / CLAP, 청취 패널. 오디오 질문응답 → MMAU 계열 / 종류별 점수. 실시간 대화 → 지연 P50, P95 / 끼어들기 반응. 사용법: 1) 내 작업 한 줄 고르기 2) 두 지표 이상 같이 재기 3) 평균과 함께 최악 5개 사례 보기 4) 날짜와 모델 버전 적어 두기"]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

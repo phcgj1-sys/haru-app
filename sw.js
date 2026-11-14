@@ -1,6 +1,6 @@
 // 하루 학습 — 오프라인용 서비스 워커. 파일을 바꾸면 VERSION을 올리세요.
-const VERSION = 'haru-v61';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png'];
+const VERSION = 'haru-v62';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './privacy.html'];
 const FILES = [
   './search-index.js',
   './', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png',
@@ -48,8 +48,8 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
-  // 글꼴: 캐시 먼저, 없으면 네트워크 후 저장
-  if (url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com' || (url.hostname === 'cdn.jsdelivr.net' && url.pathname.startsWith('/gh/orioncactus/pretendard'))) {
+  // 글꼴(앱 안에 포함): 캐시 먼저, 없으면 네트워크 후 저장
+  if (url.origin === location.origin && url.pathname.includes('/fonts/')) {
     e.respondWith(caches.open('haru-fonts').then(async c => { const hit = await c.match(e.request); if (hit) return hit; try { const res = await fetch(e.request); if (res.ok) c.put(e.request, res.clone()); return res; } catch (err) { return hit || Response.error(); } }));
     return;
   }

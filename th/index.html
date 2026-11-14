@@ -5,8 +5,9 @@
 <meta property="og:description" content="단어 299 · 통문장 100 · 역할극 · 한글 발음">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+Thai:wght@400;500;700&display=swap">
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="preload" href="../fonts/pretendard/pretendard.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="../fonts/pretendard/pretendard.css"></noscript>
+
 <style>
 /* Layout: one centered column (max 600px) with a fixed bottom tab bar; study sessions open as a full-screen layer. Default look: white & black; skins via html[data-skin]. */
 :root{
@@ -718,7 +719,7 @@ function viewMore(){
     <li><b>통문장</b>은 듣고 따라 말하기 → 첫 글자만 보고 말하기 → 한국어만 보고 말하기. 하루 5문장. 외운 문장은 혼잣말로 세 번.</li>
     <li><b>역할극</b>은 전체 듣기 → 내가 말해 보기(양쪽 역할). <b>읽기</b>는 뜻 안 보고 먼저 읽기.</li>
     <li><b>AI 대화</b>는 하루 5분. 틀려도 짧게라도 계속 말하는 게 목표예요. 읽는 법 표시는 설정에서 끌 수 있어요. 익숙해지면 꺼 보세요.</li></ol>
-    <p class="muted small" style="margin-top:12px">진도는 이 기기 브라우저에 저장되고, claude.ai에 로그인한 상태로 열면 계정에도 함께 저장돼요. 다른 기기로 옮길 땐 '백업'을 쓰세요.</p></div>`;
+    <p class="muted small" style="margin-top:12px">진도는 이 기기 브라우저에 저장되고, claude.ai에서 열었을 때만 계정에도 함께 저장돼요. 다른 기기로 옮길 땐 '백업'을 쓰세요.</p></div>`;
   else if(ui.more==='settings') body=`<div class="card stack">
     <div class="field"><label>색 조합</label><div class="skins">${SKINS.map(k=>`<button class="skin ${s.skin===k[0]?'on':''}" data-set="skin" data-val="${k[0]}"><span class="sw">${k[2].map(c=>`<i style="background:${c}"></i>`).join('')}</span><span>${k[1]}</span></button>`).join('')}</div></div>
     <div class="field"><label>${esc(LANG.readingName)} 표시</label><div class="seg"><button class="${s.showReading?'on':''}" data-set="showReading" data-val="1">보이기</button><button class="${!s.showReading?'on':''}" data-set="showReading" data-val="0">숨기기</button></div><p class="muted small">처음엔 보이게 두고, 글자가 익숙해지면 숨기세요.</p></div>

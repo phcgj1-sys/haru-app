@@ -1,12 +1,13 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111111"><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#555;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
 <title>하루영어</title>
-<meta name="description" content="단어 1,127 · 통문장 376 · 역할극 · 영화 장면 듣기">
+<meta name="description" content="단어 1,127 · 통문장 376 · 역할극 · 생활 장면 듣기">
 <meta property="og:title" content="하루영어 · 하루 학습">
-<meta property="og:description" content="단어 1,127 · 통문장 376 · 역할극 · 영화 장면 듣기">
+<meta property="og:description" content="단어 1,127 · 통문장 376 · 역할극 · 생활 장면 듣기">
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="preload" href="../fonts/pretendard/pretendard.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="../fonts/pretendard/pretendard.css"></noscript>
+<link rel="preload" href="../fonts/extra/extra.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="../fonts/extra/extra.css"></noscript>
 <style>
 /* Layout: one centered column (max 600px) with a fixed bottom tab bar; study sessions open as a full-screen layer. */
 /* Design: single committed look, black & red. Near-black ground, warm red accent, green for correct, amber for wrong so red stays the brand. */
@@ -567,13 +568,13 @@ function viewHome(){
   let h;
   if(!done) h={eyb:'지금 할 학습 · 단어', t:'오늘의 단어', meta:`<span>약 ${mins}분</span><span class="sep"></span><span>복습 ${d.length}</span><span class="sep"></span><span>새 단어 ${newN}</span>`, k:'복습을 먼저 하고, 그다음 새 단어를 배워요. 레벨 3을 마치면 중급 단어(레벨 4~5)로 자동으로 이어져요.', btn:`<button class="btn primary big" data-act="start" data-kind="daily">${rec.n+rec.r? '이어서 학습':'오늘의 단어 시작'}</button>`};
   else if(!sDone) h={eyb:'지금 할 학습 · 문장', t:'오늘의 통문장', meta:`<span>약 ${sMins}분</span><span class="sep"></span><span>복습 ${sd.length}</span><span class="sep"></span><span>새 문장 ${sNew}</span>`, k:'오늘 단어는 끝났어요. '+esc(nextDue)+' 이제 통문장을 통째로 외워요.', btn:`<button class="btn primary big" data-act="start" data-kind="sent-daily">${rec.sn+rec.sr? '이어서 학습':'오늘의 통문장 시작'}</button>`};
-  else if(nextDlg) h={eyb:'지금 할 학습 · 대화', t:'역할극 · '+esc(nextDlg.ko), meta:`<span>약 5분</span><span class="sep"></span><span>내가 말해 보기</span>`, k:'오늘 단어와 문장은 다 했어요. '+esc(nextDue)+' 역할극 1편, 영화 장면 1편이면 충분해요.', btn:`<button class="btn primary big" data-act="start" data-kind="drole" data-dialog="${nextDlg.id}">역할극 시작</button>`};
+  else if(nextDlg) h={eyb:'지금 할 학습 · 대화', t:'역할극 · '+esc(nextDlg.ko), meta:`<span>약 5분</span><span class="sep"></span><span>내가 말해 보기</span>`, k:'오늘 단어와 문장은 다 했어요. '+esc(nextDue)+' 역할극 1편, 생활 장면 1편이면 충분해요.', btn:`<button class="btn primary big" data-act="start" data-kind="drole" data-dialog="${nextDlg.id}">역할극 시작</button>`};
   else h={eyb:'오늘 몫 완료', t:'오늘 몫은 다 했어요', meta:`<span>단어 ${rec.n+rec.r}</span><span class="sep"></span><span>문장 ${rec.sn+rec.sr}</span>`, k:esc(nextDue)+' 더 하고 싶다면 새 단어를 조금 더 배워요.', btn:`<button class="btn primary big" data-act="start" data-kind="extra" ${nl.length?'':'disabled'}>새 단어 ${Math.min(state.settings.newPerDay,nl.length)}개 더 배우기</button>`};
   const rows=[
     lrow({ic:IC.words, t:'오늘의 단어', done, s: done? (nl.length? `오늘 몫 완료 · 새 단어 ${Math.min(state.settings.newPerDay,nl.length)}개 더 배우기`:'오늘 몫 완료') : `복습 ${d.length} · 새 단어 ${newN} · 약 ${mins}분`, attrs:`data-act="start" data-kind="${done?'extra':'daily'}"`, disabled: done&&!nl.length}),
     lrow({ic:IC.sents, t:'오늘의 통문장', done:sDone, s: sDone? (snl.length? `오늘 몫 완료 · 새 문장 ${Math.min(state.settings.newSentsPerDay,snl.length)}개 더 외우기`:'오늘 몫 완료') : `복습 ${sd.length} · 새 문장 ${sNew} · 약 ${sMins}분`, attrs:`data-act="start" data-kind="${sDone?'sent-extra':'sent-daily'}"`, disabled: sDone&&!snl.length}),
     lrow({ic:IC.dialog, t:'역할극 1편', s: nextDlg? esc(nextDlg.ko)+' · 내가 말해 보기' : '모든 대화를 끝냈어요', attrs:`data-act="start" data-kind="drole" data-dialog="${nextDlg?nextDlg.id:''}"`, disabled:!nextDlg}),
-    lrow({ic:IC.play, t:'영화 장면 1편', s: nextScene? esc(nextScene.ko)+' · 자막 없이 듣기' : '모든 장면을 끝냈어요', attrs:`data-act="start" data-kind="scene" data-scene="${nextScene?nextScene.id:''}"`, disabled:!nextScene}),
+    lrow({ic:IC.play, t:'생활 장면 1편', s: nextScene? esc(nextScene.ko)+' · 자막 없이 듣기' : '모든 장면을 끝냈어요', attrs:`data-act="start" data-kind="scene" data-scene="${nextScene?nextScene.id:''}"`, disabled:!nextScene}),
     lrow({ic:IC.ai, t:'AI와 영어로 대화', s: state.chatTurns? '지금까지 '+state.chatTurns+'번 말했어요' : '실전처럼 주고받기', attrs:`data-nav="dialog" data-sub="ai"`}),
     lrow({ic:IC.listen, t:'축약음 듣기', s:'gonna, wanna 같은 소리 익히기', attrs:`data-nav="listen" data-sub="red"`})
   ].join('');
@@ -783,11 +784,11 @@ async function chatSend(userText){
   c.busy=false; c.ctl=null; render(); const b2=$('#chatIn'); if(b2) b2.focus(); window.scrollTo(0, document.body.scrollHeight);
 }
 
-/* ---- 듣기 탭 (영화 장면 / 축약음 / 읽기) ---- */
+/* ---- 듣기 탭 (생활 장면 / 축약음 / 읽기) ---- */
 function viewListenTab(){
   if(ui.scene){ const s=SCENES.find(x=>x.id===ui.scene); if(s) return viewScene(s); ui.scene=null; }
   if(ui.reading){ const r=READINGS.find(x=>x.id===ui.reading); if(r) return viewText(r); ui.reading=null; }
-  const head=`<div class="topbar"><div class="brand"><h1>듣기</h1><small>영화 장면 ${SCENES.length} · 축약음 ${REDUCTIONS.length} · 읽기 ${READINGS.length}</small></div></div>`+subTabs('listen',[['scenes','영화 장면'],['red','축약음'],['reading','읽기']]);
+  const head=`<div class="topbar"><div class="brand"><h1>듣기</h1><small>생활 장면 ${SCENES.length} · 축약음 ${REDUCTIONS.length} · 읽기 ${READINGS.length}</small></div></div>`+subTabs('listen',[['scenes','생활 장면'],['red','축약음'],['reading','읽기']]);
   return head + (ui.sub.listen==='scenes'? viewScenes() : ui.sub.listen==='red'? viewReductions() : viewReading());
 }
 function viewScenes(){
@@ -797,7 +798,7 @@ function viewScenes(){
 function viewScene(s){
   const r=state.scenes[s.id];
   const lines=s.lines.map((l,i)=>`<div class="line"><span class="sp">${esc(l[0])}</span><div class="b"><div class="en">${esc(l[1])}</div><div class="ko ${ui.showAll?'':'hide'}">${esc(l[2])}</div></div><button class="spk xs" data-say="${esc(l[1])}" data-who="${speakerIdx(s,l[0])}" aria-label="듣기">${spkIcon}</button></div>`).join('');
-  return `<button class="back" data-act="back-scene">‹ 영화 장면</button>
+  return `<button class="back" data-act="back-scene">‹ 생활 장면</button>
   <div class="topbar"><div class="brand"><h1 class="en">${esc(s.title)}</h1><small>${esc(s.ko)} · 레벨 ${s.lv}</small></div>${r? `<span class="pill ok">이해 ${r.best}/${s.qs.length}</span>`:''}</div>
   <p class="muted small" style="margin-bottom:10px">${esc(s.setting)}</p>
   <div class="row" style="margin-bottom:12px">
@@ -887,7 +888,7 @@ function viewMore(){
     </ol>
     <h3>5단계 · 자막 없이 듣기 + AI 대화</h3>
     <ol>
-      <li><b>영화 장면</b>: 대본 없이 먼저 듣고(두 번), 한국어 문제로 내용을 확인하고, 대본을 보며 다시 들어요. '영화 속도'로도 들어 보세요. 10편이 편해지면 실제 영상으로 넘어갈 준비가 된 거예요.</li>
+      <li><b>생활 장면</b>: 대본 없이 먼저 듣고(두 번), 한국어 문제로 내용을 확인하고, 대본을 보며 다시 들어요. '영화 속도'로도 들어 보세요. 10편이 편해지면 실제 영상으로 넘어갈 준비가 된 거예요.</li>
       <li><b>축약음</b>: gonna, wanna, whatcha 같은 소리 30개. 영화에서 안 들리는 이유의 절반이에요.</li>
       <li><b>AI 대화 상대</b>: 상황과 난이도를 고르고 영어로 주고받아요. 틀린 문장은 자연스럽게 고쳐 주고, 할 말이 없으면 힌트를 줘요. 하루 5분, 짧게라도 매일.</li>
     </ol>
@@ -903,10 +904,10 @@ function viewMore(){
       <li><b>5~8주:</b> 단어 레벨 2 + 통문장 '생존 문장' 묶음 하루 5개.</li>
       <li><b>9~12주:</b> 단어 레벨 3 + 통문장 '일상 대화' + 역할극(기본 대화 8편). 읽기 12편.</li>
       <li><b>13~16주:</b> 통문장 '자연스러운 표현' + 역할극(일상 대화 8편) + AI 대화 '쉽게' 하루 5분.</li>
-      <li><b>17~24주:</b> 중급 단어 레벨 4 + 역할극(실전 대화 8편, 양쪽 역할) + 영화 장면 레벨 1~2 + 축약음 전체. AI 대화 '보통'.</li>
-      <li><b>25~32주:</b> 중급 단어 레벨 5 + 영화 장면 레벨 3 '영화 속도' + AI 대화 '실전'. 동시에 실제 시트콤 한 편을 위 3단계 방법으로 매주 1편.</li>
+      <li><b>17~24주:</b> 중급 단어 레벨 4 + 역할극(실전 대화 8편, 양쪽 역할) + 생활 장면 레벨 1~2 + 축약음 전체. AI 대화 '보통'.</li>
+      <li><b>25~32주:</b> 중급 단어 레벨 5 + 생활 장면 레벨 3 '영화 속도' + AI 대화 '실전'. 동시에 실제 시트콤 한 편을 위 3단계 방법으로 매주 1편.</li>
     </ul>
-    <p class="muted small" style="margin-top:12px">진도는 이 기기 브라우저에 저장되고, claude.ai에 로그인한 상태로 열면 계정에도 함께 저장돼요. 다른 기기로 옮길 땐 '백업'을 쓰세요.</p>
+    <p class="muted small" style="margin-top:12px">진도는 이 기기 브라우저에 저장되고, claude.ai에서 열었을 때만 계정에도 함께 저장돼요. 다른 기기로 옮길 땐 '백업'을 쓰세요.</p>
   </div>`;
   else if(ui.more==='settings') body=`<div class="card stack">
     <div class="field"><label>색 조합</label><div class="skins">${SKINS.map(k=>`<button class="skin ${s.skin===k[0]?'on':''}" data-set="skin" data-val="${k[0]}"><span class="sw">${k[2].map(c=>`<i style="background:${c}"></i>`).join('')}</span><span>${k[1]}</span></button>`).join('')}</div></div>
@@ -928,7 +929,7 @@ function viewMore(){
     <h3 style="margin-top:4px">듣기·영상 (자막 없이 보기로 가는 길)</h3>
     <ul>
       <li><a href="https://www.youtube.com/results?search_query=easy+english+conversation" target="_blank" rel="noopener">유튜브 'Easy English' 검색</a> — 길거리 인터뷰. 자막 켜고 1번, 끄고 1번.</li>
-      <li><a href="https://www.youtube.com/results?search_query=learn+english+with+tv+series" target="_blank" rel="noopener">유튜브 'Learn English with TV series'</a> — 시트콤 장면을 천천히 풀어 주는 채널들. 영화 장면 훈련의 실전판이에요.</li>
+      <li><a href="https://www.youtube.com/results?search_query=learn+english+with+tv+series" target="_blank" rel="noopener">유튜브 'Learn English with TV series'</a> — 시트콤 장면을 천천히 풀어 주는 채널들. 생활 장면 훈련의 실전판이에요.</li>
       <li><a href="https://www.ted.com/talks?language=en&duration=0-6" target="_blank" rel="noopener">TED (6분 이하)</a> — 짧은 강연. 영어 자막·한국어 자막을 바꿔 가며 볼 수 있어요.</li>
       <li><a href="https://youglish.com/" target="_blank" rel="noopener">YouGlish</a> — 문장이나 축약음을 치면 실제 영상에서 그 말이 나오는 장면을 들려줘요.</li>
       <li>넷플릭스·디즈니+가 있다면 시트콤(프렌즈, 모던 패밀리 등)을 '영어 자막 → 자막 없이 → 확인' 순서로. 브라우저 확장 'Language Reactor'를 쓰면 두 언어 자막을 같이 볼 수 있어요.</li>
@@ -1216,7 +1217,7 @@ function viewDDict(it){ const l=it.line; const d=it.d; const name= l[0]==='A'? d
 }
 function answerD(score){ const it=cur(); S.answered=true; it.score=score; if(score>0) S.ok++; else S.ng++; renderSession(); if(it.line) TTS.speak(it.line[1], {who:it.who, rate:S.rate}); }
 
-/* ---------- 영화 장면 세션 ---------- */
+/* ---------- 생활 장면 세션 ---------- */
 function startSceneSession(opt){
   const sc=SCENES.find(x=>x.id===opt.scene); if(!sc){ toast('장면을 찾을 수 없어요'); return; }
   const q=[{t:'sc-listen', sc}]; sc.qs.forEach((qq,qi)=>q.push({t:'sc-q', sc, qi})); q.push({t:'sc-script', sc});

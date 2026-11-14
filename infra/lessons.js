@@ -1,4 +1,5 @@
 // AI 인프라와 운영 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 17 · Infrastructure & Production 29수업을 한국어로 옮겨 정리
 window.APP={
  title:"AI 인프라와 운영",
@@ -265,3 +266,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["클로드에게 운영 계획 묻기 (만능 요청문)","저는 [앱 설명] 을 운영하는 초보예요. 구성: [호스팅 API 사용 / 직접 GPU 운영], 사용자 [ ]명, 사용자 지역 [ ], 다루는 데이터 [개인정보·건강·결제 여부]. 오늘 점검하고 싶은 주제: [장애 대응 / 카오스 실험 / 비밀 키·개인정보 / 규정 / 비용 / 엔진 선택 / 데모 공개]. 1) 제 규모에서 꼭 필요한 것과 아직 필요 없는 것을 나눠 주고, 2) 오늘 30분 안에 할 일 3가지를 순서대로, 3) 확인 방법을 한 줄씩 알려 주세요. 가격·버전·법 조항처럼 바뀔 수 있는 내용은 '확인 필요'로 표시하고, 쉬운 말로 설명해 주세요."]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

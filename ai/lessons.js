@@ -1,4 +1,5 @@
 // AI 엔지니어링: LLM 앱 만들기 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 11 · LLM Engineering 17수업을 한국어로 옮겨 정리
 window.APP={
  title:"AI 엔지니어링: LLM 앱 만들기",
@@ -186,3 +187,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["에이전트 프레임워크 결정표","그래프·타입 있는 상태·사람 승인·재개 → LangGraph / 역할 팀(연구원·작가·편집자) → CrewAI / 에이전트끼리 대화(제안자-비평가) → AutoGen / 도구·기억 있는 단일 에이전트 → Agno / 대량 병렬 분기 → LangGraph + Send / LLM 호출 2번 + 도구 1개 이하 → 프레임워크 없이 순수 Python. 하루 실행이 많으면 LLM이 고르는 라우팅보다 개발자가 정하는 라우팅이 싸요."]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

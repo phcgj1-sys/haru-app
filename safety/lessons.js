@@ -1,4 +1,5 @@
 // AI 윤리·안전·정렬 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 18 · Ethics, Safety & Alignment 30수업을 한국어로 옮겨 정리
 window.APP={
  title:"AI 윤리·안전·정렬",
@@ -266,3 +267,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["시스템 카드 한 장 틀","서비스 이름과 마지막 갱신일: [ ] / 기능 설명과 사용 모델(제공사 모델 카드 링크): [ ] / 의도된 용도와 쓰면 안 되는 용도: [ ] / 데이터: 출처, 개인정보 처리, 보관 기간 [ ] / 안전 장치: 입력·출력 모더레이션, 맞춤 규칙 [ ] / 프롬프트 주입 방어(검색·범위·출력 세 경계): [ ] / 집단별 성능이나 편향 확인 결과: [ ] / 알려진 한계: [ ] / 사고 대응 연락처와 절차: [ ] / 증거가 아직 없는 칸은 '증거 필요'로 표시"]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">방어·평가 목적의 교육 내용이에요. 허락받지 않은 시스템·서비스·프로그램을 공격하거나 우회하거나 약관을 어기는 데 쓰지 마세요. 법·규정(예: AI 기본법, EU AI Act) 설명은 법률 자문이 아니에요.</p><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

@@ -1,4 +1,5 @@
 // 캡스톤 프로젝트 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 19 · Capstone Projects을 한국어로 옮겨 정리
 window.APP={
  "title":"캡스톤 프로젝트","subtitle":"AI Engineering from Scratch 19단계 · 실전 프로젝트 17선 → 에이전트 하네스 → GPT 처음부터 → 대규모 학습 → 연구 에이전트 → 멀티모달 → RAG → 평가 → 분산 학습 → 안전 게이트","key":"ai_capstone_study_v1","homeDone":"축하해요! 이제 AI 엔지니어링의 큰 조각들을 직접 조립해 본 경험이 생겼어요. 가장 마음에 드는 프로젝트 하나를 골라 내 앱에 붙여 보세요. 이것으로 원본 강의 전체 단계를 모두 마쳤어요.",
@@ -666,3 +667,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["안전 게이트 도입 순서 (작은 것부터)","1) 규칙 3개짜리 YAML 헌법 + 엔진 2) 생성 후 검사만 붙이고 trace 남기기 3) 합치는 표 적용 4) 생성 전 탐지기 추가 5) 생성 중 스트림 필터 추가 6) 정상 질문과 점검 사례 세트로 오탐과 미탐 확인 7) 임곗값 조정 (제공사와 모델이 바뀌면 다시 측정)"]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">방어·평가 목적의 교육 내용이에요. 허락받지 않은 시스템·서비스·프로그램을 공격하거나 우회하거나 약관을 어기는 데 쓰지 마세요. 법·규정(예: AI 기본법, EU AI Act) 설명은 법률 자문이 아니에요.</p><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

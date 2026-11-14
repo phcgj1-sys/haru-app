@@ -1,4 +1,5 @@
 // AI 다중 에이전트와 스웜 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 16 · Multi-Agent & Swarms 25수업을 한국어로 옮겨 정리
 window.APP={
  title:"AI 다중 에이전트와 스웜",
@@ -230,3 +231,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["새 멀티 에이전트 설계 시작 요청문","클로드에게 붙여 넣어요: 저는 초보자예요. 만들려는 것: [목적]. 작업 유형: [조사/엔지니어링/서비스]. 지금 생각한 역할: [역할 목록]. 아래 순서로 도와주세요. 1) 에이전트 하나로 충분한지 먼저 판단하고 이유를 알려 주세요 2) 나눈다면 가장 가까운 참고 사례(감독자-작업자 / SOP 역할 분담 / 대규모 군집)를 고르고 그 사례의 설계 결정을 알려 주세요 3) 역할마다 할 일·안 할 일·완료 기준을 한 줄씩 적어 주세요 4) 역할 사이 인계물의 형식(필드 목록)을 정해 주세요 5) 모르는 정보는 추측하지 말고 되묻게 하는 문장을 넣어 주세요 6) 독립 검증 단계와 검사 기준을 정해 주세요 7) 단일 에이전트와 비교할 작은 시험 문제 5개와 기록할 비용 항목을 제안해 주세요. 프레임워크 이름이 나오면 공식 문서에서 현재 상태를 확인하라고 표시해 주세요."]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

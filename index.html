@@ -12,9 +12,10 @@
 <meta property="og:type" content="website">
 <meta property="og:locale" content="ko_KR">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="preload" href="fonts/pretendard/pretendard.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="fonts/pretendard/pretendard.css"></noscript>
+
 <style>
 :root{--bg:#F7F7F5;--surface:#FFFFFF;--fg:#111111;--muted:#666666;--line:#E2E2DE;--soft:#EFEFEB;--accent:#111111;--accent-ink:#FFFFFF;--ok:#157A43;--ok-soft:#E1F5E9;color-scheme:light}
 @media (prefers-color-scheme: dark){:root{--bg:#0F0F10;--surface:#1A1A1C;--fg:#F2F2F2;--muted:#A6A6AA;--line:#2C2C2F;--soft:#232326;--accent:#F2F2F2;--accent-ink:#111111;--ok:#3FD98B;--ok-soft:#10301F;color-scheme:dark}}
@@ -94,6 +95,7 @@ a.card>span:last-child{flex:1;min-width:0}
 .ic{color:#FFFFFF!important}
 .ic:not([style]):not(.ja):not(.th):not(.cl){background:#111111}
 @media (prefers-color-scheme: dark){.ic:not([style]):not(.ja):not(.th):not(.cl){background:#3A3A40}}
+.foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.6}.foot nav{display:flex;flex-wrap:wrap;gap:4px 16px;margin-bottom:8px}.foot nav a{color:var(--fg);font-size:13.5px;font-weight:600;text-decoration:none;padding:6px 0}.foot p{margin:6px 0}
 </style>
 </head>
 <body>
@@ -114,7 +116,7 @@ a.card>span:last-child{flex:1;min-width:0}
   <a class="resume" id="resume" href="#"><span><div class="rk">이어서 학습</div><div class="rt" id="resumeT"></div><div class="rs" id="resumeS"></div></span><span class="go">계속하기</span></a>
   <h2 class="h2 grp">외국어</h2>
   <div class="grid">
-    <a class="card" href="en/index.html"><span class="ic">EN</span><span><div class="t">하루영어</div><div class="s">단어 1,127 · 통문장 376 · 역할극 · 영화 장면 듣기</div></span></a>
+    <a class="card" href="en/index.html"><span class="ic">EN</span><span><div class="t">하루영어</div><div class="s">단어 1,127 · 통문장 376 · 역할극 · 생활 장면 듣기</div></span></a>
     <a class="card" href="ja/index.html"><span class="ic ja">日</span><span><div class="t">하루일본어</div><div class="s">단어 344 · 통문장 120 · 역할극 · 읽는 법 표시</div></span></a>
     <a class="card" href="th/index.html"><span class="ic th">ไทย</span><span><div class="t">하루태국어</div><div class="s">단어 299 · 통문장 100 · 역할극 · 한글 발음</div></span></a>
     <a class="card" href="listen/index.html"><span class="ic" style="background:#B3261E">듣기</span><span><div class="t">영어 듣기 집중</div><div class="s">6단계 29수업 · 모음 34 · 연음·축약 → 문장 듣기 → 영화 · 받아쓰기 채점</div></span></a>
@@ -128,12 +130,12 @@ a.card>span:last-child{flex:1;min-width:0}
   </div>
   <h2 class="h2 grp">일과 도구</h2>
   <div class="grid">
-    <a class="card" href="excel/index.html"><span class="ic" style="background:#1D6F42">XL</span><span><div class="t">엑셀 배우기</div><div class="s">초급·중급·전문가 6단계 33수업 · 수식 모음 35</div></span></a>
-    <a class="card" href="sheets/index.html"><span class="ic" style="background:#188038">시트</span><span><div class="t">구글 시트·폼 배우기</div><div class="s">6단계 29수업 · 모음 30 · 시트 수식 → 폼 → 자동화</div></span></a>
+    <a class="card" href="excel/index.html"><span class="ic" style="background:#2B5F75">표</span><span><div class="t">엑셀 배우기</div><div class="s">초급·중급·전문가 6단계 33수업 · 수식 모음 35</div></span></a>
+    <a class="card" href="sheets/index.html"><span class="ic" style="background:#5B5F97">시트</span><span><div class="t">구글 시트·폼 배우기</div><div class="s">6단계 29수업 · 모음 30 · 시트 수식 → 폼 → 자동화</div></span></a>
     <a class="card" href="claude/index.html"><span class="ic cl">CL</span><span><div class="t">클로드 배우기</div><div class="s">12단계 50수업 · 템플릿 54 · 자동화와 앱 만들기까지</div></span></a>
     <a class="card" href="homepage/index.html"><span class="ic" style="background:#0B7285">홈</span><span><div class="t">클로드로 홈페이지 잘 만들기</div><div class="s">7단계 34수업 · 모음 43 · 설계 → 글·디자인 → 기능 → 검색 노출 → 유지</div></span></a>
-    <a class="card" href="youtube/index.html"><span class="ic" style="background:#C4302B;font-size:13px">유튜브</span><span><div class="t">클로드로 유튜브 채널 만들기</div><div class="s">7단계 36수업 · 모음 41 · 설계 → 대본 → 촬영·편집 → 올리기 → 성장 → 수익·규칙 → 자동화</div></span></a>
-    <a class="card" href="github/index.html"><span class="ic" style="background:#24292F">깃</span><span><div class="t">깃허브 처음부터 배우기</div><div class="s">6단계 30수업 · 모음 31 · 뜻·계정 → 웹 저장소 → 데스크톱 앱 → 홈페이지 공개 → 협업 → 클로드와 함께</div></span></a>
+    <a class="card" href="youtube/index.html"><span class="ic" style="background:#7C3A5E">영상</span><span><div class="t">클로드로 유튜브 채널 만들기</div><div class="s">7단계 36수업 · 모음 41 · 설계 → 대본 → 촬영·편집 → 올리기 → 성장 → 수익·규칙 → 자동화</div></span></a>
+    <a class="card" href="github/index.html"><span class="ic" style="background:#3A4A63">깃</span><span><div class="t">깃허브 처음부터 배우기</div><div class="s">6단계 30수업 · 모음 31 · 뜻·계정 → 웹 저장소 → 데스크톱 앱 → 홈페이지 공개 → 협업 → 클로드와 함께</div></span></a>
     <a class="card" href="linux/index.html"><span class="ic" style="background:#2F5D3A">서버</span><span><div class="t">리눅스 서버 장애 판별</div><div class="s">6단계 31수업 · 모음 31 · 슬랙웨어 15.0 기준 · 장애 지도 → 로그·rc.d 서비스 → 자원 → 네트워크·웹 → 보안·LILO 부팅 → 판별 체계·클로드</div></span></a>
   </div>
   <h2 class="h2 grp">AI 기초 (강의 0~10단계)</h2>
@@ -180,9 +182,15 @@ a.card>span:last-child{flex:1;min-width:0}
       <p class="ms-msg" id="ms-msg" role="status" aria-live="polite"></p>
     </details>
   </section>
-  <div class="note"><b>설치 방법</b><br>안드로이드(Chrome): 위 버튼이 보이면 누르세요. 안 보이면 브라우저 메뉴(⋮) → '홈 화면에 추가' 또는 '앱 설치'.<br>아이폰(Safari): 공유 버튼 → '홈 화면에 추가'.<br>진도는 이 기기에 저장돼요. 한 번 연 앱은 인터넷이 없어도 열려요. 다른 기기로 옮길 땐 각 앱의 '백업'을 쓰세요. AI 대화 기능은 claude.ai에서 열었을 때만 동작해요.</div>
+  <div class="note" id="howto"><b>설치 방법</b><br>안드로이드(Chrome): 위 버튼이 보이면 누르세요. 안 보이면 브라우저 메뉴(⋮) → '홈 화면에 추가' 또는 '앱 설치'.<br>아이폰(Safari): 공유 버튼 → '홈 화면에 추가'.<br>진도는 이 기기에 저장돼요. 한 번 연 앱은 인터넷이 없어도 열려요. 다른 기기로 옮길 땐 각 앱의 '백업'을 쓰세요. AI 대화 기능은 claude.ai에서 열었을 때만 동작해요.</div>
+  <footer class="foot">
+    <nav aria-label="정책과 고지"><a href="privacy.html">개인정보처리방침</a><a href="terms.html">이용약관</a><a href="notices.html">오픈소스 고지</a></nav>
+    <p>하루 학습은 독립적으로 만든 비공식 학습 앱이에요. 언급된 Claude·Excel·Google 시트·YouTube·GitHub 등은 각 소유자의 상표이며, 하루 학습은 이 회사들과 제휴·후원·승인 관계가 없어요.</p>
+    <p>AI 엔지니어링 수업은 AI Engineering from Scratch(© 2026 Rohit Ghumare, MIT)를 한국어로 옮기고 다시 정리했어요.</p>
+  </footer>
 </div>
 <script>
+(function(){ try{ if(matchMedia('(display-mode: standalone)').matches||navigator.standalone||document.referrer.indexOf('android-app://')===0){ var h=document.getElementById('howto'); if(h) h.hidden=true; } }catch(e){} })();
 (function(){
   // 각 앱이 이 기기에 저장한 진도를 읽어 카드에 표시 (언어 앱은 저장 방식이 달라 제외)
   // 앱 찾기: 제목·설명으로 거르기

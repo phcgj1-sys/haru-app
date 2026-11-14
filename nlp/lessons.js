@@ -1,4 +1,5 @@
 // 자연어 처리 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 5 · NLP Foundations to Advanced을 한국어로 옮겨 정리
 window.APP={
  "title":"자연어 처리","subtitle":"AI Engineering from Scratch 5단계 · 텍스트 기초 → 고전 NLP → 어텐션과 응용 → 생성과 다국어 → LLM 시대의 NLP → 지식과 평가","key":"ai_nlp_study_v1","homeDone":"이제 글을 숫자로 바꾸고 뜻을 다루는 NLP의 흐름을 단어 세기부터 임베딩·평가까지 설명할 수 있어요. 다음은 '생성형 AI와 음성' 앱이에요.",
@@ -244,3 +245,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["대화 슬롯 추적 설계 틀","1) 도메인과 슬롯 목록: 닫힌 값 슬롯(허용 값 목록)과 자유 입력 슬롯으로 나누기 / 2) 상태 갱신 규칙: 안 건드린 슬롯 유지, 취소는 해당 슬롯만 비움, 수정은 덮어쓰기 / 3) 방식 고르기: 좁은 도메인은 규칙(정규식, 동의어 사전), 넓은 도메인은 LLM + 스키마 강제 출력, 규정이 엄격하면 규칙 우선 + LLM 보조 + 사용자 확인 질문 / 4) 매 턴 전체 대화로 상태 재생성, 길어지면 오래된 턴 요약 / 5) 값 정규화: 소문자 통일, 날짜 형식 통일 / 6) 평가: 정답 슬롯 상태가 있는 대화 20개 이상으로 JGA와 슬롯별 정확도 / 7) 스키마 변경은 버전 번호를 붙여 기록 / 8) 마지막 확정 전에 슬롯 값을 사용자에게 다시 읽어 주기"]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

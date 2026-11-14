@@ -1,4 +1,5 @@
 // AI 에이전트 엔지니어링 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 14 · Agent Engineering 54수업을 한국어로 옮겨 정리
 window.APP={
  title:"AI 에이전트 엔지니어링",
@@ -454,3 +455,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["프로토타입·파일럿·운영 판정표 (53강)","실제 사용자·데이터 필요 없음 → 프로토타입(가짜·녹화 입력, 버릴 수 있음, 배울 질문) / 필요하지만 운영 준비 안 됨, 위험 큼, 되돌릴 수 없음 중 하나라도 해당 → 파일럿(제한된 대상, 되돌리기, 사람 담당자, 감사 기록, 확대·수정·중단 출구 기준) / 모두 갖춤 → 운영(SLO, 당직, 보안 검토, 비용·용량, 되돌리기, 복구, 모니터링, 은퇴 경로). 단계는 설정·권한·기록에 드러나게, 경고 배너만으로는 부족"]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

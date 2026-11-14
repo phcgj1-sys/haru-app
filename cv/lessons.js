@@ -1,4 +1,5 @@
 // 컴퓨터 비전 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 4 · Computer Vision을 한국어로 옮겨 정리
 window.APP={
  "title":"컴퓨터 비전","subtitle":"AI Engineering from Scratch 4단계 · 이미지와 CNN → 탐지·분할 → 이미지 생성 → 영상·3D·ViT → 최신 비전 모델","key":"ai_cv_study_v1","homeDone":"이제 컴퓨터가 이미지를 숫자로 보고 특징을 뽑아 분류·탐지·분할·생성하는 흐름을 설명할 수 있어요. 다음은 '자연어 처리' 앱이에요.",
@@ -236,3 +237,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["비전 평가 지표 한눈표","검색 → recall@1, @5, @10(상위 K개 안에 정답이 있는 질문 비율) / 자세 → OKS(키포인트판 IoU), PCK / 깊이 → AbsRel, delta < 1.25 / 추적 → IDF1(ID 유지), HOTA(표준, DetA와 AssA로 분해), MOTA / 영상 생성 → FVD(화질), CLIPScore(프롬프트 일치), 사람 평가(물리적 그럴듯함) / VLM → 손채점 환각 비율, CMER"]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

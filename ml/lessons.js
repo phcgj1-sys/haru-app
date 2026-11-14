@@ -1,4 +1,5 @@
 // 머신러닝·딥러닝 기초 — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 2 · ML Fundamentals, Phase 3 · Deep Learning Core을 한국어로 옮겨 정리
 window.APP={
  "title":"머신러닝·딥러닝 기초","subtitle":"AI Engineering from Scratch 2·3단계 · 머신러닝 첫걸음 → 평가와 개선 → 실전 머신러닝 → 신경망 원리 → 학습 다루기와 프레임워크","key":"ai_ml_dl_study_v1","homeDone":"이제 데이터에서 규칙을 배우는 머신러닝과, 그것을 층층이 쌓은 신경망의 원리를 손으로 설명할 수 있어요. 다음은 '컴퓨터 비전' 앱이에요.",
@@ -283,3 +284,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["PyTorch 학습 루프와 프레임워크 고르기","루프: model.train() / 배치마다 x, y = x.to(device), y.to(device); optimizer.zero_grad(); loss = criterion(model(x), y); loss.backward(); optimizer.step() / 평가: model.eval(); with torch.no_grad(): ... / 저장: torch.save(model.state_dict(), 'model.pt'). 분류 손실은 CrossEntropyLoss에 로짓 그대로. 프레임워크 선택: 처음 배우기, 대부분의 연구·서비스 -> PyTorch(디버깅 쉬움, 생태계 큼) / TPU, 샘플별 기울기, 초대형 다중 장치 학습이 필요 -> JAX 검토(순수 함수, jit, vmap, Optax) / 미니 프레임워크는 원리 이해용."]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";

@@ -1,4 +1,5 @@
 // 멀티모달 AI — 수업 데이터
+// Portions Copyright (c) 2026 Rohit Ghumare — MIT License, ../notices.html 참고
 // 원본: AI Engineering from Scratch (rohitg00/ai-engineering-from-scratch, MIT) Phase 12 · Multimodal AI을 한국어로 옮겨 정리
 window.APP={
  "title":"멀티모달 AI","subtitle":"AI Engineering from Scratch 12단계 · 이미지와 언어 잇기 → 오픈 VLM 레시피 → 통합 생성 모델 → 영상·소리·옴니 → 문서·RAG·에이전트","key":"ai_multimodal_study_v1","homeDone":"이제 이미지·영상·소리를 글과 함께 다루는 멀티모달 모델의 구조와 쓰임을 설명할 수 있어요. 다음은 'AI 도구와 프로토콜: MCP·스킬' 앱(13단계)이에요.",
@@ -213,3 +214,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["컴퓨터 사용·로봇 에이전트 안전 틀","행동 JSON: {\"action\":\"click|type|scroll|navigate|wait|done\",\"x\":0,\"y\":0,\"text\":\"\",\"element_desc\":\"\"} / 규칙: 1) 한 번에 행동 하나 2) 최대 반복 횟수 [ ] 3) 허용 사이트·작업 영역 제한 4) 결제·삭제·전송·관절 한계 초과 가능성은 사람 승인 5) 모든 행동 로그 저장 6) 실패 시 복구 훅 후 중단 보고 / 모델 출력은 제안이며 검사는 모델 바깥에서 해요."]
 ]}
 ]);
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";
