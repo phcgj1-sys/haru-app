@@ -1123,22 +1123,31 @@ function Test-GuiLayout($root) {
 
 function Show-Gui {
 
-    param([int]$Days, [string]$OutDir, [switch]$SmokeTest)
+    # SimScale: 고배율(125~200%) 화면을 흉내 내 레이아웃을 검사할 때만 사용
+    param([int]$Days, [string]$OutDir, [switch]$SmokeTest, [double]$SimScale = 1.0)
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+    if (-not $SmokeTest) {
+        # 고해상도 모니터에서 흐릿하지 않게 (DPI 인식) — 실패해도 동작에는 지장 없음
+        try {
+            if (-not ('PCCheckDpi' -as [type])) { Add-Type -Name PCCheckDpi -Namespace '' -MemberDefinition '[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();' -ErrorAction Stop }
+            [void][PCCheckDpi]::SetProcessDPIAware()
+        } catch { Write-PCLog "dpi aware failed: $($_.Exception.Message)" }
+    }
     [Windows.Forms.Application]::EnableVisualStyles()
-    $font = New-Object Drawing.Font('Malgun Gothic', 10)
-    $bold = New-Object Drawing.Font('Malgun Gothic', 11, [Drawing.FontStyle]::Bold)
-    $big  = New-Object Drawing.Font('Malgun Gothic', 26, [Drawing.FontStyle]::Bold)
+    $font = New-Object Drawing.Font('Malgun Gothic', (10 * $SimScale))
+    $bold = New-Object Drawing.Font('Malgun Gothic', (11 * $SimScale), [Drawing.FontStyle]::Bold)
+    $big  = New-Object Drawing.Font('Malgun Gothic', (26 * $SimScale), [Drawing.FontStyle]::Bold)
 
     $f = New-Object Windows.Forms.Form
     $f.Text = "$($script:AppName) v$($script:AppVersion)"
     $f.ClientSize = New-Object Drawing.Size(760, 600)
     $f.MinimumSize = New-Object Drawing.Size(700, 560)
     $f.StartPosition = 'CenterScreen'; $f.Font = $font; $f.BackColor = [Drawing.Color]::FromArgb(246, 247, 249)
+    $f.AutoScaleDimensions = New-Object Drawing.SizeF(96, 96)
     $f.AutoScaleMode = 'Dpi'
 
     $title = New-Object Windows.Forms.Label
-    $title.Text = 'PC 원클릭 진단'; $title.Font = New-Object Drawing.Font('Malgun Gothic', 16, [Drawing.FontStyle]::Bold)
+    $title.Text = 'PC 원클릭 진단'; $title.Font = New-Object Drawing.Font('Malgun Gothic', (16 * $SimScale), [Drawing.FontStyle]::Bold)
     $title.Location = '20,16'; $title.AutoSize = $true
     $desc = New-Object Windows.Forms.Label
     $desc.Text = '갑자기 꺼짐 · 블루스크린 · 그래픽카드(VRAM) · RAM · 디스크 문제를 Windows 기록으로 분석합니다.'
@@ -1226,12 +1235,13 @@ function Show-Gui {
     })
 
     $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $grp))
+    if ($SimScale -ne 1.0) { $f.Scale((New-Object Drawing.SizeF($SimScale, $SimScale))) }
     if ($SmokeTest) {
         # CI 등 화면 없는 환경: 컨트롤 생성까지만 검증
         $f.CreateControl(); $n = $f.Controls.Count
         $issues = @(Test-GuiLayout $f)
         foreach ($i in $issues) { Write-Output "GUI LAYOUT ISSUE: $i" }
-        if ($env:PCCHECK_SHOT) {
+        if ($env:PCCHECK_SHOT -and $SimScale -eq 1.0) {
             # 화면 캡처 (CI 산출물로 디자인 확인)
             $bmp = New-Object Drawing.Bitmap($f.Width, $f.Height)
             $f.DrawToBitmap($bmp, (New-Object Drawing.Rectangle(0, 0, $f.Width, $f.Height)))
@@ -1304,9 +1314,16 @@ if ($FromJson) {
 if (-not $script:IsWin) { Write-Error 'Windows 에서만 검사할 수 있습니다. (-FromJson 으로 보고서 재생성은 가능)'; exit 2 }
 
 if ($Mode -eq 'Gui') {
-    try { Show-Gui -Days $Days -OutDir $OutDir -SmokeTest:$GuiSmokeTest; return }
+    try {
+        if ($GuiSmokeTest) { foreach ($s in 1.0, 1.25, 1.5, 2.0) { Write-Output "배율 $([int]($s * 100))%"; Show-Gui -Days $Days -OutDir $OutDir -SmokeTest -SimScale $s } }
+        else { Show-Gui -Days $Days -OutDir $OutDir }
+        return
+    }
+
     catch {
+        if ($GuiSmokeTest) { throw }
         # 화면을 띄우지 못하면 보이는 콘솔 창으로 다시 실행 (숨김 창에서 멈추지 않도록)
+
         Write-PCLog "gui failed, relaunch console: $($_.Exception.Message)"
         Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', "`"$PSCommandPath`"", '-Mode', 'Console', '-Days', $Days)
         return
