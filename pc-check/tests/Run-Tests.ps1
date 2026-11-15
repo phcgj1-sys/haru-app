@@ -292,7 +292,7 @@ Write-Host "`n[블랙박스]" -ForegroundColor Cyan
 function New-BbFile([string]$name, [object[]]$rows, [switch]$Stop, [string]$Tail) {
     $p = Join-Path $OutDir $name
     New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
-    $l = @('# PCCheck blackbox,v1,TEST,2026-11-14T10:00:00,2.1.0', $script:BlackboxCols)
+    $l = @('# PCCheck blackbox,v1,TEST,2026-11-14T10:00:00,2.1.0', $script:BlackboxColsV1)
     $t = Get-Date '2026-11-14T10:00:00'
     foreach ($r in $rows) { $t = $t.AddSeconds(2); $l += ('{0},{1},40,{2},{3},{4},2500,3000,{5},{6},{7}' -f (Format-T $t), $r[0], $r[1], $r[2], $r[3], $r[4], $r[5], $r[6]) }
     if ($Stop) { $l += ('{0},,,,,,,,,,STOP' -f (Format-T $t.AddSeconds(2))) }
@@ -325,6 +325,64 @@ It '블랙박스 결과가 진단·보고서에 반영' {
     Assert-Eq (Top $dx) 'PSU' '파워 1순위'
     Assert ((New-HtmlReport -Data $d -Dx $dx) -match '블랙박스 기록') '보고서 표시'
     Assert-Eq (Top (Get-Diagnosis -Data (RoundTrip $d))) 'PSU' 'JSON 왕복'
+}
+function New-Bb2File([string]$name, [object[]]$rows, [switch]$Stop) {
+    # v2 형식: 단계·CPU 성능·감속 원인·RAM 오류 포함. 행: @(Stage, CpuPct, CpuPerf, GpuT, GpuUtil, GpuW, Throttle, RamErr, Event)
+    $p = Join-Path $OutDir $name
+    $l = @('# PCCheck blackbox,v2,TEST,2026-11-14T10:00:00,2.1.0', $script:BlackboxCols)
+    $t = Get-Date '2026-11-14T10:00:00'
+    foreach ($r in $rows) { $t = $t.AddSeconds(1); $l += ('{0},{1},{2},{3},40,45,{4},{5},{6},2500,3000,{7},1,1,0,{8},{9}' -f (Format-T $t), $r[0], $r[1], $r[2], $r[3], $r[4], $r[5], $r[6], $r[7], $r[8]) }
+    if ($Stop) { $l += ((@((Format-T $t.AddSeconds(1))) + @('') * 15 + @('STOP')) -join ',') }
+    [IO.File]::WriteAllLines($p, [string[]]$l); return $p
+}
+function Rep($n, $row) { return @(1..$n | ForEach-Object { , $row }) }
+It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
+    $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
+    $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
+    $g = Get-StageAt $script:StagePlan (120 + 360 + 10); Assert-Eq $g.Key 'ram' 'RAM'; Assert $g.Ram 'RAM 켬'
+    $pulse0 = 120 + 360 * 3 + 480
+    Assert (Get-StageAt $script:StagePlan ($pulse0 + 1)).Cpu '출렁임 켬'
+    Assert (-not (Get-StageAt $script:StagePlan ($pulse0 + 11)).Cpu) '출렁임 끔'
+    Assert (Get-StageAt $script:StagePlan 99999).Done '완료'
+    Assert-Eq (Get-StageAt $script:StagePlan 0).TotalSec 1920 '전체 32분'
+}
+It '단계별: 출렁임에서 꺼짐 → 파워 품질 / 전체 부하 → 파워 용량 / GPU 단독 → 그래픽카드' {
+    $rows = (Rep 5 @('idle', 3, 100, 40, 1, 30, '', 0, '')) + (Rep 5 @('cpu', 100, 98, 45, 1, 35, '', 0, '')) + (Rep 5 @('full', 100, 97, 70, 99, 280, 'PWRCAP', 0, '')) + (Rep 5 @('pulse', 100, 97, 72, 99, 290, '', 0, ''))
+    $a = Read-BlackboxAnalysis (New-Bb2File 'p.csv' $rows)
+    Assert $a.Abrupt '끊김'; Assert-Eq $a.LastStage 'pulse' '단계'; Assert-Eq $a.Cause 'PSU' '파워'; Assert ($a.Title -match '출렁임') '제목'
+    Assert-Eq @($a.Stages).Count 4 '단계 요약'
+    $a2 = Read-BlackboxAnalysis (New-Bb2File 'q.csv' ((Rep 5 @('cpu', 100, 98, 45, 1, 35, '', 0, '')) + (Rep 3 @('full', 100, 97, 70, 99, 280, '', 0, ''))))
+    Assert ($a2.Title -match '전체 부하') '전체'; Assert-Eq $a2.Cause 'PSU' '파워'
+    $a3 = Read-BlackboxAnalysis (New-Bb2File 'r.csv' (Rep 4 @('gpu', 5, 100, 75, 99, 250, '', 0, '')))
+    Assert-Eq $a3.Cause 'GPU_HW' 'GPU'
+    $a4 = Read-BlackboxAnalysis (New-Bb2File 's.csv' (Rep 4 @('cpu', 100, 98, 50, 1, 30, '', 0, '')))
+    Assert-Eq $a4.Cause 'CPU_OC' 'CPU'
+}
+It 'RAM 검사 오류 → RAM (꺼지지 않아도), 감속 신호·CPU 스로틀링 메모' {
+    $a = Read-BlackboxAnalysis (New-Bb2File 't.csv' ((Rep 3 @('ram', 50, 100, 40, 1, 30, '', 0, '')) + (Rep 3 @('ram', 50, 100, 40, 1, 30, '', 2, ''))) -Stop)
+    Assert-Eq $a.Level 'bad' '위험'; Assert-Eq $a.Cause 'RAM' 'RAM'; Assert-Eq $a.RamErrors 2 '오류 수'
+    $a2 = Read-BlackboxAnalysis (New-Bb2File 'u.csv' (Rep 6 @('gpu', 5, 100, 70, 99, 250, 'HWSLOW+PBRAKE', 0, '')) -Stop)
+    Assert-Eq $a2.Level 'warn' '경고'; Assert ($a2.Throttle -contains 'HWSLOW') '감속'; Assert ($a2.Detail -match '하드웨어 감속') '메모'
+    $a3 = Read-BlackboxAnalysis (New-Bb2File 'v.csv' (Rep 6 @('cpu', 100, 45, 60, 1, 30, '', 0, '')) -Stop)
+    Assert ($a3.Detail -match '클럭') '스로틀링'; Assert-Eq $a3.Cause 'THERMAL' '과열'
+    $all = (Rep 2 @('idle', 3, 100, 40, 1, 30, '', 0, '')) + (Rep 2 @('cpu', 100, 98, 45, 1, 35, '', 0, '')) + (Rep 2 @('ram', 50, 100, 40, 1, 30, '', 0, '')) + (Rep 2 @('gpu', 5, 100, 70, 99, 250, '', 0, '')) + (Rep 2 @('full', 100, 97, 72, 99, 280, '', 0, '')) + (Rep 2 @('pulse', 100, 97, 72, 99, 280, '', 0, ''))
+    $a4 = Read-BlackboxAnalysis (New-Bb2File 'w.csv' $all -Stop)
+    Assert-Eq $a4.Level 'ok' '통과'; Assert ($a4.Title -match '전 단계 통과') '통과 제목'
+}
+It 'NVIDIA 감속 원인 해석' {
+    Assert-Eq (ConvertFrom-NvThrottle '0x0000000000000004') 'PWRCAP' '전력 제한'
+    Assert-Eq (ConvertFrom-NvThrottle '0x88') 'HWSLOW+PBRAKE' '하드웨어'
+    Assert-Eq (ConvertFrom-NvThrottle '0x60') 'SWTHERM+HWTHERM' '온도'
+    Assert-Eq (ConvertFrom-NvThrottle '[N/A]') '' '없음'
+}
+It 'Windows 안 RAM 검사: 실제 패턴 쓰기/읽기, 오류 0' {
+    Start-RamTest -MB 128
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ((Get-RamTestState).Passes -lt 1 -and $sw.Elapsed.TotalSeconds -lt 120) { Start-Sleep -Milliseconds 200 }
+    $st = Get-RamTestState; Stop-RamTest
+    Assert ($st.Passes -ge 1) "1회 이상 완료 ($($st.TestedMB) MB)"
+    Assert-Eq $st.Errors 0 'RAM 오류 없음'
+    Assert (-not (Get-RamTestState).Running) '중지됨'
 }
 It '실제 기록기: 줄 기록 후 중지 표시, CPU 부하 시작/중지' {
     $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb') -IntervalSec 0.3 -NoEvents
@@ -361,6 +419,11 @@ It '영어 보고서·요약에 한글이 남지 않음 (모든 시나리오)' {
             (Read-BlackboxAnalysis (New-BbFile 'en3.csv' (@(1..5 | ForEach-Object { ,@(10, 50, 5, 80, 0, 0, '') })))),
             (Read-BlackboxAnalysis (New-BbFile 'en4.csv' (@(@(10, 50, 5, 80, 0, 0, 'WHEA 19'))) -Stop)),
             (Read-BlackboxAnalysis (New-BbFile 'en5.csv' (@(@(10, 50, 5, 80, 0, 0, ''))) -Stop)))
+        foreach ($k in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse') { $x.Blackbox += (Read-BlackboxAnalysis (New-Bb2File "en-$k.csv" (Rep 6 @($k, 100, 50, 60, 99, 250, 'HWSLOW+HWTHERM', 0, 'WHEA 19')))) }
+        $x.Blackbox += (Read-BlackboxAnalysis (New-Bb2File 'en-r.csv' (Rep 3 @('ram', 50, 100, 40, 1, 30, '', 3, '')) -Stop))
+        $x.Blackbox += (Read-BlackboxAnalysis (New-Bb2File 'en-o.csv' (Rep 2 @('gpu', 5, 100, 70, 99, 250, 'SWTHERM', 0, '')) -Stop))
+        $allSt = @(); foreach ($k in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse') { $allSt += (Rep 2 @($k, 100, 98, 60, 99, 250, '', 0, '')) }
+        $x.Blackbox += (Read-BlackboxAnalysis (New-Bb2File 'en-a.csv' $allSt -Stop))
 
         $all += $x
         foreach ($d in $all) {

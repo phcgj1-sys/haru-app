@@ -1157,10 +1157,35 @@ function Save-Results {
 
 # =====================================================================
 #  블랙박스 (실시간 기록) — 노하드처럼 재부팅하면 기록이 사라지는 PC 용
-#   부하 테스트 중 상태를 USB 등에 2초마다 '바로바로' 기록하고,
-#   PC 가 꺼진 뒤 그 파일로 직전 상황을 분석합니다.
+#   부하 테스트 중 상태를 USB 등에 '바로바로' 기록하고,
+#   PC 가 꺼진 뒤 그 파일로 직전 상황(어느 단계·어떤 상태였는지)을 분석합니다.
 # =====================================================================
-$script:BlackboxCols = 'Time,CpuPct,MemPct,GpuTempC,GpuUtilPct,GpuPowerW,GpuClockMHz,GpuMemMB,CpuStress,GpuStress,Event'
+$script:BlackboxColsV1 = 'Time,CpuPct,MemPct,GpuTempC,GpuUtilPct,GpuPowerW,GpuClockMHz,GpuMemMB,CpuStress,GpuStress,Event'
+$script:BlackboxCols = 'Time,Stage,CpuPct,CpuPerfPct,MemPct,BoardTempC,GpuTempC,GpuUtilPct,GpuPowerW,GpuClockMHz,GpuMemMB,GpuThrottle,CpuStress,GpuStress,RamTest,RamErrors,Event'
+
+# 단계별 자동 정밀 테스트 (꺼진 단계로 원인을 좁힘)
+$script:StagePlan = @(
+    @{ Key = 'idle';  Name = '대기 (기준값)';        Sec = 120; Cpu = $false; Gpu = $false; Ram = $false; Pulse = $false }
+    @{ Key = 'cpu';   Name = 'CPU 단독 부하';        Sec = 360; Cpu = $true;  Gpu = $false; Ram = $false; Pulse = $false }
+    @{ Key = 'ram';   Name = 'RAM 검사';             Sec = 360; Cpu = $false; Gpu = $false; Ram = $true;  Pulse = $false }
+    @{ Key = 'gpu';   Name = 'GPU·VRAM 단독 부하';    Sec = 360; Cpu = $false; Gpu = $true;  Ram = $false; Pulse = $false }
+    @{ Key = 'full';  Name = '전체 부하 (CPU+GPU)';   Sec = 480; Cpu = $true;  Gpu = $true;  Ram = $false; Pulse = $false }
+    @{ Key = 'pulse'; Name = '전력 출렁임 (10초 간격)'; Sec = 240; Cpu = $true;  Gpu = $true;  Ram = $false; Pulse = $true }
+)
+function Get-StageAt($Plan, [double]$Elapsed) {
+    # 경과 시간(초)에 해당하는 단계와 그 순간 켜야 할 부하
+    $t = 0.0; $i = 0
+    foreach ($st in $Plan) {
+        if ($Elapsed -lt $t + $st.Sec) {
+            $cpuOn = $st.Cpu
+            if ($st.Pulse) { $cpuOn = ([math]::Floor(($Elapsed - $t) / 10) % 2) -eq 0 }
+            $total = 0; foreach ($q in $Plan) { $total += $q.Sec }
+            return [pscustomobject]@{ Index = $i; Count = $Plan.Count; Key = $st.Key; Name = $st.Name; Remaining = [int]($t + $st.Sec - $Elapsed); Cpu = $cpuOn; Gpu = $st.Gpu; Ram = $st.Ram; Done = $false; TotalSec = $total }
+        }
+        $t += $st.Sec; $i++
+    }
+    return [pscustomobject]@{ Index = $Plan.Count; Count = $Plan.Count; Key = 'done'; Name = '완료'; Remaining = 0; Cpu = $false; Gpu = $false; Ram = $false; Done = $true; TotalSec = $t }
+}
 
 function New-PCRunspace {
     # 이 스크립트의 함수·설정을 그대로 가진 별도 실행 공간
@@ -1168,7 +1193,7 @@ function New-PCRunspace {
     foreach ($fn in @(Get-ChildItem function:)) {
         if ($fn.ScriptBlock) { $iss.Commands.Add((New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($fn.Name, $fn.Definition))) }
     }
-    foreach ($v in 'AppName', 'AppVersion', 'LogFile', 'IsWin', 'WorkDir', 'GpuPerfSource', 'BlackboxCols', 'UiLang') {
+    foreach ($v in 'AppName', 'AppVersion', 'LogFile', 'IsWin', 'WorkDir', 'GpuPerfSource', 'RamTestSource', 'BlackboxCols', 'BlackboxColsV1', 'UiLang') {
         $iss.Variables.Add((New-Object System.Management.Automation.Runspaces.SessionStateVariableEntry($v, (Get-Variable -Name $v -Scope Script -ValueOnly -ErrorAction SilentlyContinue), '')))
     }
     $rs = [runspacefactory]::CreateRunspace($iss); $rs.Open()
@@ -1182,18 +1207,110 @@ function Write-DurableLine([string]$Path, [string]$Line) {
     try { $fs.Write($bytes, 0, $bytes.Length); $fs.Flush($true) } finally { $fs.Dispose() }
 }
 
+# ---- Windows 안에서 하는 RAM 검사 (재부팅 불필요 — 노하드에서도 결과가 USB 에 남음)
+$script:RamTestSource = @'
+using System;
+using System.Collections.Generic;
+using System.Threading;
+public static class PCCheckRamTest {
+    public static volatile bool StopFlag;
+    public static volatile bool Running;
+    public static long Errors, TestedMB, Passes;
+    public static string LastError = "";
+    static Thread worker;
+    public static void Start(int megabytes) {
+        if (Running) return;
+        StopFlag = false; Errors = 0; TestedMB = 0; Passes = 0; LastError = "";
+        worker = new Thread(() => Run(megabytes)); worker.IsBackground = true; worker.Priority = ThreadPriority.BelowNormal;
+        Running = true; worker.Start();
+    }
+    public static void Stop() { StopFlag = true; if (worker != null) worker.Join(15000); Running = false; }
+    static void Run(int megabytes) {
+        var blocks = new List<long[]>();
+        try {
+            const int blockLongs = 64 * 1024 * 1024 / 8;   // 64MB 블록
+            int count = Math.Max(1, megabytes / 64);
+            for (int b = 0; b < count && !StopFlag; b++) {
+                try { blocks.Add(new long[blockLongs]); } catch (OutOfMemoryException) { break; }
+            }
+            ulong seed = 0x9E3779B97F4A7C15UL;
+            while (!StopFlag) {
+                for (int p = 0; p < 4 && !StopFlag; p++) {
+                    for (int b = 0; b < blocks.Count && !StopFlag; b++) {
+                        long[] a = blocks[b]; long baseIx = (long)b * a.Length;
+                        ulong x = seed ^ (ulong)(b + 1) * 0xBF58476D1CE4E5B9UL ^ (ulong)p;
+                        for (int i = 0; i < a.Length; i++) a[i] = Pat(p, baseIx + i, ref x);
+                        x = seed ^ (ulong)(b + 1) * 0xBF58476D1CE4E5B9UL ^ (ulong)p;
+                        for (int i = 0; i < a.Length; i++) {
+                            long want = Pat(p, baseIx + i, ref x);
+                            if (a[i] != want) { Interlocked.Increment(ref Errors); LastError = string.Format("block {0} index {1} pattern {2}", b, i, p); }
+                        }
+                        Interlocked.Add(ref TestedMB, 64);
+                    }
+                }
+                Interlocked.Increment(ref Passes);
+                seed = seed * 6364136223846793005UL + 1442695040888963407UL;
+            }
+        } catch (Exception e) { LastError = e.Message; }
+        finally { blocks.Clear(); Running = false; }
+    }
+    static long Pat(int p, long addr, ref ulong x) {
+        switch (p) {
+            case 0: return addr;                                  // 주소 패턴
+            case 1: return ~addr;                                 // 반전 주소
+            case 2: return (addr & 1) == 0 ? 0x5555555555555555L : unchecked((long)0xAAAAAAAAAAAAAAAAUL);  // 교차 비트
+            default: x ^= x << 13; x ^= x >> 7; x ^= x << 17; return unchecked((long)x);  // 난수
+        }
+    }
+}
+'@
+function Initialize-RamTest { if (-not ('PCCheckRamTest' -as [type])) { Add-Type -TypeDefinition $script:RamTestSource -ErrorAction Stop } }
+function Get-RamTestSizeMB {
+    # 여유 메모리의 70% (최소 256MB, Windows 와 다른 작업용으로 1.5GB 는 남김)
+    try {
+        $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
+        $freeMB = [int]($os.FreePhysicalMemory / 1024)
+        return [int][math]::Max(256, [math]::Min($freeMB * 0.7, $freeMB - 1536))
+    } catch { return 512 }
+}
+function Start-RamTest([int]$MB = 0) { Initialize-RamTest; if ($MB -le 0) { $MB = Get-RamTestSizeMB }; [PCCheckRamTest]::Start($MB) }
+function Stop-RamTest { if ('PCCheckRamTest' -as [type]) { [PCCheckRamTest]::Stop() } }
+function Get-RamTestState {
+    if (-not ('PCCheckRamTest' -as [type])) { return [pscustomobject]@{ Running = $false; Errors = 0; TestedMB = 0; Passes = 0 } }
+    return [pscustomobject]@{ Running = [PCCheckRamTest]::Running; Errors = [PCCheckRamTest]::Errors; TestedMB = [PCCheckRamTest]::TestedMB; Passes = [PCCheckRamTest]::Passes }
+}
+
+function ConvertFrom-NvThrottle([string]$Hex) {
+    # NVIDIA 클럭 제한 원인 비트 → 짧은 코드 (HWSLOW·PBRAKE 는 전원 공급 문제 신호)
+    $v = 0L
+    if (-not $Hex -or -not [long]::TryParse(($Hex -replace '^0x', ''), [Globalization.NumberStyles]::HexNumber, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { return '' }
+    $o = @()
+    if ($v -band 0x4) { $o += 'PWRCAP' }
+    if ($v -band 0x8) { $o += 'HWSLOW' }
+    if ($v -band 0x20) { $o += 'SWTHERM' }
+    if ($v -band 0x40) { $o += 'HWTHERM' }
+    if ($v -band 0x80) { $o += 'PBRAKE' }
+    return ($o -join '+')
+}
+
 function Get-LiveSample {
-    $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; MemPct = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null }
+    $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = '' }
     try { $s.CpuPct = [int](Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorTime } catch {}
+    try { $s.CpuPerfPct = [int](Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorPerformance } catch {}
     try { $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop; $s.MemPct = [int](100 - 100 * $os.FreePhysicalMemory / $os.TotalVisibleMemorySize) } catch {}
+    try { $tz = @(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop | ForEach-Object { [math]::Round($_.CurrentTemperature / 10 - 273.15, 1) } | Where-Object { $_ -gt 0 -and $_ -lt 130 }); if ($tz.Count) { $s.BoardTempC = ($tz | Measure-Object -Maximum).Maximum } } catch {}
     $nv = $null
     foreach ($c in @("$env:SystemRoot\System32\nvidia-smi.exe", "$env:ProgramFiles\NVIDIA Corporation\NVSMI\nvidia-smi.exe")) { if ($c -and (Test-Path $c)) { $nv = $c; break } }
     if ($nv) {
+        $num = { param($x) $r = 0.0; if ([double]::TryParse(($x -replace '[^\d\.]', ''), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$r)) { $r } else { $null } }
         try {
-            $line = @(& $nv '--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,memory.used' '--format=csv,noheader,nounits' 2>$null)[0]
-            $c = ([string]$line) -split ',\s*'
-            $num = { param($x) $r = 0.0; if ([double]::TryParse(($x -replace '[^\d\.]', ''), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$r)) { $r } else { $null } }
+            $c = ([string](@(& $nv '--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,memory.used' '--format=csv,noheader,nounits' 2>$null)[0])) -split ',\s*'
             if ($c.Count -ge 5) { $s.GpuTempC = & $num $c[0]; $s.GpuUtilPct = & $num $c[1]; $s.GpuPowerW = & $num $c[2]; $s.GpuClockMHz = & $num $c[3]; $s.GpuMemMB = & $num $c[4] }
+        } catch {}
+        try {
+            $th = [string](@(& $nv '--query-gpu=clocks_event_reasons.active' '--format=csv,noheader' 2>$null)[0])
+            if ($th -notmatch '^0x') { $th = [string](@(& $nv '--query-gpu=clocks_throttle_reasons.active' '--format=csv,noheader' 2>$null)[0]) }
+            $s.GpuThrottle = ConvertFrom-NvThrottle $th.Trim()
         } catch {}
     }
     if ($null -eq $s.GpuTempC) { $g = @(Get-GpuSensors) | Select-Object -First 1; if ($g) { $s.GpuTempC = $g.TempC } }
@@ -1230,12 +1347,12 @@ function Get-BlackboxDefaultDir {
 }
 
 function Start-Blackbox {
-    param([string]$Dir, [double]$IntervalSec = 2, [switch]$NoEvents)
+    param([string]$Dir, [double]$IntervalSec = 1, [switch]$NoEvents)
     if (-not $Dir) { $Dir = (Get-BlackboxDefaultDir).Dir }
     New-Item -ItemType Directory -Force -Path $Dir | Out-Null
     $path = Join-Path $Dir ("PCCheck_blackbox_{0}_{1:yyyyMMdd_HHmmss}.csv" -f $env:COMPUTERNAME, (Get-Date))
-    $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0 })
-    Write-DurableLine $path ("# PCCheck blackbox,v1,{0},{1},{2}" -f $env:COMPUTERNAME, (Format-T (Get-Date)), $script:AppVersion)
+    $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; Stage = ''; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0 })
+    Write-DurableLine $path ("# PCCheck blackbox,v2,{0},{1},{2}" -f $env:COMPUTERNAME, (Format-T (Get-Date)), $script:AppVersion)
     Write-DurableLine $path $script:BlackboxCols
     $rs = New-PCRunspace
     $rs.SessionStateProxy.SetVariable('sync', $sync)
@@ -1247,18 +1364,20 @@ function Start-Blackbox {
             $lastPoll = Get-Date; $n = 0
             while (-not $sync.Stop) {
                 $s = Get-LiveSample
+                $ram = Get-RamTestState
                 $ev = ''
                 if (-not $noEvents -and ($n % 5) -eq 4) {
                     $now = Get-Date; $codes = @(Get-RecentHwEvents $lastPoll); $lastPoll = $now
                     if ($codes.Count) { $ev = ($codes -join ' ; '); $sync.Events += $codes.Count }
                 }
-                $vals = @($s.Time, $s.CpuPct, $s.MemPct, $s.GpuTempC, $s.GpuUtilPct, $s.GpuPowerW, $s.GpuClockMHz, $s.GpuMemMB, [int][bool]$sync.CpuStress, [int][bool]$sync.GpuStress, ($ev -replace ',', ';'))
-                Write-DurableLine $sync.Path (($vals | ForEach-Object { if ($null -eq $_) { '' } else { [string]$_ } }) -join ',')
+                $vals = @($s.Time, $sync.Stage, $s.CpuPct, $s.CpuPerfPct, $s.MemPct, $s.BoardTempC, $s.GpuTempC, $s.GpuUtilPct, $s.GpuPowerW, $s.GpuClockMHz, $s.GpuMemMB, $s.GpuThrottle,
+                    [int][bool]$sync.CpuStress, [int][bool]$sync.GpuStress, [int][bool]$ram.Running, $ram.Errors, ($ev -replace ',', ';'))
+                Write-DurableLine $sync.Path (($vals | ForEach-Object { if ($null -eq $_) { '' } else { ([string]$_) -replace ',', ';' } }) -join ',')
                 $sync.Rows++; $sync.Last = $s; $n++
                 $until = (Get-Date).AddSeconds($interval)
                 while (-not $sync.Stop -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 100 }
             }
-            Write-DurableLine $sync.Path ("{0},,,,,,,,,,STOP" -f (Format-T (Get-Date)))
+            Write-DurableLine $sync.Path ((@((Format-T (Get-Date))) + @('') * 15 + @('STOP')) -join ',')
         } catch { $sync.Error = $_.Exception.Message } finally { $sync.Done = $true }
     })
     $h = $ps.BeginInvoke()
@@ -1275,15 +1394,15 @@ function Stop-Blackbox($Job, [int]$TimeoutSec = 10) {
 }
 
 function Start-CpuStress {
-    # 모든 CPU 스레드에 계산 부하 (파워·CPU 발열 재현용)
+    # 모든 CPU 스레드에 계산 부하. Pause 로 순간적으로 껐다 켤 수 있음 (전력 출렁임 시험)
     param([int]$Threads = 0)
     if ($Threads -le 0) { $Threads = [Environment]::ProcessorCount }
-    $sync = [hashtable]::Synchronized(@{ Stop = $false })
+    $sync = [hashtable]::Synchronized(@{ Stop = $false; Pause = $false })
     $pool = [runspacefactory]::CreateRunspacePool(1, $Threads); $pool.Open()
     $jobs = @()
     for ($i = 0; $i -lt $Threads; $i++) {
         $ps = [powershell]::Create(); $ps.RunspacePool = $pool
-        [void]$ps.AddScript({ param($sync) while (-not $sync.Stop) { $x = 0.0; for ($k = 1; $k -lt 300000; $k++) { $x += [math]::Sqrt($k) * [math]::Sin($k) } } }).AddArgument($sync)
+        [void]$ps.AddScript({ param($sync) while (-not $sync.Stop) { if ($sync.Pause) { Start-Sleep -Milliseconds 50; continue }; $x = 0.0; for ($k = 1; $k -lt 100000; $k++) { $x += [math]::Sqrt($k) * [math]::Sin($k) } } }).AddArgument($sync)
         $jobs += [pscustomobject]@{ PS = $ps; Handle = $ps.BeginInvoke() }
     }
     return [pscustomobject]@{ Sync = $sync; Pool = $pool; Jobs = $jobs; Threads = $Threads }
@@ -1295,50 +1414,98 @@ function Stop-CpuStress($Job) {
     try { $Job.Pool.Dispose() } catch {}
 }
 
+function Start-GpuLoad { $p = Install-MemtestVulkan; return (Start-Process -FilePath $p -WorkingDirectory (Split-Path $p) -PassThru) }
+function Stop-GpuLoad($Proc) { if ($Proc) { try { if (-not $Proc.HasExited) { $Proc.Kill() } } catch {} } }
+
 function Read-BlackboxAnalysis([string]$Path) {
-    # 블랙박스 기록 분석 (순수 함수) — 마지막 몇 초의 상태로 꺼진 원인을 추정
+    # 블랙박스 기록 분석 (순수 함수) — 마지막 상태와 '어느 단계'에서 끊겼는지로 원인 추정
     $lines = @(Get-Content -Path $Path -Encoding UTF8 -ErrorAction Stop)
+    $cols = $script:BlackboxColsV1 -split ','
+    foreach ($l in $lines) { if ($l -and $l.StartsWith('Time,')) { $cols = $l.Trim() -split ','; break } }
     $rows = @(); $stopped = $false; $events = @{}
-    $cols = $script:BlackboxCols -split ','
     foreach ($l in $lines) {
         if (-not $l -or $l.StartsWith('#') -or $l.StartsWith('Time,')) { continue }
         $v = $l -split ','
         if ($v.Count -lt $cols.Count) { continue }   # 전원 차단으로 잘린 마지막 줄
-        $r = [ordered]@{}
+        $r = @{}
         for ($i = 0; $i -lt $cols.Count; $i++) { $r[$cols[$i]] = $v[$i] }
-        if ($r.Event -eq 'STOP') { $stopped = $true; continue }
-        if ($r.Event) { foreach ($e in ($r.Event -split '\s*;\s*')) { if ($e) { $events[$e] = 1 + [int]$events[$e] } } }
+        if ($r['Event'] -eq 'STOP') { $stopped = $true; continue }
+        if ($r['Event']) { foreach ($e in ($r['Event'] -split '\s*;\s*')) { if ($e) { $events[$e] = 1 + [int]$events[$e] } } }
         $rows += $r
     }
-    $num = { param($x) $d = 0.0; if ($x -ne $null -and [double]::TryParse([string]$x, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { $d } else { $null } }
-    $maxOf = { param($col) $m = $null; foreach ($r in $rows) { $x = & $num $r[$col]; if ($null -ne $x -and ($null -eq $m -or $x -gt $m)) { $m = $x } }; $m }
+    $num = { param($x) $d = 0.0; if ($null -ne $x -and [double]::TryParse([string]$x, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { $d } else { $null } }
+    $maxOf = { param($set, $col) $m = $null; foreach ($r in $set) { $x = & $num $r[$col]; if ($null -ne $x -and ($null -eq $m -or $x -gt $m)) { $m = $x } }; $m }
     $res = [ordered]@{
         File = [IO.Path]::GetFileName($Path); Rows = $rows.Count; Stopped = $stopped; Abrupt = $false
         Start = $null; End = $null; Minutes = 0
-        MaxGpuTempC = (& $maxOf 'GpuTempC'); MaxGpuPowerW = (& $maxOf 'GpuPowerW'); MaxCpuPct = (& $maxOf 'CpuPct')
+        MaxGpuTempC = (& $maxOf $rows 'GpuTempC'); MaxGpuPowerW = (& $maxOf $rows 'GpuPowerW'); MaxCpuPct = (& $maxOf $rows 'CpuPct'); MaxBoardTempC = (& $maxOf $rows 'BoardTempC')
+        RamErrors = [int](& $maxOf $rows 'RamErrors'); LastStage = ''; Stages = @(); Throttle = @(); Notes = @()
         Last = $null; Events = $events; Level = 'ok'; Cause = ''; Title = ''; Detail = ''
     }
     if ($rows.Count -eq 0) { $res.Title = '블랙박스 기록이 비어 있음'; $res.Level = 'info'; return $res }
-    $res.Start = $rows[0].Time; $res.End = $rows[-1].Time
+    $res.Start = $rows[0]['Time']; $res.End = $rows[-1]['Time']
     $t0 = ConvertTo-Date $res.Start; $t1 = ConvertTo-Date $res.End
     if ($t0 -and $t1) { $res.Minutes = [math]::Round(($t1 - $t0).TotalMinutes, 1) }
+    $res.LastStage = [string]$rows[-1]['Stage']
+
+    # 단계별 요약
+    $stageNames = @{}; foreach ($p in $script:StagePlan) { $stageNames[$p.Key] = $p.Name }
+    $order = @(); foreach ($r in $rows) { $k = [string]$r['Stage']; if ($k -and $order -notcontains $k) { $order += $k } }
+    foreach ($k in $order) {
+        $set = @($rows | Where-Object { $_['Stage'] -eq $k })
+        $res.Stages += [ordered]@{ Key = $k; Name = $(if ($stageNames.ContainsKey($k)) { $stageNames[$k] } else { $k }); Rows = $set.Count; MaxGpuTempC = (& $maxOf $set 'GpuTempC'); MaxGpuPowerW = (& $maxOf $set 'GpuPowerW'); MaxCpuPct = (& $maxOf $set 'CpuPct') }
+    }
+    $thr = @{}; foreach ($r in $rows) { foreach ($x in ([string]$r['GpuThrottle'] -split '\+')) { if ($x -and $x -ne 'PWRCAP') { $thr[$x] = 1 + [int]$thr[$x] } } }
+    $res.Throttle = @($thr.Keys | Sort-Object)
+
+    # 직전 상태 (마지막 5줄)
     $tail = @($rows | Select-Object -Last 5)
     $lastLoad = 0.0; $lastTemp = $null; $lastPow = $null; $stress = $false
     foreach ($r in $tail) {
-        $c = & $num $r.CpuPct; $g = & $num $r.GpuUtilPct; $t = & $num $r.GpuTempC; $p = & $num $r.GpuPowerW
+        $c = & $num $r['CpuPct']; $g = & $num $r['GpuUtilPct']; $t = & $num $r['GpuTempC']; $p = & $num $r['GpuPowerW']
         if ($null -ne $c -and $c -gt $lastLoad) { $lastLoad = $c }; if ($null -ne $g -and $g -gt $lastLoad) { $lastLoad = $g }
         if ($null -ne $t -and ($null -eq $lastTemp -or $t -gt $lastTemp)) { $lastTemp = $t }
         if ($null -ne $p -and ($null -eq $lastPow -or $p -gt $lastPow)) { $lastPow = $p }
-        if ($r.CpuStress -eq '1' -or $r.GpuStress -eq '1') { $stress = $true }
+        if ($r['CpuStress'] -eq '1' -or $r['GpuStress'] -eq '1') { $stress = $true }
     }
-    $res.Last = [ordered]@{ Time = $res.End; LoadPct = $lastLoad; GpuTempC = $lastTemp; GpuPowerW = $lastPow; Stress = $stress }
+    $res.Last = [ordered]@{ Time = $res.End; LoadPct = $lastLoad; GpuTempC = $lastTemp; GpuPowerW = $lastPow; Stress = $stress; Stage = $res.LastStage }
     $evText = (($events.Keys | Sort-Object | ForEach-Object { "$_ ×$($events[$_])" }) -join ', ')
+
+    # 부가 신호
+    if ($res.RamErrors -gt 0) { $res.Notes += "RAM 검사 오류 $($res.RamErrors) 건 (RAM 불량이 거의 확실)" }
+    if ($thr.ContainsKey('HWSLOW') -or $thr.ContainsKey('PBRAKE')) { $res.Notes += '그래픽카드 하드웨어 감속 신호 (전원 공급 불안정 또는 과열)' }
+    if ($thr.ContainsKey('HWTHERM') -or $thr.ContainsKey('SWTHERM')) { $res.Notes += '그래픽카드 온도 제한 동작' }
+    $cpuSet = @($rows | Where-Object { $_['Stage'] -eq 'cpu' -and (& $num $_['CpuPct']) -ge 80 })
+    $perf = @($cpuSet | ForEach-Object { & $num $_['CpuPerfPct'] } | Where-Object { $null -ne $_ -and $_ -gt 0 })
+    if ($perf.Count -ge 5 -and ($perf | Measure-Object -Minimum).Minimum -lt 60) { $res.Notes += "CPU 부하 중 클럭이 $([int]($perf | Measure-Object -Minimum).Minimum)% 까지 떨어짐 (과열·전력 제한)" }
+    $noteText = $(if ($res.Notes.Count) { ' ' + (($res.Notes | ForEach-Object { "[$_]" }) -join ' ') } else { '' })
+
     if (-not $stopped) {
         $res.Abrupt = $true; $res.Level = 'bad'
+        $stName = $(if ($res.LastStage -and $stageNames.ContainsKey($res.LastStage)) { $stageNames[$res.LastStage] } else { '' })
         $state = "마지막 기록 $(([string]$res.End).Replace('T', ' ')) · 부하 $([int]$lastLoad)% · GPU $(if ($null -ne $lastTemp) { "$lastTemp °C" } else { '온도 미상' })$(if ($null -ne $lastPow) { " · $lastPow W" })"
+        if ($stName) { $state = "[$stName 단계] " + $state }
         if ($null -ne $lastTemp -and $lastTemp -ge 88) {
             $res.Cause = 'THERMAL'; $res.Title = '블랙박스: 고온 상태에서 기록이 끊김 (과열 의심)'
             $res.Detail = "$state. 꺼지기 직전 그래픽카드 온도가 매우 높았습니다. 쿨링(팬·먼지·써멀)을 먼저 점검하세요."
+        } elseif ($res.LastStage -eq 'pulse') {
+            $res.Cause = 'PSU'; $res.Title = '블랙박스: 전력 출렁임 단계에서 꺼짐 (파워 품질·노후 의심)'
+            $res.Detail = "$state. 부하가 급하게 바뀌는 순간을 파워가 버티지 못했습니다. 용량이 충분해도 노후·저품질 파워에서 흔한 패턴입니다. 파워 교체 1순위."
+        } elseif ($res.LastStage -eq 'full') {
+            $res.Cause = 'PSU'; $res.Title = '블랙박스: 전체 부하 단계에서 꺼짐 (파워 용량 부족 의심)'
+            $res.Detail = "$state. CPU·GPU 를 각각 돌릴 때는 버텼지만 함께 돌리자 꺼졌습니다. 파워 용량 부족·노후가 가장 유력합니다."
+        } elseif ($res.LastStage -eq 'gpu') {
+            $res.Cause = 'GPU_HW'; $res.Title = '블랙박스: GPU 단독 부하에서 꺼짐 (그래픽카드·보조전원 의심)'
+            $res.Detail = "$state. 그래픽카드만 부하를 받았을 때 꺼졌습니다. 그래픽카드 자체 또는 보조전원 케이블·파워의 PCIe 출력이 의심됩니다."
+        } elseif ($res.LastStage -eq 'cpu') {
+            $res.Cause = 'CPU_OC'; $res.Title = '블랙박스: CPU 단독 부하에서 꺼짐 (CPU·메인보드 전원부 의심)'
+            $res.Detail = "$state. CPU 만 부하를 받았을 때 꺼졌습니다. CPU 보조전원(4+4핀), 메인보드 전원부, CPU 쿨러 장착, 오버클럭 설정을 확인하세요."
+        } elseif ($res.LastStage -eq 'ram') {
+            $res.Cause = 'RAM'; $res.Title = '블랙박스: RAM 검사 중 꺼짐 (RAM·메인보드 의심)'
+            $res.Detail = "$state. 메모리를 집중적으로 쓰는 중에 꺼졌습니다. XMP/EXPO 를 끄고, RAM 을 한 개씩 꽂아 다시 시험하세요."
+        } elseif ($res.LastStage -eq 'idle') {
+            $res.Cause = 'PSU'; $res.Title = '블랙박스: 대기 중에 꺼짐 (전원 연결·메인보드 의심)'
+            $res.Detail = "$state. 부하가 없는데 꺼졌습니다. 전원 케이블·멀티탭, 파워, 메인보드 순서로 의심됩니다."
         } elseif ($lastLoad -ge 70 -or $stress) {
             $res.Cause = 'PSU'; $res.Title = '블랙박스: 고부하 중 기록이 끊김 (파워 의심)'
             $res.Detail = "$state. 온도는 정상인데 부하가 걸린 상태에서 갑자기 꺼졌습니다. 전형적인 파워(PSU) 용량 부족·노후 패턴입니다."
@@ -1347,19 +1514,28 @@ function Read-BlackboxAnalysis([string]$Path) {
             $res.Detail = "$state. 부하와 무관하게 꺼졌습니다. 전원 케이블·멀티탭·파워, 메인보드, RAM 순서로 의심됩니다."
         }
         if ($evText) { $res.Detail += " 직전 오류: $evText." }
-    } elseif ($events.Count) {
+        $res.Detail += $noteText
+        if ($res.RamErrors -gt 0) { $res.Cause = 'RAM' }
+    } elseif ($res.RamErrors -gt 0) {
+        $res.Level = 'bad'; $res.Cause = 'RAM'; $res.Title = "블랙박스: RAM 검사에서 오류 $($res.RamErrors) 건"
+        $res.Detail = "Windows 안에서 메모리에 쓴 값과 다시 읽은 값이 달랐습니다. RAM 불량 가능성이 매우 높습니다. XMP/EXPO 를 끄고 한 개씩 꽂아 불량 모듈을 찾으세요.$noteText"
+    } elseif ($events.Count -or $thr.ContainsKey('HWSLOW') -or $thr.ContainsKey('PBRAKE')) {
         $res.Level = 'warn'; $res.Title = "블랙박스: 테스트 중 오류 기록 ($([math]::Round($res.Minutes)) 분)"
-        $res.Detail = "꺼지지는 않았지만 테스트 중 오류가 기록되었습니다: $evText."
-        if ($evText -match 'Xid|TDR|NVIDIA|AMD') { $res.Cause = 'GPU_HW' } elseif ($evText -match 'WHEA') { $res.Cause = 'CPU_OC' } else { $res.Cause = 'DISK' }
+        $res.Detail = "꺼지지는 않았지만 테스트 중 이상 신호가 기록되었습니다$(if ($evText) { ": $evText" })."
+        if ($evText -match 'Xid|TDR|NVIDIA|AMD') { $res.Cause = 'GPU_HW' } elseif ($evText -match 'WHEA') { $res.Cause = 'CPU_OC' } elseif ($evText) { $res.Cause = 'DISK' } else { $res.Cause = 'PSU' }
+        $res.Detail += $noteText
     } else {
-        $res.Level = 'ok'; $res.Title = "블랙박스: 테스트 $([math]::Round($res.Minutes)) 분 동안 이상 없음"
-        $res.Detail = "최고 GPU $(if ($null -ne $res.MaxGpuTempC) { "$($res.MaxGpuTempC) °C" } else { '-' }) · CPU 최고 $(if ($null -ne $res.MaxCpuPct) { "$($res.MaxCpuPct)%" } else { '-' })."
+        $res.Level = 'ok'
+        $done = @($order | Where-Object { $_ -in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse' }).Count
+        $res.Title = $(if ($done -ge 6) { "블랙박스: 단계별 정밀 테스트 전 단계 통과 ($([math]::Round($res.Minutes)) 분)" } else { "블랙박스: 테스트 $([math]::Round($res.Minutes)) 분 동안 이상 없음" })
+        $res.Detail = "최고 GPU $(if ($null -ne $res.MaxGpuTempC) { "$($res.MaxGpuTempC) °C" } else { '-' }) · CPU 최고 $(if ($null -ne $res.MaxCpuPct) { "$($res.MaxCpuPct)%" } else { '-' }).$noteText"
+        if ($res.Notes.Count) { $res.Level = 'warn'; $res.Cause = $(if ($thr.ContainsKey('HWTHERM') -or $thr.ContainsKey('SWTHERM') -or ($res.Notes -match '클럭')) { 'THERMAL' } else { 'PSU' }) }
     }
     return $res
 }
 
 function Find-BlackboxFiles([int]$Days = 30) {
-    # USB·바탕화면·작업 폴더에서 최근 블랙박스 기록 찾기
+    # USB·바탕화면에서 최근 블랙박스 기록 찾기
     $dirs = @()
     try { $dirs += @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { Join-Path ($_.DeviceID + '\') 'PCCheck_blackbox' }) } catch {}
     $desk = [Environment]::GetFolderPath('Desktop'); if ($desk) { $dirs += (Join-Path $desk 'PCCheck_blackbox') }
@@ -1375,7 +1551,7 @@ function Show-BlackboxDialog {
     $font = New-Object Drawing.Font('Malgun Gothic', (10 * $s)); $bold = New-Object Drawing.Font('Malgun Gothic', (10.5 * $s), [Drawing.FontStyle]::Bold)
     $f = New-Object Windows.Forms.Form
     $f.Text = '블랙박스 기록 (재현 테스트)'; $f.Font = $font; $f.StartPosition = 'CenterParent'; $f.FormBorderStyle = 'FixedDialog'; $f.MaximizeBox = $false; $f.MinimizeBox = $false
-    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](560 * $s), [int](396 * $s))
+    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](560 * $s), [int](478 * $s))
     $u = { param([double]$v) [int][math]::Round($v * $s) }
     $mk = { param($type, $text, $x, $y, $w, $h) $c = New-Object $type; $c.Text = $text; $c.SetBounds((& $u $x), (& $u $y), (& $u $w), (& $u $h)); $f.Controls.Add($c); $c }
     $def = Get-BlackboxDefaultDir
@@ -1386,32 +1562,59 @@ function Show-BlackboxDialog {
     $browse = & $mk Windows.Forms.Button '찾아보기' 446 61 98 30
     $warn = & $mk Windows.Forms.Label $(if ($def.Removable) { 'USB 가 선택되었습니다.' } else { '(주의) USB 가 없습니다. 노하드라면 USB 를 꽂고 다시 여세요.' }) 108 94 436 22
     $warn.ForeColor = $(if ($def.Removable) { [Drawing.Color]::SeaGreen } else { [Drawing.Color]::DarkOrange })
-    $cpuChk = & $mk Windows.Forms.CheckBox 'CPU 부하 걸기 (모든 코어 100%)' 16 124 528 26
-    $gpuChk = & $mk Windows.Forms.CheckBox 'GPU·VRAM 부하 걸기 (memtest_vulkan 창이 열림)' 16 152 528 26
-    $cpuChk.Checked = $true; $gpuChk.Checked = $true
-    $tip = & $mk Windows.Forms.Label '둘 다 켜면 전력 소모가 가장 커서 파워 문제 재현에 좋습니다. 20~30분 이상 권장.' 34 180 510 42
-    $tip.ForeColor = [Drawing.Color]::DimGray
-    $live = & $mk Windows.Forms.Label '대기 중' 16 230 528 52
+    $autoR = & $mk Windows.Forms.RadioButton '단계별 자동 정밀 테스트 (약 32분, 권장)' 16 124 528 26
+    $autoTip = & $mk Windows.Forms.Label '대기 → CPU → RAM 검사 → GPU·VRAM → 전체 부하 → 전력 출렁임 순서로 자동 진행. 꺼진 단계로 원인을 좁힙니다.' 34 150 510 42
+    $autoTip.ForeColor = [Drawing.Color]::DimGray
+    $manR = & $mk Windows.Forms.RadioButton '직접 설정' 16 196 528 26
+    $cpuChk = & $mk Windows.Forms.CheckBox 'CPU 부하 걸기 (모든 코어 100%)' 34 222 510 26
+    $gpuChk = & $mk Windows.Forms.CheckBox 'GPU·VRAM 부하 걸기 (memtest_vulkan 창이 열림)' 34 248 510 26
+    $ramChk = & $mk Windows.Forms.CheckBox 'RAM 검사 (Windows 안에서, 재부팅 없음)' 34 274 510 26
+    $autoR.Checked = $true; $cpuChk.Checked = $true; $gpuChk.Checked = $true
+    foreach ($c in $cpuChk, $gpuChk, $ramChk) { $c.Enabled = $false }
+    $live = & $mk Windows.Forms.Label '대기 중' 16 310 528 92
     $live.Font = $bold
-    $startB = & $mk Windows.Forms.Button '기록 시작' 16 300 170 44
-    $stopB = & $mk Windows.Forms.Button '중지' 196 300 170 44
-    $anaB = & $mk Windows.Forms.Button '기록 파일 분석' 376 300 168 44
+    $startB = & $mk Windows.Forms.Button '기록 시작' 16 416 170 44
+    $stopB = & $mk Windows.Forms.Button '중지' 196 416 170 44
+    $anaB = & $mk Windows.Forms.Button '기록 파일 분석' 376 416 168 44
     $stopB.Enabled = $false
-    $st = @{ Box = $null; Cpu = $null; Start = $null }
+    $st = @{ Box = $null; Cpu = $null; Gpu = $null; Ram = $false; Start = $null; Auto = $false }
     $t = New-Object Windows.Forms.Timer; $t.Interval = 1000
+    $setLoad = {
+        param([bool]$cpu, [bool]$gpu, [bool]$ram)
+        if ($cpu) { if (-not $st.Cpu) { $st.Cpu = Start-CpuStress }; $st.Cpu.Sync.Pause = $false } elseif ($st.Cpu) { $st.Cpu.Sync.Pause = $true }
+        if ($gpu -and -not $st.Gpu) { try { $st.Gpu = Start-GpuLoad } catch { Write-PCLog "gpu load: $($_.Exception.Message)"; $st.Gpu = $null } }
+        if (-not $gpu -and $st.Gpu) { Stop-GpuLoad $st.Gpu; $st.Gpu = $null }
+        if ($ram -and -not $st.Ram) { try { Start-RamTest; $st.Ram = $true } catch { Write-PCLog "ram test: $($_.Exception.Message)" } }
+        if (-not $ram -and $st.Ram) { Stop-RamTest; $st.Ram = $false }
+        if ($st.Box) { $st.Box.Sync.CpuStress = $cpu; $st.Box.Sync.GpuStress = [bool]$st.Gpu }
+    }
     $stopAll = {
         $t.Stop()
         if ($st.Cpu) { Stop-CpuStress $st.Cpu; $st.Cpu = $null }
+        if ($st.Gpu) { Stop-GpuLoad $st.Gpu; $st.Gpu = $null }
+        if ($st.Ram) { Stop-RamTest; $st.Ram = $false }
         if ($st.Box) { Stop-Blackbox $st.Box; $st.Box = $null }
-        $startB.Enabled = $true; $stopB.Enabled = $false; $cpuChk.Enabled = $true; $gpuChk.Enabled = $true
+        $startB.Enabled = $true; $stopB.Enabled = $false; $autoR.Enabled = $true; $manR.Enabled = $true
+        foreach ($c in $cpuChk, $gpuChk, $ramChk) { $c.Enabled = $manR.Checked }
     }
+    $manR.Add_CheckedChanged({ foreach ($c in $cpuChk, $gpuChk, $ramChk) { $c.Enabled = $manR.Checked } })
     $t.Add_Tick({
         try {
             if (-not $st.Box) { return }
             $sy = $st.Box.Sync; $l = $sy.Last
-            $min = [int]((Get-Date) - $st.Start).TotalMinutes
-            $txt = "기록 중 · $min 분 · $($sy.Rows) 줄"
-            if ($l) { $txt += " · CPU $($l.CpuPct)% · GPU $(if ($null -ne $l.GpuTempC) { "$($l.GpuTempC) °C" } else { '-' })$(if ($null -ne $l.GpuPowerW) { " $($l.GpuPowerW) W" })" }
+            $el = ((Get-Date) - $st.Start).TotalSeconds
+            $head = ''
+            if ($st.Auto) {
+                $g = Get-StageAt $script:StagePlan $el
+                if ($g.Done) { $p = $sy.Path; & $stopAll; $live.Text = (Tr '단계별 정밀 테스트를 모두 마쳤습니다. 다시 검사하면 결과가 보고서에 나옵니다.') + "`n" + $p; return }
+                $sy.Stage = $g.Key
+                & $setLoad $g.Cpu $g.Gpu $g.Ram
+                $head = "단계 $($g.Index + 1)/$($g.Count) · $($g.Name) · 남은 $([math]::Ceiling($g.Remaining / 60)) 분 (전체 $([int]($el / 60))/$([int]($g.TotalSec / 60)) 분)"
+            } else { $head = "기록 중 · $([int]($el / 60)) 분 · $($sy.Rows) 줄" }
+            $txt = $head
+            if ($l) { $txt += "`nCPU $($l.CpuPct)%$(if ($null -ne $l.CpuPerfPct) { " (클럭 $($l.CpuPerfPct)%)" }) · GPU $(if ($null -ne $l.GpuTempC) { "$($l.GpuTempC) °C" } else { '-' })$(if ($null -ne $l.GpuPowerW) { " $($l.GpuPowerW) W" })$(if ($l.GpuThrottle) { " [$($l.GpuThrottle)]" })" }
+            $rt = Get-RamTestState
+            if ($rt.TestedMB -gt 0) { $txt += " · RAM 검사 $([math]::Round($rt.TestedMB / 1024, 1)) GB, 오류 $($rt.Errors) 건" }
             if ($sy.Events) { $txt += " · 오류 $($sy.Events) 건" }
             $live.Text = (Tr $txt) + "`n" + $sy.Path
             if ($sy.Error) { $live.Text = Tr "기록 오류: $($sy.Error)"; & $stopAll }
@@ -1420,20 +1623,24 @@ function Show-BlackboxDialog {
     $browse.Add_Click({ $d = New-Object Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog($f) -eq 'OK') { $dirBox.Text = Join-Path $d.SelectedPath 'PCCheck_blackbox' } })
     $startB.Add_Click({
         try {
+            $st.Auto = $autoR.Checked
             $st.Box = Start-Blackbox -Dir $dirBox.Text
-            if ($cpuChk.Checked) { $st.Cpu = Start-CpuStress; $st.Box.Sync.CpuStress = $true }
-            if ($gpuChk.Checked) { try { Start-MemtestVulkan; $st.Box.Sync.GpuStress = $true } catch { [void][Windows.Forms.MessageBox]::Show($f, (Tr "GPU 부하 도구를 시작하지 못했습니다.`n$($_.Exception.Message)"), (Tr $script:AppName)) } }
+            if (-not $st.Auto) { & $setLoad $cpuChk.Checked $gpuChk.Checked $ramChk.Checked; $st.Box.Sync.Stage = 'manual' }
             $st.Start = Get-Date; $t.Start()
-            $startB.Enabled = $false; $stopB.Enabled = $true; $cpuChk.Enabled = $false; $gpuChk.Enabled = $false
+            $startB.Enabled = $false; $stopB.Enabled = $true; $autoR.Enabled = $false; $manR.Enabled = $false
+            foreach ($c in $cpuChk, $gpuChk, $ramChk) { $c.Enabled = $false }
         } catch { & $stopAll; [void][Windows.Forms.MessageBox]::Show($f, (Tr "기록을 시작하지 못했습니다.`n$($_.Exception.Message)"), (Tr $script:AppName), 'OK', 'Error') }
     })
-    $stopB.Add_Click({ $p = $st.Box.Path; & $stopAll; $live.Text = (Tr '기록을 마쳤습니다. memtest_vulkan 창은 Ctrl+C 로 닫으세요.') + "`n" + $p })
+    $stopB.Add_Click({ $p = $st.Box.Path; & $stopAll; $live.Text = (Tr '기록을 마쳤습니다.') + "`n" + $p })
     $anaB.Add_Click({
         $o = New-Object Windows.Forms.OpenFileDialog; $o.Filter = 'PCCheck blackbox (*.csv)|PCCheck_blackbox_*.csv|CSV (*.csv)|*.csv'
         if (Test-Path $dirBox.Text) { $o.InitialDirectory = $dirBox.Text }
         if ($o.ShowDialog($f) -eq 'OK') {
-            try { $a = Read-BlackboxAnalysis $o.FileName; [void][Windows.Forms.MessageBox]::Show($f, (Tr "$($a.Title)`n`n$($a.Detail)"), $a.File) }
-            catch { [void][Windows.Forms.MessageBox]::Show($f, (Tr "분석하지 못했습니다.`n$($_.Exception.Message)"), (Tr $script:AppName)) }
+            try {
+                $a = Read-BlackboxAnalysis $o.FileName
+                $stg = (@($a.Stages) | ForEach-Object { "· $($_.Name): GPU 최고 $(if ($null -ne $_.MaxGpuTempC) { "$($_.MaxGpuTempC) °C" } else { '-' })$(if ($null -ne $_.MaxGpuPowerW) { " / $($_.MaxGpuPowerW) W" })" }) -join "`n"
+                [void][Windows.Forms.MessageBox]::Show($f, (Tr "$($a.Title)`n`n$($a.Detail)$(if ($stg) { "`n`n$stg" })"), $a.File)
+            } catch { [void][Windows.Forms.MessageBox]::Show($f, (Tr "분석하지 못했습니다.`n$($_.Exception.Message)"), (Tr $script:AppName)) }
         }
     })
     $f.Add_FormClosing({ & $stopAll })
@@ -2101,6 +2308,37 @@ $script:EnPairs = @(
     @('Windows 에서만 검사할 수 있습니다. (-FromJson 으로 보고서 재생성은 가능)', 'Scanning works only on Windows. (-FromJson can still rebuild a report.)'),
     @('시스템 정보', 'System info'), @('갑작스런 종료 기록', 'Shutdown records'), @('블루스크린 기록', 'Blue screen records'), @('메모리 진단 결과', 'Memory diagnostic results'),
     @('드라이버 설치·앱 충돌·온도', 'Driver installs · app crashes · temperature'),
+    @('RE:\[(.+?) 단계\] ', '[$1 stage] '),
+    @('RE:블랙박스: RAM 검사에서 오류 (\d+) 건', 'Black box: RAM test found $1 errors'),
+    @('RE:RAM 검사 오류 (\d+) 건 \(RAM 불량이 거의 확실\)', 'RAM test errors: $1 (faulty RAM almost certain)'),
+    @('RE:CPU 부하 중 클럭이 (\d+)% 까지 떨어짐 \(과열·전력 제한\)', 'CPU clock fell to $1% under load (overheating/power limit)'),
+    @('RE:블랙박스: 단계별 정밀 테스트 전 단계 통과 \((\d+) 분\)', 'Black box: passed every stage of the detailed test ($1 min)'),
+    @('RE:단계 (\d+)/(\d+) · ', 'Stage $1/$2 · '),
+    @('RE: · 남은 (\d+) 분 \(전체 (\d+)/(\d+) 분\)', ' · $1 min left (total $2/$3 min)'),
+    @('RE: \(클럭 (\d+)%\)', ' (clock $1%)'),
+    @('RE: · RAM 검사 ([\d\.]+) GB, 오류 (\d+) 건', ' · RAM test $1 GB, errors $2'),
+    @('블랙박스: 전력 출렁임 단계에서 꺼짐 (파워 품질·노후 의심)', 'Black box: shut off during the power-swing stage (PSU quality/aging suspected)'),
+    @('블랙박스: 전체 부하 단계에서 꺼짐 (파워 용량 부족 의심)', 'Black box: shut off at full load (insufficient PSU capacity suspected)'),
+    @('블랙박스: GPU 단독 부하에서 꺼짐 (그래픽카드·보조전원 의심)', 'Black box: shut off with GPU-only load (graphics card or its power cables suspected)'),
+    @('블랙박스: CPU 단독 부하에서 꺼짐 (CPU·메인보드 전원부 의심)', 'Black box: shut off with CPU-only load (CPU or motherboard power delivery suspected)'),
+    @('블랙박스: RAM 검사 중 꺼짐 (RAM·메인보드 의심)', 'Black box: shut off during the RAM test (RAM or motherboard suspected)'),
+    @('블랙박스: 대기 중에 꺼짐 (전원 연결·메인보드 의심)', 'Black box: shut off while idle (power connection or motherboard suspected)'),
+    @('부하가 급하게 바뀌는 순간을 파워가 버티지 못했습니다. 용량이 충분해도 노후·저품질 파워에서 흔한 패턴입니다. 파워 교체 1순위.', 'The PSU could not cope with sudden load changes. Common with aging or low-quality PSUs even when wattage is enough. Replace the PSU first.'),
+    @('CPU·GPU 를 각각 돌릴 때는 버텼지만 함께 돌리자 꺼졌습니다. 파워 용량 부족·노후가 가장 유력합니다.', 'It survived CPU and GPU load separately but shut off with both. An undersized or aging PSU is the most likely cause.'),
+    @('그래픽카드만 부하를 받았을 때 꺼졌습니다. 그래픽카드 자체 또는 보조전원 케이블·파워의 PCIe 출력이 의심됩니다.', 'It shut off with only the graphics card under load. Suspect the card itself, its power cables, or the PSU''s PCIe output.'),
+    @('CPU 만 부하를 받았을 때 꺼졌습니다. CPU 보조전원(4+4핀), 메인보드 전원부, CPU 쿨러 장착, 오버클럭 설정을 확인하세요.', 'It shut off with only the CPU under load. Check the CPU power cable (4+4 pin), motherboard power delivery, CPU cooler mounting and overclock settings.'),
+    @('메모리를 집중적으로 쓰는 중에 꺼졌습니다. XMP/EXPO 를 끄고, RAM 을 한 개씩 꽂아 다시 시험하세요.', 'It shut off during heavy memory use. Disable XMP/EXPO and retest with one RAM stick at a time.'),
+    @('부하가 없는데 꺼졌습니다. 전원 케이블·멀티탭, 파워, 메인보드 순서로 의심됩니다.', 'It shut off with no load. Suspect the power cable/power strip, then the PSU, then the motherboard.'),
+    @('Windows 안에서 메모리에 쓴 값과 다시 읽은 값이 달랐습니다. RAM 불량 가능성이 매우 높습니다. XMP/EXPO 를 끄고 한 개씩 꽂아 불량 모듈을 찾으세요.', 'Values written to memory read back differently. Faulty RAM is very likely. Disable XMP/EXPO and test one stick at a time to find the bad module.'),
+    @('그래픽카드 하드웨어 감속 신호 (전원 공급 불안정 또는 과열)', 'Graphics card hardware slowdown signal (unstable power or overheating)'),
+    @('그래픽카드 온도 제한 동작', 'Graphics card thermal limiting'),
+    @('단계별 자동 정밀 테스트 (약 32분, 권장)', 'Automatic staged test (about 32 min, recommended)'),
+    @('대기 → CPU → RAM 검사 → GPU·VRAM → 전체 부하 → 전력 출렁임 순서로 자동 진행. 꺼진 단계로 원인을 좁힙니다.', 'Runs idle → CPU → RAM test → GPU/VRAM → full load → power swings automatically. The stage where it dies narrows the cause.'),
+    @('직접 설정', 'Manual'), @('RAM 검사 (Windows 안에서, 재부팅 없음)', 'RAM test (inside Windows, no reboot)'),
+    @('단계별 정밀 테스트를 모두 마쳤습니다. 다시 검사하면 결과가 보고서에 나옵니다.', 'The staged test is complete. Run a scan to see the result in the report.'),
+    @('기록을 마쳤습니다.', 'Recording finished.'),
+    @('대기 (기준값)', 'Idle (baseline)'), @('CPU 단독 부하', 'CPU only'), @('GPU·VRAM 단독 부하', 'GPU/VRAM only'), @('전체 부하 (CPU+GPU)', 'Full load (CPU+GPU)'), @('전력 출렁임 (10초 간격)', 'Power swings (10 s)'),
+    @('RAM 검사', 'RAM test'), @('완료', 'Done'),
     @('RE:마지막 기록 ([\d\- :]+) · 부하 (\d+)% · GPU ', 'Last record $1 · load $2% · GPU '),
     @('RE:블랙박스: 테스트 중 오류 기록 \((\d+) 분\)', 'Black box: errors recorded during test ($1 min)'),
     @('RE:블랙박스: 테스트 (\d+) 분 동안 이상 없음', 'Black box: no problems during a $1-minute test'),
@@ -2116,6 +2354,7 @@ $script:EnPairs = @(
     @('부하와 무관하게 꺼졌습니다. 전원 케이블·멀티탭·파워, 메인보드, RAM 순서로 의심됩니다.', 'It shut off regardless of load. Suspect the power cable/power strip/PSU, then motherboard, then RAM.'),
     @('직전 오류:', 'Errors just before:'), @('온도 미상', 'temp unknown'),
     @('꺼지지는 않았지만 테스트 중 오류가 기록되었습니다:', 'The PC did not shut off, but errors were recorded during the test:'),
+    @('꺼지지는 않았지만 테스트 중 이상 신호가 기록되었습니다', 'The PC did not shut off, but warning signs were recorded during the test'),
     @('최고 GPU', 'Max GPU'), @('CPU 최고', 'max CPU'),
     @('블랙박스 기록 (실시간 테스트)', 'Black box records (live test)'), @('갑자기 끊김', 'cut off'), @('정상 종료', 'stopped normally'),
     @('GPU 최고', 'Max GPU'), @('판정', 'Verdict'), @('시작', 'Start'), @('길이', 'Length'), @('끝', 'End'),
