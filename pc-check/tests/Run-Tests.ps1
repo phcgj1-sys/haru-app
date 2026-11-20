@@ -331,8 +331,8 @@ function New-Bb2File([string]$name, [object[]]$rows, [switch]$Stop) {
     $p = Join-Path $OutDir $name
     $l = @('# PCCheck blackbox,v2,TEST,2026-11-14T10:00:00,2.1.0', $script:BlackboxCols)
     $t = Get-Date '2026-11-14T10:00:00'
-    foreach ($r in $rows) { $t = $t.AddSeconds(1); $l += ('{0},{1},{2},{3},40,45,{4},{5},{6},2500,3000,{7},1,1,0,{8},{9}' -f (Format-T $t), $r[0], $r[1], $r[2], $r[3], $r[4], $r[5], $r[6], $r[7], $r[8]) }
-    if ($Stop) { $l += ((@((Format-T $t.AddSeconds(1))) + @('') * 15 + @('STOP')) -join ',') }
+    foreach ($r in $rows) { $t = $t.AddSeconds(1); $ge = $(if ($r.Count -gt 9) { $r[9] } else { '' }); $l += ('{0},{1},{2},{3},40,45,{4},{5},{6},2500,3000,{7},1,1,0,{8},{10},{9}' -f (Format-T $t), $r[0], $r[1], $r[2], $r[3], $r[4], $r[5], $r[6], $r[7], $r[8], $ge) }
+    if ($Stop) { $l += ((@((Format-T $t.AddSeconds(1))) + @('') * ($script:BlackboxCols.Split(',').Count - 2) + @('STOP')) -join ',') }
     [IO.File]::WriteAllLines($p, [string[]]$l); return $p
 }
 function Rep($n, $row) { return @(1..$n | ForEach-Object { , $row }) }
@@ -368,6 +368,20 @@ It 'RAM 검사 오류 → RAM (꺼지지 않아도), 감속 신호·CPU 스로�
     $all = (Rep 2 @('idle', 3, 100, 40, 1, 30, '', 0, '')) + (Rep 2 @('cpu', 100, 98, 45, 1, 35, '', 0, '')) + (Rep 2 @('ram', 50, 100, 40, 1, 30, '', 0, '')) + (Rep 2 @('gpu', 5, 100, 70, 99, 250, '', 0, '')) + (Rep 2 @('full', 100, 97, 72, 99, 280, '', 0, '')) + (Rep 2 @('pulse', 100, 97, 72, 99, 280, '', 0, ''))
     $a4 = Read-BlackboxAnalysis (New-Bb2File 'w.csv' $all -Stop)
     Assert-Eq $a4.Level 'ok' '통과'; Assert ($a4.Title -match '전 단계 통과') '통과 제목'
+}
+It 'memtest_vulkan 출력 해석과 VRAM 오류·시작 실패 판정' {
+    $lg = Join-Path $OutDir 'gpu.log'
+    [IO.File]::WriteAllText($lg, "Testing 1: NVIDIA`nError found. Mode NEXT_RE_READ, total errors 0x10 out of 0x1000`nError found. Mode INITIAL_READ`nRuntime error: ERROR_DEVICE_LOST while getting () in context wait_for_fences`n")
+    $g = Get-GpuLoadStatus $lg; Assert-Eq $g.Errors 2 '오류 줄'; Assert $g.DeviceLost '장치 끊김'; Assert $g.Testing '시작됨'
+    [IO.File]::WriteAllText($lg, "memtest_vulkan: early exit during init: The library failed to load`n")
+    Assert (Get-GpuLoadStatus $lg).InitFailed '시작 실패'
+    Assert-Eq (Get-GpuLoadStatus (Join-Path $OutDir 'none.log')).Errors 0 '파일 없음'
+    $a = Read-BlackboxAnalysis (New-Bb2File 'g1.csv' ((Rep 3 @('gpu', 5, 100, 70, 99, 250, '', 0, '', 0)) + (Rep 3 @('gpu', 5, 100, 70, 99, 250, '', 0, '', 4))) -Stop)
+    Assert-Eq $a.Level 'bad' 'VRAM 오류 = 위험'; Assert-Eq $a.Cause 'GPU_HW' '그래픽카드'; Assert-Eq $a.GpuTestErrors 4 '오류 수'
+    $all = @(); foreach ($k in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse') { $all += (Rep 2 @($k, 100, 98, 60, 99, 250, '', 0, '')) }
+    $all[6] = @('gpu', 5, 100, 40, 0, 20, '', 0, 'GPUFAIL')
+    $b = Read-BlackboxAnalysis (New-Bb2File 'g2.csv' $all -Stop)
+    Assert ($b.Title -notmatch '전 단계 통과') 'GPU 미시험이면 전 단계 통과 아님'; Assert ($b.Detail -match 'GPU 단계는 시험되지 않음') '안내'
 }
 It 'NVIDIA 감속 원인 해석' {
     Assert-Eq (ConvertFrom-NvThrottle '0x0000000000000004') 'PWRCAP' '전력 제한'
@@ -439,6 +453,7 @@ It '영어 보고서·요약에 한글이 남지 않음 (모든 시나리오)' {
         $x.Blackbox += (Read-BlackboxAnalysis (New-Bb2File 'en-o.csv' (Rep 2 @('gpu', 5, 100, 70, 99, 250, 'SWTHERM', 0, '')) -Stop))
         $allSt = @(); foreach ($k in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse') { $allSt += (Rep 2 @($k, 100, 98, 60, 99, 250, '', 0, '')) }
         $x.Blackbox += (Read-BlackboxAnalysis (New-Bb2File 'en-a.csv' $allSt -Stop))
+        $x.Blackbox += (Read-BlackboxAnalysis (New-Bb2File 'en-g.csv' (Rep 3 @('gpu', 5, 100, 70, 99, 250, '', 0, 'GPUFAIL ; GPULOST', 3)) -Stop))
 
         $all += $x
         foreach ($d in $all) {
