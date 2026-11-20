@@ -45,9 +45,16 @@ elseif ($computer -match '^(?:PC|SEAT|S)?[-_]?0*(\d{1,4})$' -or $computer -match
 if (-not $Share) {
   try {
     $cfgPath = Join-Path $base 'pc-check.config'
-    if (Test-Path $cfgPath) { foreach ($ln in (Get-Content -Path $cfgPath -Encoding UTF8)) { if ($ln -match '^\s*share\s*=\s*(.+?)\s*$') { $Share = $matches[1] } } }
+    if (Test-Path -LiteralPath $cfgPath) {
+      # 점검 프로그램과 같은 방식: UTF-8이 아니면(메모장 ANSI 저장) 한국어 코드 페이지(949)로 읽음
+      $bytes = [System.IO.File]::ReadAllBytes($cfgPath); $txt = $null
+      try { $txt = (New-Object System.Text.UTF8Encoding($false, $true)).GetString($bytes) } catch { $txt = [System.Text.Encoding]::GetEncoding(949).GetString($bytes) }
+      foreach ($ln in ($txt.TrimStart([char]0xFEFF) -split "`r?`n")) { if ($ln -match '^\s*share\s*=\s*(.+?)\s*$') { $Share = $matches[1] } }
+    }
   } catch {}
 }
+# 경로 정리: 따옴표, 끝의 \ (bat 에서 "\\SERVER\pc bang\" 처럼 넘기면 \" 가 따옴표를 먹어 " 가 붙어 들어옴)
+if ($Share) { $Share = $Share.Trim().Trim('"').TrimEnd('\', '"').Trim() }
 
 # ---------- 측정 시간 ----------
 if ($Seconds -le 0) {
@@ -217,10 +224,13 @@ if ($pm) {
   if (-not (Test-Path $pmCsv)) { $pmNote = 'PresentMon 결과 파일이 없음(보안 프로그램 차단 또는 실행 실패)' }
   else {
     try {
+      $sr = $null
       $sr = New-Object System.IO.StreamReader($pmCsv)
       $hdr = $sr.ReadLine().Split(',')
       $ix = @{}; for ($k = 0; $k -lt $hdr.Length; $k++) { $ix[$hdr[$k].Trim().ToLower()] = $k }
       $iApp = $ix['application']; $iPid = $ix['processid']
+      # 한 프로세스가 창(스왑체인)을 여러 개 쓰면 프레임이 섞여 FPS가 부풀려짐 → 스왑체인별로 나눔(1.x·2.x 모두 SwapChainAddress 열)
+      $iSc = $ix['swapchainaddress']
       # 버전마다 열 이름이 다름: main/2.4+ MsBetweenPresents·MsGPUBusy, 2.1~2.3 FrameTime·GPUBusy, 2.0 CPUBusy+CPUWait, 1.x msBetweenPresents·msGPUActive
       $iFt = $null; foreach ($cn in @('msbetweenpresents', 'frametime', 'msbetweenappstart', 'msbetweendisplaychange')) { if ($ix.ContainsKey($cn)) { $iFt = $ix[$cn]; break } }
       $iCb = $ix['cpubusy']; $iCw = $ix['cpuwait']
@@ -234,14 +244,14 @@ if ($pm) {
         elseif ($null -ne $iCb -and $null -ne $iCw -and $f.Length -gt [math]::Max($iCb, $iCw)) { $a1 = 0.0; $b1 = 0.0; if (-not ([double]::TryParse($f[$iCb], $flt, $inv, [ref]$a1) -and [double]::TryParse($f[$iCw], $flt, $inv, [ref]$b1))) { continue }; $ft = $a1 + $b1 }
         else { continue }
         if ($ft -le 0 -or $ft -gt 5000) { continue }
-        $key = $f[$iApp] + '|' + $f[$iPid]
+        $key = $f[$iApp] + '|' + $f[$iPid]; if ($null -ne $iSc -and $f.Length -gt $iSc) { $key += '|' + $f[$iSc] }
         if (-not $byApp.ContainsKey($key)) { $byApp[$key] = @{ ft = (New-Object System.Collections.Generic.List[double]); gb = 0.0; gbn = 0 } }
         $byApp[$key].ft.Add($ft)
         if ($null -ne $iGb -and $f.Length -gt $iGb) { $g = 0.0; if ([double]::TryParse($f[$iGb], [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$g)) { $byApp[$key].gb += $g; $byApp[$key].gbn++ } }
       }
-      $sr.Close()
+      $sr.Close(); $sr = $null
       $pick = $null
-      if ($gamePid) { $pick = @($byApp.Keys | Where-Object { $_ -match ('\|' + $gamePid + '$') })[0] }
+      if ($gamePid) { $pick = @($byApp.Keys | Where-Object { $_ -match ('^[^|]*\|' + $gamePid + '(\||$)') } | Sort-Object { $byApp[$_].ft.Count } -Descending)[0] }
       if (-not $pick) { $pick = @($byApp.Keys | Where-Object { (($_ -split '\|')[0] -replace '\.exe$', '') -notmatch $skipRx } | Sort-Object { $byApp[$_].ft.Count } -Descending)[0] }
       if ($pick -and $byApp[$pick].ft.Count -ge 30) {
         $pmApp = ($pick -split '\|')[0]
@@ -265,7 +275,7 @@ if ($pm) {
         }
         if ($byApp[$pick].gbn -gt 0) { $gpuBusyRatio = R1 (($byApp[$pick].gb / $byApp[$pick].gbn) / ($tot / $n) * 100) }
       } else { $pmNote = '게임 프레임을 찾지 못함(게임이 실행 중이었는지 확인)' }
-    } catch { $pmNote = 'PresentMon 결과를 읽지 못함' }
+    } catch { $pmNote = 'PresentMon 결과를 읽지 못함' } finally { if ($sr) { $sr.Close() } }
   }
   Remove-Item $pmCsv -ErrorAction SilentlyContinue
 }
@@ -389,6 +399,7 @@ $code = 'PCBANGG1:' + [Convert]::ToBase64String([System.Text.Encoding]::UTF8.Get
 $copied = $false
 try { Set-Clipboard -Value $code -ErrorAction Stop; $copied = $true } catch { $code | clip.exe; $copied = ($LASTEXITCODE -eq 0) }
 $tag = $(if ($null -ne $seatVal) { 'seat-' + $seatVal } else { $computer })
+$tag = ([string]$tag) -replace '[\\/:*?"<>|\s]', '_'  # 파일 이름에 못 쓰는 글자(-Seat "A/3" 등) 정리
 $fname = ('game-{0}-{1}.txt' -f $tag, $stamp.ToString('yyyyMMdd-HHmm'))
 $desk = Join-Path ([Environment]::GetFolderPath('Desktop')) $fname
 try { $code | Out-File -FilePath $desk -Encoding ascii -ErrorAction Stop; Say ('  결과 파일: {0}' -f $desk) } catch {}

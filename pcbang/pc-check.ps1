@@ -130,6 +130,8 @@ try {
     }
   }
 } catch {}
+# 경로 정리: 따옴표, 끝의 \ (bat 에서 "\\SERVER\pc bang\" 처럼 넘기면 \" 가 따옴표를 먹어 " 가 붙어 들어옴)
+if ($Share) { $Share = $Share.Trim().Trim('"').TrimEnd('\', '"').Trim() }
 
 Say ''
 Say '==============================================' Cyan
@@ -404,7 +406,8 @@ try {
   if ($result.ramSpeed -and $rated -gt 0) {
     $cfgSp = [int]$result.ramSpeed
     # 일부 PC는 동작 속도를 절반(MHz)으로 보고함
-    if ($cfgSp -lt 1400 -and ($cfgSp * 2) -ge ($rated * 0.97)) { $cfgSp = $cfgSp * 2 }
+    # DDR4-3200을 1600, DDR5-6000을 3000처럼 보고하는 보드도 있음: 두 배가 정격과 3% 안쪽이면 절반 보고로 봄(실제로 정격의 절반으로 도는 DDR4·DDR5는 없음)
+    if (($cfgSp -lt 1400 -and ($cfgSp * 2) -ge ($rated * 0.97)) -or ($cfgSp -lt ($rated * 0.6) -and [math]::Abs($cfgSp * 2 - $rated) -le ($rated * 0.03))) { $cfgSp = $cfgSp * 2; $result.ramSpeed = $cfgSp }
     $result.ramXmpOff = ($cfgSp -lt ($rated * 0.97))
   }
 } catch {}

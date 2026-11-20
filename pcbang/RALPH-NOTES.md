@@ -2,6 +2,15 @@
 
 반복 작업이 바퀴마다 한 일과 남은 일을 적는 곳이에요. 최신이 위.
 
+## 바퀴 57 (2026-11-20)
+- 독립 검토 5차(PowerShell 5.1 코드 읽기): 문법·BOM·CRLF·StrictMode 문제 없음. 측정 관련 지적을 하나씩 확인해 고침.
+- 고침(game-test.ps1): PresentMon 프레임을 '프로그램|PID'로만 묶어, 한 프로세스의 창(스왑체인)이 둘이면 섞임 → SwapChainAddress 까지 키에 넣고 가장 프레임 많은 것 선택. 파이썬 재현: 144fps 게임 + 같은 프로세스 30fps 창이면 섞인 결과 평균 87·1% 30·끊김 1800·60초가 120초로 → 나눈 결과 144·144·0. (검토의 '평균 FPS 부풀림'은 MsBetweenPresents 가 체인별이라 틀린 말, 실제 피해는 1% 최저·끊김·타임라인)
+- 고침(game-test.ps1): CSV 읽다 오류가 나면 파일이 열린 채 남아 임시 CSV 삭제 실패 → finally 로 닫음. -Seat "A/3" 같은 값이 파일 이름을 깨뜨림 → pc-check 와 같은 글자 정리.
+- 고침(pc-check.ps1): 램 속도를 절반(MHz)으로 보고하는 보드에서 1400 이상(DDR4-3200→1600, DDR5-6000→3000)이면 보정 안 돼 'XMP 꺼짐' 오탐 → 두 배가 정격의 ±3%면 절반 보고로 보고 ramSpeed 도 고침. 8가지 경우 계산 확인(실제 XMP 꺼짐은 그대로 경고).
+- 고침(두 스크립트): 공유 폴더 경로의 따옴표·끝 \ 정리(bat 에서 "\\SERVER\pc bang\" 이면 \" 가 따옴표를 먹음). game-test 가 pc-check.config 를 UTF-8 로만 읽고 따옴표도 안 벗겨 pc-check 와 다르게 동작 → 같은 방식(UTF-8 실패 시 949, 따옴표 제거).
+- 확인: PresentMon 2.x 도 '-옵션' 형식 받음(CommandLine.cpp "Allow /ARG, -ARG, or --ARG"), 쓰는 옵션 5개 이름 그대로. 두 ps1 BOM·CRLF 유지, 괄호 균형 검사 통과. smoke.js 통과. sw.js haru-v86.
+- 남은 것(실제 PC 확인 필요): ① tl 배열(초 단위)과 fpsTl(프레임 시간 누적)이 기준이 달라 루프가 2.5초 넘게 밀리면 어긋날 수 있음 — tl.t 내보내기 또는 빈 초 채우기 검토 ② nvidia-smi -l 1 -f 를 강제 종료할 때 마지막 줄 유실 여부 ③ 매핑 드라이브에서 game-test.bat 관리자 재실행 시 경로 못 찾음(안내만 있음).
+
 ## 바퀴 56 (2026-11-20)
 - 점검: 벤치마크 — 측정 중 다른 측정은 testBusy 로 막힘, GPU 측정은 창이 숨으면 requestAnimationFrame 이 멈췄다가 돌아오면 이어서 끝남(결함 아님).
 - 고침(접근성): 결과 코드 붙여넣기 칸 3개(gtPaste·nativeIn·shopPaste)가 placeholder 만 있어 화면 낭독기가 이름을 못 읽음 → aria-label 추가. 키보드 포커스 표시(:focus-visible) 있음.
