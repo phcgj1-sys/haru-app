@@ -16,6 +16,7 @@ window.GAMES = [
     min: { os: 'win10', cpu: ['Core 2 Duo E8400', 'Athlon 200GE'], gpu: ['Intel HD 4000', 'R5 230'], ram: 4, vram: 1, storage: '약 50GB' },
     rec: { os: 'win10', cpu: ['i5-9400F', 'Ryzen 5 2600X'], gpu: ['GTX 1050 Ti', 'R7 370', 'Arc A310'], ram: 4, vram: 1, storage: '약 50GB SSD' },
     fpsBasis: '실측 보정', fps: { e: 0.7, g3060: 340, c12400: 400, cap: null },
+    recLabel: '고사양(144fps)',
     tiers: '공식: 최소 30fps · 권장(i3-4150/GT 730) 60fps · 고사양(i5-9400F/GTX 1050 Ti) 144fps 이상',
     checks: ['라이엇 뱅가드 필요 · Windows 11은 TPM 2.0과 보안 부팅(Secure Boot)이 켜져 있어야 함(VAN9001/9003 오류)', '공식 고사양 기준 = 144fps 이상 · CPU가 SSE4.2 또는 AVX 지원 · 2025-07 언리얼 엔진 5로 바뀌었지만 공식 사양은 그대로'],
     src: 'support-valorant.riotgames.com 최소 사양' },

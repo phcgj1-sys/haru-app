@@ -345,6 +345,7 @@ function renderGames() {
   var tgt = targetFps(opt);
   $('#gameGrid').innerHTML = GAMES.map(function (g) {
     var j = judge(g, sp, opt), lv = LV[j.level];
+    if (j.level === 'rec' && g.recLabel) lv = ['ok', g.recLabel + ' 충족'];
     var fpsHtml = '';
     if (j.fps != null) {
       var fl = fpsLabel(j.fps, tgt);
@@ -355,7 +356,7 @@ function renderGames() {
     var comps = j.comps.map(function (c) {
       var col = c.l === 'rec' ? 'var(--ok)' : c.l === 'min' ? 'var(--warn)' : c.l === 'fail' ? 'var(--bad)' : 'var(--line)';
       var pct = c.v != null && c.rc ? Math.min(100, Math.round(c.v / c.rc * 100)) : 0;
-      var txt = c.l === 'unk' ? '모름' : c.l === 'rec' ? '권장 ✓' : c.l === 'min' ? '최소 ✓' : '부족 ✗';
+      var txt = c.l === 'unk' ? '모름' : c.l === 'rec' ? (g.recLabel ? '고사양 ✓' : '권장 ✓') : c.l === 'min' ? '최소 ✓' : '부족 ✗';
       if (c.atLeast && c.l !== 'unk') txt = c.atLeast + 'GB 이상 · ' + txt;
       return '<span>' + c.k + '</span><span class="meter" title="권장 대비 ' + pct + '%"><i style="width:' + pct + '%;background:' + col + '"></i></span><span>' + txt + '</span>';
     }).join('');
@@ -369,14 +370,14 @@ function reqTable(g) {
   function row(k, a, b) { return '<tr><th>' + k + '</th><td>' + esc(a || '-') + '</td><td>' + esc(b || '-') + '</td></tr>'; }
   var m = g.min, r = g.rec;
   var osN = function (o) { return o === 'win11' ? 'Windows 11' : o === 'win7' ? 'Windows 7 64비트 이상' : 'Windows 10 64비트'; };
-  return '<div class="tblwrap"><table><thead><tr><th></th><th>최소</th><th>권장</th></tr></thead><tbody>' +
+  return '<div class="tblwrap"><table><thead><tr><th></th><th>최소</th><th>' + esc(g.recLabel || '권장') + '</th></tr></thead><tbody>' +
     row('CPU', (m.cpu || []).join(' / '), (r.cpu || []).join(' / ')) +
     row('그래픽', (m.gpu || []).join(' / '), (r.gpu || []).join(' / ')) +
     row('RAM', m.ram + 'GB', r.ram + 'GB') +
     (m.vram || r.vram ? row('VRAM', m.vram ? m.vram + 'GB' : '', r.vram ? r.vram + 'GB' : '') : '') +
     row('운영체제', osN(m.os), osN(r.os || m.os)) +
     (m.storage ? row('저장 공간', m.storage, r.storage || m.storage) : '') +
-    '</tbody></table></div>' + (g.src ? '<div class="xs muted">출처: ' + esc(g.src) + '</div>' : '');
+    '</tbody></table></div>' + (g.tiers ? '<div class="xs">' + esc(g.tiers) + '</div>' : '') + (g.src ? '<div class="xs muted">출처: ' + esc(g.src) + '</div>' : '');
 }
 ['#optRes', '#optPreset', '#optTarget'].forEach(function (id) {
   $(id).addEventListener('change', function () { S.opt = { res: $('#optRes').value, preset: $('#optPreset').value, target: $('#optTarget').value }; save(); renderGames(); });
