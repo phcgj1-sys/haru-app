@@ -464,14 +464,14 @@ function renderSpec() {
   kv('모니터 주사율', S.dev.hz ? S.dev.hz + 'Hz' : '<a href="#dev" data-goto="dev">측정하기</a>');
   if (nat) {
     kv('점검 프로그램', '<span class="pill ok">적용됨 ' + esc(nat.time || '') + '</span>');
-    kv('· CPU', esc(nat.cpu || '-') + (nat.cores ? ' (' + nat.cores + '코어 ' + nat.threads + '스레드)' : ''));
+    kv('· CPU', esc(nat.cpu || '-') + (nat.cores ? ' (' + nat.cores + '코어' + (nat.threads ? ' ' + nat.threads + '스레드' : '') + ')' : ''));
     kv('· 그래픽', (nat.gpus || []).map(function (g) { return esc(g.name) + (g.vram ? ' ' + g.vram + 'GB' : '') + (g.driver ? ' · 드라이버 ' + esc(g.driver) : ''); }).join('<br>') || '-');
     kv('· RAM', nat.ramGB ? nat.ramGB + 'GB' + (nat.ramSpeed ? ' · ' + nat.ramSpeed + 'MHz' : '') + (nat.ramSticks ? ' · ' + nat.ramSticks + '개' : '') : '-');
     kv('· 운영체제', esc(nat.osName || '-'));
     if (nat.power) kv('· 전원 관리', esc(nat.power));
     if (nat.secureBoot || nat.tpm) kv('· 보안 부팅 / TPM', esc(nat.secureBoot || '-') + ' / ' + esc(nat.tpm || '-'));
     devKv(nat, kv);
-    if (nat.disks) kv('· 저장 장치', nat.disks.map(function (x) { return esc(x.name) + ' 남은 ' + x.free + '/' + x.size + 'GB'; }).join('<br>'));
+    if (nat.disks) kv('· 저장 장치', nat.disks.map(function (x) { return esc(x.name) + (x.free != null && x.size ? ' 남은 ' + x.free + '/' + x.size + 'GB' : x.free != null ? ' 남은 ' + x.free + 'GB' : ''); }).join('<br>'));
   }
   $('#detKv').innerHTML = rows.join('');
   var w = [];
@@ -489,7 +489,7 @@ function devKv(nat, kv) {
   if (nat.computer || nat.seat) kv('· PC 이름', esc(nat.computer || '-') + (nat.seat ? ' (좌석 ' + esc(nat.seat) + ')' : ''));
   if (nat.displays && nat.displays.length) kv('· 모니터', nat.displays.map(function (d) { return esc(d.name || '모니터') + ' ' + esc(d.res) + ' ' + (d.hz || '-') + 'Hz' + (d.maxHz ? ' / 최대 ' + d.maxHz + 'Hz' : '') + (d.primary ? ' (주 모니터)' : ''); }).join('<br>'));
   else if (nat.monitors && nat.monitors.length) kv('· 모니터', nat.monitors.map(esc).join(', ') + (nat.monitorMaxHz ? ' · 최대 ' + nat.monitorMaxHz + 'Hz' : ''));
-  if (nat.gpuLive) { var g = nat.gpuLive; kv('· 그래픽 상태', (g.tempC != null ? g.tempC + '°C' : '') + (g.util != null ? ' · 사용률 ' + g.util + '%' : '') + (g.powerW != null ? ' · ' + fmt(g.powerW, 0) + '/' + fmt(g.powerLimitW, 0) + 'W' : '') + (g.pcieGen ? ' · PCIe ' + g.pcieGen + '.0 x' + g.pcieWidth + (g.pcieWidthMax ? '(최대 x' + g.pcieWidthMax + ')' : '') : '') + (g.fanPct != null ? ' · 팬 ' + g.fanPct + '%' : '')); }
+  if (nat.gpuLive) { var g = nat.gpuLive; kv('· 그래픽 상태', (g.tempC != null ? g.tempC + '°C' : '') + (g.util != null ? ' · 사용률 ' + g.util + '%' : '') + (g.powerW != null ? ' · ' + fmt(g.powerW, 0) + '/' + fmt(g.powerLimitW, 0) + 'W' : '') + (g.pcieGen ? ' · PCIe ' + g.pcieGen + '.0' + (g.pcieWidth ? ' x' + g.pcieWidth : '') + (g.pcieWidthMax ? '(최대 x' + g.pcieWidthMax + ')' : '') : '') + (g.fanPct != null ? ' · 팬 ' + g.fanPct + '%' : '')); }
   if (nat.ramRated) kv('· 램 정격', nat.ramRated + 'MT/s' + (nat.ramXmpOff ? ' <span class="pill warn">XMP 꺼짐 의심</span>' : ''));
   if (nat.memUsedPct != null) kv('· 메모리 사용', nat.memUsedPct + '%');
   if (nat.physDisks && nat.physDisks.length) kv('· 디스크', nat.physDisks.map(function (d) { return esc(d.name) + ' ' + esc(d.media) + '/' + esc(d.bus) + ' ' + (d.sizeGB || '') + 'GB · ' + esc(d.health || '-'); }).join('<br>') + (nat.diskless ? '<br><span class="pill info">노하드 환경</span>' : ''));
@@ -1019,7 +1019,7 @@ function renderNativeNet() {
   }).join('');
   var tcp = (n.tcp || []).map(function (p) {
     var g = p.ok ? netGrade({ med: p.avg, jitter: 0, loss: p.fail / Math.max(1, p.n) }) : ['bad', '접속 실패'];
-    return '<tr><td>' + esc(p.name) + '<div class="xs muted mono">' + esc(p.host) + ':' + p.port + '</div></td><td class="num">' + (p.ok ? fmt(p.avg) + 'ms' : '-') + '</td><td class="num">' + (p.ok ? fmt(p.min) + 'ms' : '-') + '</td><td><span class="pill ' + g[0] + '">' + g[1] + '</span></td></tr>';
+    return '<tr><td>' + esc(p.name) + '<div class="xs muted mono">' + esc(p.host) + (p.port ? ':' + p.port : '') + '</div></td><td class="num">' + (p.ok ? fmt(p.avg) + 'ms' : '-') + '</td><td class="num">' + (p.ok ? fmt(p.min) + 'ms' : '-') + '</td><td><span class="pill ' + g[0] + '">' + g[1] + '</span></td></tr>';
   }).join('');
   var gw = (n.pings || []).filter(function (p) { return p.isGateway; })[0];
   var ext = (n.pings || []).filter(function (p) { return !p.isGateway && p.recv; });
@@ -1423,7 +1423,7 @@ function seatReportHTML(r) {
   var tgt = targetFps(S.opt), n = r.e.native || {};
   var d = new Date(r.at || Date.now());
   var h = '<div class="stack"><div class="row between"><div class="h2">' + esc(r.seat) + (/^\d+$/.test(String(r.seat)) ? '번 좌석' : '') + '</div><span class="small muted">' + d.toLocaleString('ko-KR') + '</span></div>' +
-    '<dl class="kv"><dt>CPU</dt><dd>' + esc(r.cpu) + (n.cores ? ' · ' + n.cores + '코어 ' + n.threads + '스레드' : '') + '</dd><dt>그래픽</dt><dd>' + esc(r.gpu) + (r.sp.vram ? ' · ' + fmt(r.sp.vram, 0) + 'GB' : '') + '</dd><dt>RAM</dt><dd>' + (r.ram ? esc(r.ram) + 'GB' : '-') + (n.ramSpeed ? ' · ' + n.ramSpeed + 'MT/s' : '') + '</dd><dt>운영체제</dt><dd>' + esc(n.osName || (r.st.det && r.st.det.osName) || '-') + '</dd><dt>모니터</dt><dd>' + (r.hz ? r.hz + 'Hz' : '-') + '</dd>' +
+    '<dl class="kv"><dt>CPU</dt><dd>' + esc(r.cpu) + (n.cores ? ' · ' + n.cores + '코어' + (n.threads ? ' ' + n.threads + '스레드' : '') : '') + '</dd><dt>그래픽</dt><dd>' + esc(r.gpu) + (r.sp.vram ? ' · ' + fmt(r.sp.vram, 0) + 'GB' : '') + '</dd><dt>RAM</dt><dd>' + (r.ram ? esc(r.ram) + 'GB' : '-') + (n.ramSpeed ? ' · ' + n.ramSpeed + 'MT/s' : '') + '</dd><dt>운영체제</dt><dd>' + esc(n.osName || (r.st.det && r.st.det.osName) || '-') + '</dd><dt>모니터</dt><dd>' + (r.hz ? r.hz + 'Hz' : '-') + '</dd>' +
     (n.adapter ? '<dt>네트워크</dt><dd>' + esc(n.adapter) + '</dd>' : '') + (r.gw != null ? '<dt>게이트웨이</dt><dd>' + fmt(r.gw, 1) + 'ms · 손실 ' + (r.gwLoss || 0) + '%</dd>' : '') + (r.ext != null ? '<dt>외부 지연</dt><dd>' + fmt(r.ext) + 'ms</dd>' : '') + (function () { var x = []; devKv(n, function (k, v) { x.push('<dt>' + k.replace(/^· /, '') + '</dt><dd>' + v + '</dd>'); }); return x.join(''); })() + '</dl>';
   if (r.e.games && r.e.games.length) h += '<div class="h3">실전 게임 테스트</div><ul class="fixlist small">' + r.e.games.slice().reverse().map(function (g) { var ex = gtExpect(g); return '<li><b>' + esc(ex ? ex.game.name : g.app) + '</b> ' + esc(g.time) + ' — ' + (g.fps ? '평균 ' + fmt(g.fps.avg) + 'fps · 1% 최저 ' + fmt(g.fps.low1) + 'fps · 끊김 ' + fmt(g.fps.stutters) + '회' : 'FPS 없음') + (g.gpu.tempMax != null ? ' · 그래픽 최고 ' + g.gpu.tempMax + '°C' : '') + (g.ping.gw ? ' · 게이트웨이 ' + fmt(g.ping.gw.avg, 1) + 'ms' : '') + ' · 병목 ' + esc(g.bottleneck || '-') + '</li>'; }).join('') + '</ul>';
   if (r.e.history && r.e.history.length) h += '<div class="h3">지난 점검과 달라진 점</div><ul class="fixlist small">' + r.e.history.slice().reverse().map(function (x) { return '<li><b>' + esc(x.from) + ' → ' + esc(x.at) + '</b><br>' + x.ch.map(esc).join('<br>') + '</li>'; }).join('') + '</ul>';
