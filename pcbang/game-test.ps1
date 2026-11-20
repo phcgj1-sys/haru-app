@@ -304,8 +304,8 @@ function PingSum($vals) {
 }
 $ping = [ordered]@{ gwHost = $gateway; extHost = $extHost; gsHost = $gameSrv; gw = (PingSum @($tl | ForEach-Object { $_.gw })); ext = (PingSum @($tl | ForEach-Object { $_.ext })); gs = (PingSum @($tl | ForEach-Object { $_.gs })) }
 
-$gpuName = $null; $hz = $null
-try { $vc = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Microsoft Basic|Remote|Virtual|Parsec' } | Sort-Object { [int]([int]$_.CurrentRefreshRate -gt 1) }, { [int]($_.Name -match 'NVIDIA|AMD|Radeon|Arc') } -Descending); if ($vc.Count) { $gpuName = ($vc | Select-Object -First 1).Name; $hz = [int]($vc | Select-Object -First 1).CurrentRefreshRate } } catch {}
+$gpuName = $null; $hz = $null; $resW = $null; $resH = $null
+try { $vc = @(Get-CimInstance Win32_VideoController | Where-Object { $_.Name -notmatch 'Microsoft Basic|Remote|Virtual|Parsec' } | Sort-Object { [int]([int]$_.CurrentRefreshRate -gt 1) }, { [int]($_.Name -match 'NVIDIA|AMD|Radeon|Arc') } -Descending); if ($vc.Count) { $v0 = $vc | Select-Object -First 1; $gpuName = $v0.Name; $hz = [int]$v0.CurrentRefreshRate; $resW = [int]$v0.CurrentHorizontalResolution; $resH = [int]$v0.CurrentVerticalResolution } } catch {}
 $cpuName = $null; try { $cpuName = ((Get-CimInstance Win32_Processor | Select-Object -First 1).Name -replace '\s+', ' ').Trim() } catch {}
 $ramGB = $null; try { $ramGB = [math]::Round(((Get-CimInstance Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum).Sum) / 1GB) } catch {}
 
@@ -345,7 +345,7 @@ if (-not $verd.Count) { [void]$verd.Add('측정 중 눈에 띄는 문제가 없�
 $result = [ordered]@{
   v = 1; kind = 'game'; seat = $seatVal; computer = $computer; time = $stamp.ToString('yyyy-MM-dd HH:mm'); durationS = $Seconds
   app = $(if ($pmApp) { $pmApp } else { $gameExe }); admin = $isAdmin; pmUsed = [bool]$pm; pmNote = $pmNote
-  cpuName = $cpuName; gpuName = $gpuName; ramGB = $ramGB; hz = $hz
+  cpuName = $cpuName; gpuName = $gpuName; ramGB = $ramGB; hz = $hz; resW = $resW; resH = $resH
   fps = $fps; gpuBusyPct = $gpuBusyRatio; bottleneck = $bottle
   cpu = [ordered]@{ avg = (Avg $cpuA); max = (Mx $cpuA); coreAvg = (Avg $coreA); coreMax = (Mx $coreA) }
   gpu = $gpu; mem = [ordered]@{ avg = (Avg $memA); max = (Mx $memA) }; ping = $ping

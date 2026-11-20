@@ -1579,7 +1579,7 @@ function sanitizeGame(o) {
   return {
     kind: 'game', seat: o.seat == null ? '' : String(o.seat).slice(0, 20), computer: str(o.computer).slice(0, 40), time: str(o.time).slice(0, 20), durationS: num(o.durationS),
     app: str(o.app), admin: o.admin === true, pmUsed: o.pmUsed === true, pmNote: str(o.pmNote),
-    cpuName: str(o.cpuName), gpuName: str(o.gpuName), ramGB: num(o.ramGB), hz: num(o.hz),
+    cpuName: str(o.cpuName), gpuName: str(o.gpuName), ramGB: num(o.ramGB), hz: num(o.hz), resW: num(o.resW), resH: num(o.resH),
     fps: o.fps && typeof o.fps === 'object' ? pick(o.fps, ['frames', 'avg', 'low1', 'low01', 'p50ms', 'p99ms', 'maxms', 'stutters', 'stutterPerMin']) : null,
     gpuBusyPct: num(o.gpuBusyPct), bottleneck: str(o.bottleneck),
     cpu: pick(o.cpu, ['avg', 'max', 'coreAvg', 'coreMax']), gpu: pick(o.gpu, ['utilAvg', 'utilMax', 'tempAvg', 'tempMax', 'powerAvg', 'fanMax', 'clockStart', 'clockEnd']), mem: pick(o.mem, ['avg', 'max']),
@@ -1607,8 +1607,10 @@ function gtExpect(g) {
   if (!game) return null;
   var sp = { gpu: matchGpu(g.gpuName), cpu: matchCpu(g.cpuName), ram: g.ramGB, os: null, src: {}, nat: {} };
   if (!sp.gpu) return { game: game };
-  var r = {}; ['low', 'mid', 'high'].forEach(function (pr) { r[pr] = judge(game, sp, { res: '1080', preset: pr, target: 'auto' }).fps; });
-  return { game: game, exp: r };
+  // 측정 때 화면 해상도로 예상치 계산(1440p·4K 좌석을 1080p 기준으로 '낮음' 오판하지 않게)
+  var res = g.resH >= 2000 ? '2160' : g.resH >= 1400 ? '1440' : '1080';
+  var r = {}; ['low', 'mid', 'high'].forEach(function (pr) { r[pr] = judge(game, sp, { res: res, preset: pr, target: 'auto' }).fps; });
+  return { game: game, exp: r, res: res };
 }
 function gtPrev(g) {
   var who = function (x) { return x.seat ? 'seat:' + normSeat(x.seat) : 'pc:' + String(x.computer || '').toUpperCase(); };
@@ -1684,7 +1686,7 @@ function renderGameDetail() {
     var d = function (now, before, unit, better) { if (now == null || before == null) return '-'; var diff = now - before, pct = before ? Math.round(diff / before * 100) : 0, good = better === 'up' ? diff > 0 : diff < 0; return '<b style="color:' + (diff === 0 ? 'var(--muted)' : good ? 'var(--ok)' : 'var(--bad)') + '">' + (diff > 0 ? '+' : '') + fmt(diff, unit === 'ms' ? 1 : 0) + unit + (pct ? ' (' + (pct > 0 ? '+' : '') + pct + '%)' : '') + '</b>'; };
     h += '<div class="note"><b>이전 테스트(' + esc(prev.time) + ')와 비교</b> · 평균 ' + fmt(prev.fps.avg) + '→' + fmt(g.fps.avg) + 'fps ' + d(g.fps.avg, prev.fps.avg, '', 'up') + ' · 1% 최저 ' + fmt(prev.fps.low1) + '→' + fmt(g.fps.low1) + ' ' + d(g.fps.low1, prev.fps.low1, '', 'up') + ' · 끊김 ' + fmt(prev.fps.stutters) + '→' + fmt(g.fps.stutters) + ' ' + d(g.fps.stutters, prev.fps.stutters, '', 'down') + (g.gpu.tempMax != null && prev.gpu.tempMax != null ? ' · 그래픽 최고 온도 ' + prev.gpu.tempMax + '→' + g.gpu.tempMax + '°C' : '') + '<div class="xs">맵·인원·교전 양이 다르면 차이가 날 수 있어요. 같은 모드에서 2판 이상 재서 비교하세요.</div></div>';
   }
-  if (e && e.exp) h += '<div class="small">같은 부품 예상(1080p): 낮음 옵션 약 ' + fmt(e.exp.low) + ' · 중간 ' + fmt(e.exp.mid) + ' · 높음 ' + fmt(e.exp.high) + 'fps' + (g.fps ? ' → 실측 ' + fmt(g.fps.avg) + 'fps' : '') + '</div>';
+  if (e && e.exp) h += '<div class="small">같은 부품 예상(' + e.res + 'p' + (g.resW ? ', 측정 화면 ' + g.resW + '×' + g.resH : '') + '): 낮음 옵션 약 ' + fmt(e.exp.low) + ' · 중간 ' + fmt(e.exp.mid) + ' · 높음 ' + fmt(e.exp.high) + 'fps' + (g.fps ? ' → 실측 ' + fmt(g.fps.avg) + 'fps' : '') + '</div>';
   h += '<div class="row sumrow">' + stat(esc(g.bottleneck || '-'), '병목') + stat((g.cpu.avg != null ? g.cpu.avg + '%' : '-'), 'CPU 평균 (바쁜 코어 ' + (g.cpu.coreAvg != null ? g.cpu.coreAvg + '%' : '-') + ')') + stat((g.gpu.utilAvg != null ? g.gpu.utilAvg + '%' : '-'), '그래픽 사용률') + (g.gpu.tempMax != null ? stat(g.gpu.tempMax + '°C', '그래픽 최고 온도') : '') + stat((g.mem.max != null ? g.mem.max + '%' : '-'), '메모리 최고') + '</div>';
   var ps = function (lab, x, host) { return x ? '<tr><td>' + lab + (host ? '<div class="xs muted mono">' + esc(host) + '</div>' : '') + '</td><td class="num">' + fmt(x.avg, 1) + 'ms</td><td class="num">' + fmt(x.max) + 'ms</td><td class="num">' + fmt(x.jitter, 1) + 'ms</td><td class="num">' + fmt(x.loss, 1) + '%</td><td class="num">' + fmt(x.spikes) + '</td></tr>' : ''; };
   var pt = ps('게이트웨이', g.ping.gw, g.ping.gwHost) + ps('외부(KT DNS)', g.ping.ext, g.ping.extHost) + ps('게임 서버', g.ping.gs, g.ping.gsHost);
