@@ -123,6 +123,14 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   await page.click('#shopAddThis'); await page.click('#shopAddThis'); await page.waitForTimeout(150);
   ok(await page.textContent('#shopCount') === before, '매장 현황: 같은 PC 결과를 다시 넣어도 줄이 늘지 않음 (' + before + ')');
 
+  // 5-3. 실전 테스트: CPU 클럭 저하(PL1) 판정, 해상도 기준 예상치
+  const g2 = Object.assign({}, g, { seat: 31, computer: 'PC-031', time: '2026-11-20 12:00', cpuName: 'Intel(R) Core(TM) i7-14700F', gpuName: 'NVIDIA GeForce RTX 5080', resW: 2560, resH: 1440, cpu: { avg: 35, coreAvg: 90, clockStart: 5300, clockEnd: 3600 }, tl: { clk: Array.from({ length: 60 }, (_, i) => i < 28 ? 5300 : 3600), fps: [200, 190] } });
+  await page.click('[data-tab="game"]');
+  await page.evaluate(c => { document.querySelector('#gtPaste').value = c; document.querySelector('#gtImport').click(); }, 'PCBANGG1:' + b64(g2)); await page.waitForTimeout(300);
+  const d2 = await page.innerText('#gtDetail');
+  ok(/CPU 클럭 저하 \(5,300→3,600MHz\)/.test(d2) && await page.$('#gtcClk') !== null, '실전 테스트: CPU 클럭 저하 판정·클럭 그래프');
+  ok(/같은 부품 예상\(1440p, 측정 화면 2560×1440\)/.test(d2), '실전 테스트: 측정 해상도 기준 예상치');
+
   // 6. 모바일 폭 가로 넘침
   await page.setViewportSize({ width: 390, height: 844 });
   for (const t of ['home', 'game', 'games', 'log', 'dev', 'fix']) { await page.click(`[data-tab="${t}"]`); await page.waitForTimeout(100); }
