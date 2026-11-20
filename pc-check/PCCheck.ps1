@@ -953,7 +953,8 @@ function Get-BlackboxChartSvg($A) {
     $yOf = { param($v, $max) ($T + ($H - $T - $B) * (1 - [math]::Min(1.0, [double]$v / $max))).ToString('0.#', $inv) }
     $sb = New-Object System.Text.StringBuilder
     [void]$sb.Append("<svg viewBox='0 0 $W $H' class='tl bbc' role='img' aria-label='블랙박스 기록 그래프'>")
-    # 단계 구간
+    # 단계 구간 (이름은 선 위에 보이도록 나중에 그림)
+    $labels = New-Object System.Text.StringBuilder
     $names = @{}; foreach ($p in $script:StagePlan) { $names[$p.Key] = $p.Name }; $names['manual'] = '직접 설정'
     $i = 0
     while ($i -lt $sec.Count) {
@@ -963,8 +964,16 @@ function Get-BlackboxChartSvg($A) {
             $x1 = & $xOf $sec[$i]; $x2 = & $xOf $sec[[math]::Min($j + 1, $sec.Count - 1)]
             $fill = $(if ($i % 2 -eq 0) { 'var(--soft)' } else { 'transparent' })
             [void]$sb.Append("<rect x='$x1' y='$T' width='$(([double]$x2 - [double]$x1).ToString('0.#', $inv))' height='$($H - $T - $B)' fill='$fill'/>")
-            $lbl = $(if ($names.ContainsKey($k)) { $names[$k] } else { $k })
-            [void]$sb.Append("<text x='$(([double]$x1 + 3).ToString('0.#', $inv))' y='$($T + 11)' class='lbl'>$(HtmlEnc $lbl)</text>")
+            $lbl = Tr $(if ($names.ContainsKey($k)) { $names[$k] } else { $k })
+            # 구간 너비에 맞춰 이름을 줄이고, 너무 좁으면 생략 (글자가 옆 구간·선과 겹치지 않게)
+            $bandW = [double]$x2 - [double]$x1
+            # 글자 폭 추정: 한글 10px, 그 외 6px (글꼴 10px 기준)
+            $room = $bandW - 6; $acc = 0.0; $cut = $lbl.Length
+            for ($ci = 0; $ci -lt $lbl.Length; $ci++) { $acc += $(if ($lbl[$ci] -match '[가-힣]') { 10.0 } else { 6.0 }); if ($acc -gt $room) { $cut = $ci; break } }
+            if ($cut -ge 2) {
+                if ($cut -lt $lbl.Length) { $lbl = $lbl.Substring(0, $cut - 1) + '…' }
+                [void]$labels.Append("<text x='$(([double]$x1 + 3).ToString('0.#', $inv))' y='$($T + 11)' class='lbl bbl'>$(HtmlEnc $lbl)</text>")
+            }
         }
         $i = $j + 1
     }
@@ -976,6 +985,7 @@ function Get-BlackboxChartSvg($A) {
     & $line $cpu 100 'var(--c-bsod)'
     & $line $pow $pMax 'var(--c-whea)'
     & $line $temp 100 'var(--c-psu)'
+    [void]$sb.Append($labels.ToString())
     [void]$sb.Append("<line x1='$L' y1='$($H - $B)' x2='$($W - $R)' y2='$($H - $B)' class='axis'/>")
     [void]$sb.Append("<text x='$($L - 4)' y='$($T + 4)' class='lbl' text-anchor='end'>100</text><text x='$($L - 4)' y='$($H - $B)' class='lbl' text-anchor='end'>0</text>")
     [void]$sb.Append("<text x='$($W - $R + 4)' y='$($T + 4)' class='lbl'>$([int]$pMax)W</text>")
@@ -1113,7 +1123,7 @@ h2{font-size:17px;margin:30px 0 10px;display:flex;align-items:center;gap:8px}
 .tag{flex:none;font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;height:fit-content;background:var(--soft)}
 .f.bad .tag{background:var(--bad);color:#fff}.f.warn .tag{background:var(--warn);color:#fff}.f.ok .tag{background:var(--ok);color:#fff}.f.info .tag{color:var(--info)}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
-.tl{width:100%;height:auto}.tl .axis{stroke:var(--line)}.tl .lbl{fill:var(--muted);font-size:10px}
+.tl{width:100%;height:auto}.bbl{paint-order:stroke;stroke:var(--card);stroke-width:3px}.tl .axis{stroke:var(--line)}.tl .lbl{fill:var(--muted);font-size:10px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:4px}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
 details.sec{background:var(--card);border:1px solid var(--line);border-radius:12px;margin:8px 0}details.sec>summary{padding:12px 14px;cursor:pointer;font-weight:700}details.sec>div{padding:0 14px 14px}
 .cnt{font-weight:400;color:var(--muted);font-size:13px;margin-left:6px}

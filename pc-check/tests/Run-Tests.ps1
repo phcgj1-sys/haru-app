@@ -484,6 +484,9 @@ It '블랙박스 그래프: 요약 계열(최대 300점)·단계 구간·끊긴 
     $h = New-HtmlReport -Data (RoundTrip $d) -Dx (Get-Diagnosis -Data (RoundTrip $d))
     Assert ($h -match 'bbc') 'JSON 왕복 보고서에 그래프'
     Assert-Eq (Get-BlackboxChartSvg ([ordered]@{ Series = $null })) '' '계열 없으면 빈 값'
+    # 좁은 구간 이름은 줄이거나 생략 (전체 30분 중 10초짜리 구간)
+    $narrow = [ordered]@{ Abrupt = $false; Series = [ordered]@{ Sec = @(0, 10, 1800); Temp = @(50, 50, 50); Pow = @(1, 1, 1); Cpu = @(1, 1, 1); Stage = @('pulse', 'idle', 'idle') } }
+    Assert ((Get-BlackboxChartSvg $narrow) -notmatch '전력 출렁임') '좁은 구간 이름 생략'
     # 값이 중간 높이로 그려지는지 (정수 Min 함정 회귀 방지): 50°C → 0~100 축의 가운데 근처
     $flat = [ordered]@{ Abrupt = $false; Series = [ordered]@{ Sec = @(0, 60); Temp = @(50, 50); Pow = @(100, 100); Cpu = @(50, 50); Stage = @('cpu', 'cpu') } }
     $m = [regex]::Match((Get-BlackboxChartSvg $flat), "points='34,([\d\.]+) ")
