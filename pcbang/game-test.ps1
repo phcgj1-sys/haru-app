@@ -60,7 +60,7 @@ if ($Seconds -gt 900) { $Seconds = 900 }
 if ($Delay -lt 0) { $Delay = 20 }
 
 # ---------- PresentMon 준비 ----------
-$pm = $null; $pmMajor = 2
+$pm = $null
 function FindPM {
   $ver = { if ($_.Name -match '(\d+(\.\d+)+)') { try { [version]$matches[1] } catch { [version]'0.0' } } else { [version]'0.0' } }
   $c = @(Get-ChildItem -Path $base -Filter 'PresentMon*.exe' -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'arm' } | Sort-Object $ver -Descending)

@@ -1519,6 +1519,12 @@ function gtExpect(g) {
   var r = {}; ['low', 'mid', 'high'].forEach(function (pr) { r[pr] = judge(game, sp, { res: '1080', preset: pr, target: 'auto' }).fps; });
   return { game: game, exp: r };
 }
+function gtPrev(g) {
+  var who = function (x) { return x.seat ? 'seat:' + normSeat(x.seat) : 'pc:' + String(x.computer || '').toUpperCase(); };
+  var gid = gameIdOf(g.app) || String(g.app).toLowerCase();
+  return gtests.filter(function (x) { return x !== g && who(x) === who(g) && (gameIdOf(x.app) || String(x.app).toLowerCase()) === gid && String(x.time) < String(g.time); })
+    .sort(function (a, b) { return String(b.time).localeCompare(String(a.time)); })[0] || null;
+}
 function gtProblems(g) {
   var out = [];
   var e = gtExpect(g);
@@ -1579,6 +1585,12 @@ function renderGameDetail() {
   var h = '<div class="card stack"><div class="row between"><div class="h2">' + esc(name) + ' <span class="small muted">' + esc(g.app) + '</span></div><span class="small muted">' + esc(g.time) + ' · ' + (g.durationS || '-') + '초 · ' + esc(g.seat ? g.seat + '번 좌석' : g.computer) + '</span></div>';
   if (g.fps) h += '<div class="row sumrow">' + stat(fmt(g.fps.avg), '평균 fps') + stat(fmt(g.fps.low1), '1% 최저 fps') + stat(fmt(g.fps.low01), '0.1% 최저 fps') + stat(fmt(g.fps.p99ms, 1) + 'ms', '상위 1% 프레임 시간') + stat(fmt(g.fps.stutters), '끊김(긴 프레임)') + (g.hz ? stat(g.hz + 'Hz', '모니터') : '') + '</div>';
   else h += '<div class="warnbox">FPS는 측정되지 않았어요' + (g.pmNote ? ': ' + esc(g.pmNote) : '') + (g.admin ? '' : ' (관리자 권한으로 실행해야 FPS를 잴 수 있어요)') + '</div>';
+  // 같은 좌석(또는 PC)·같은 게임의 바로 이전 테스트와 비교 (설정 변경 전후 효과 확인용)
+  var prev = gtPrev(g);
+  if (prev && g.fps && prev.fps) {
+    var d = function (now, before, unit, better) { if (now == null || before == null) return '-'; var diff = now - before, pct = before ? Math.round(diff / before * 100) : 0, good = better === 'up' ? diff > 0 : diff < 0; return '<b style="color:' + (diff === 0 ? 'var(--muted)' : good ? 'var(--ok)' : 'var(--bad)') + '">' + (diff > 0 ? '+' : '') + fmt(diff, unit === 'ms' ? 1 : 0) + unit + (pct ? ' (' + (pct > 0 ? '+' : '') + pct + '%)' : '') + '</b>'; };
+    h += '<div class="note"><b>이전 테스트(' + esc(prev.time) + ')와 비교</b> · 평균 ' + fmt(prev.fps.avg) + '→' + fmt(g.fps.avg) + 'fps ' + d(g.fps.avg, prev.fps.avg, '', 'up') + ' · 1% 최저 ' + fmt(prev.fps.low1) + '→' + fmt(g.fps.low1) + ' ' + d(g.fps.low1, prev.fps.low1, '', 'up') + ' · 끊김 ' + fmt(prev.fps.stutters) + '→' + fmt(g.fps.stutters) + ' ' + d(g.fps.stutters, prev.fps.stutters, '', 'down') + (g.gpu.tempMax != null && prev.gpu.tempMax != null ? ' · 그래픽 최고 온도 ' + prev.gpu.tempMax + '→' + g.gpu.tempMax + '°C' : '') + '<div class="xs">맵·인원·교전 양이 다르면 차이가 날 수 있어요. 같은 모드에서 2판 이상 재서 비교하세요.</div></div>';
+  }
   if (e && e.exp) h += '<div class="small">같은 부품 예상(1080p): 낮음 옵션 약 ' + fmt(e.exp.low) + ' · 중간 ' + fmt(e.exp.mid) + ' · 높음 ' + fmt(e.exp.high) + 'fps' + (g.fps ? ' → 실측 ' + fmt(g.fps.avg) + 'fps' : '') + '</div>';
   h += '<div class="row sumrow">' + stat(esc(g.bottleneck || '-'), '병목') + stat((g.cpu.avg != null ? g.cpu.avg + '%' : '-'), 'CPU 평균 (바쁜 코어 ' + (g.cpu.coreAvg != null ? g.cpu.coreAvg + '%' : '-') + ')') + stat((g.gpu.utilAvg != null ? g.gpu.utilAvg + '%' : '-'), '그래픽 사용률') + (g.gpu.tempMax != null ? stat(g.gpu.tempMax + '°C', '그래픽 최고 온도') : '') + stat((g.mem.max != null ? g.mem.max + '%' : '-'), '메모리 최고') + '</div>';
   var ps = function (lab, x, host) { return x ? '<tr><td>' + lab + (host ? '<div class="xs muted mono">' + esc(host) + '</div>' : '') + '</td><td class="num">' + fmt(x.avg, 1) + 'ms</td><td class="num">' + fmt(x.max) + 'ms</td><td class="num">' + fmt(x.jitter, 1) + 'ms</td><td class="num">' + fmt(x.loss, 1) + '%</td><td class="num">' + fmt(x.spikes) + '</td></tr>' : ''; };
