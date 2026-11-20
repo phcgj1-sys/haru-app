@@ -481,7 +481,7 @@ function devKv(nat, kv) {
 function showMatch() {
   var c = $('#cpuIn').value.trim(), g = $('#gpuIn').value.trim(), out = [];
   if (c) { var cm = matchCpu(c); out.push(cm ? '<span class="pill ok">CPU: ' + esc(cm.name) + ' · 단일 ' + fmt(cm.single) + ' / 전체 ' + fmt(cm.multi) + '</span>' : '<span class="pill warn">CPU "' + esc(c) + '"를 표에서 못 찾았어요. 목록에서 가까운 것을 고르세요.</span>'); }
-  if (g) { var gm = matchGpu(g); out.push(gm ? '<span class="pill ok">그래픽: ' + esc(gm.name) + ' · 점수 ' + fmt(gm.score) + '</span>' : '<span class="pill warn">그래픽 "' + esc(g) + '"를 표에서 못 찾았어요.</span>'); }
+  if (g) { var gm = matchGpu(g); if (!gm && /radeon(\(tm\))? graphics/i.test(g) && c) { gm = igpuFromCpu(c); if (gm) gm = { name: gm.name + ' (CPU로 추정)', score: gm.score }; } out.push(gm ? '<span class="pill ok">그래픽: ' + esc(gm.name) + ' · 점수 ' + fmt(gm.score) + '</span>' : '<span class="pill warn">그래픽 "' + esc(g) + '"를 표에서 못 찾았어요.</span>'); }
   $('#matchInfo').innerHTML = out.join(' ');
 }
 $('#cpuIn').addEventListener('input', showMatch);
