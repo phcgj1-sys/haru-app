@@ -598,6 +598,13 @@ It '기록기: 순간 쓰기 오류는 다시 시도, 계속되면 기록 오류
     Assert (-not $a.Abrupt) '전원 차단으로 오판 안 함'; Assert ($a.Events.ContainsKey('LOGERR')) '기록 오류 표시'
     Assert (@($a.Notes) -match '기록 오류').Count '안내'
 }
+It '기록 화면: 쓰기 재시도 중이면 경고 문구 (영어 번역 포함)' {
+    Assert-Eq (Get-BlackboxWarnText @{ Warn = '' }) '' '정상이면 없음'
+    Assert-Eq (Get-BlackboxWarnText $null) '' 'null 안전'
+    $w = Get-BlackboxWarnText @{ Warn = 'IO error' }; Assert ($w -match '다시 시도 중') '경고'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $e = Tr ("기록 중 · 3 분 · 10 줄" + $w); Assert ($e -notmatch '[가-힣]') "영어: $e"; Assert ($e -match 'retrying') '영문 문구' } finally { $script:UiLang = $old }
+}
 It '화면 쪽 사건(GPU 도구 실패)이 기록에 남아 GPU 단계 미시험으로 판정' {
     $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb2') -IntervalSec 0.3 -NoEvents
     $job.Sync.Stage = 'gpu'; $job.Sync.Pending = 'GPUFAIL'

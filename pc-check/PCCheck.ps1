@@ -1596,6 +1596,11 @@ function Stop-CpuStress($Job) {
     try { $Job.Pool.Dispose() } catch {}
 }
 
+function Get-BlackboxWarnText($Sync) {
+    # 기록기가 쓰기를 다시 시도하는 중이면 화면에 알림 (USB 가 빠지면 기록이 남지 않으므로)
+    if ($Sync -and [string]$Sync.Warn) { return "`n기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)" }
+    return ''
+}
 function Test-OverheatGuard([hashtable]$State, $GpuTempC, [double]$LimitC = 95, [int]$Count = 3) {
     # 과열 보호: GPU 온도가 한계 이상으로 연속 Count 회(약 Count 초) 이어지면 $true (부하를 멈춰야 함)
     if ($null -ne $GpuTempC -and "$GpuTempC" -ne '' -and [double]$GpuTempC -ge $LimitC) { $State.Hot = 1 + [int]$State.Hot } else { $State.Hot = 0 }
@@ -1868,6 +1873,7 @@ function Show-BlackboxDialog {
             $rt = Get-RamTestState
             if ($rt.TestedMB -gt 0) { $txt += " · RAM 검사 $([math]::Round($rt.TestedMB / 1024, 1)) GB, 오류 $($rt.Errors) 건" }
             if ($sy.Events) { $txt += " · 오류 $($sy.Events) 건" }
+            $txt += Get-BlackboxWarnText $sy
             $live.Text = (Tr $txt) + "`n" + $sy.Path
             if ($sy.Error) { $live.Text = Tr "기록 오류: $($sy.Error)"; & $stopAll }
         } catch { Write-PCLog "blackbox tick: $($_.Exception.Message)" }
@@ -2622,7 +2628,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
