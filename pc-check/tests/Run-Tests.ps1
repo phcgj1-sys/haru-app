@@ -269,6 +269,17 @@ It 'HTML/JSON 저장, 특수문자 이스케이프, 타임라인' {
     $j = Get-Content -Raw -Encoding UTF8 $r.Json | ConvertFrom-Json
     Assert-Eq (Top (Get-Diagnosis -Data $j)) 'GPU_HW' '저장된 JSON 재분석'
 }
+It '증상·고객 메모: 보고서 상단·요약에 표시, HTML 이스케이프' {
+    $d = New-Scenario @{}; $d.Meta.Note = '홍길동 / 게임 중 꺼짐 <b>x</b>'
+    $dx = Get-Diagnosis -Data $d
+    $h = New-HtmlReport -Data $d -Dx $dx
+    Assert ($h -match "class='note'") '메모 표시'; Assert ($h -match '&lt;b&gt;x&lt;/b&gt;') '이스케이프'; Assert ($h -notmatch '<b>x</b>') '태그 주입 없음'
+    Assert ((Get-SummaryText $d $dx) -match '메모: 홍길동') '요약 포함'
+    Assert ((New-HtmlReport -Data (New-Scenario @{}) -Dx $dx) -notmatch "class='note'") '메모 없으면 표시 안 함'
+    $script:UiLang = 'en'
+    try { $he = New-HtmlReport -Data $d -Dx $dx; Assert ($he -match 'Note: 홍길동 / 게임 중 꺼짐') "영어에서도 메모 원문 유지"; Assert ((Get-SummaryText $d $dx) -match 'Note: 홍길동 / 게임 중 꺼짐') '요약도 원문' }
+    finally { $script:UiLang = 'ko' }
+}
 It '요약 텍스트에 핵심 정보 포함' {
     $data = New-Scenario $scenarios['파워 부족: 블루스크린 없이 반복 꺼짐 + 그래픽 오류 직후'].Data
     $t = Get-SummaryText $data (Get-Diagnosis -Data $data)

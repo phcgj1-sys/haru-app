@@ -72,6 +72,7 @@ powershell -ExecutionPolicy Bypass -File PCCheck.ps1 -FromJson "PC진단_2026111
 | `-OutDir D:\reports` | 저장 위치 |
 | `-FromJson file.json` | 저장된 진단 데이터로 보고서 재생성 |
 | `-NoOpen` | 보고서 자동 열기 끔 |
+| `-Note "홍길동 / 게임 중 꺼짐"` | 증상·고객 메모를 보고서 상단과 상담용 요약에 표시 (화면에서는 '메모' 칸) |
 | `-Lang en` | 영어 보고서·화면 (기본 `auto`: Windows 언어가 한국어면 한국어, 아니면 영어) |
 
 로그: `%LOCALAPPDATA%\PCCheck\logs` · 검사 이력: `%LOCALAPPDATA%\PCCheck\history.json`

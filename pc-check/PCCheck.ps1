@@ -9,6 +9,7 @@
 .PARAMETER Days     분석 기간(일), 1~365
 .PARAMETER OutDir   보고서 저장 폴더 (기본: 바탕화면\PC진단)
 .PARAMETER FromJson 저장된 진단 데이터(JSON)로 보고서를 다시 생성 (원격 상담용)
+.PARAMETER Note     보고서에 넣을 증상·고객 메모 (PC 안에만 저장)
 .PARAMETER Lang     보고서·화면 언어: auto(기본, Windows 언어) · ko · en
 .PARAMETER LoadOnly 함수만 불러오고 실행하지 않음 (테스트용)
 #>
@@ -18,6 +19,7 @@ param(
     [ValidateRange(1, 365)][int]$Days = 30,
     [string]$OutDir,
     [string]$FromJson,
+    [string]$Note,
     [switch]$NoOpen,
     [switch]$GuiSmokeTest,
     [ValidateSet('auto', 'ko', 'en')][string]$Lang = 'auto',
@@ -1021,6 +1023,7 @@ function Get-SummaryText($Data, $Dx) {
     $s = Get-Prop $Data 'System'; $m = Get-Prop $Data 'Meta'
     $L = New-Object System.Collections.ArrayList
     [void]$L.Add("[$($script:AppName) v$($script:AppVersion)] $(([string](Get-Prop $m 'Created')).Replace('T',' ')) · 최근 $(Get-Prop $m 'Days')일")
+    if (Get-Prop $m 'Note') { [void]$L.Add('메모: %%PCNOTE%%') }
     [void]$L.Add("상태 점수: $($Dx.Health)/100 ($($Dx.Grade))")
     [void]$L.Add("PC: $(Get-Prop $s 'CPU') / RAM $(Get-Prop $s 'RamGB')GB / $((@(Get-Arr (Get-Prop $Data 'Gpus')) | ForEach-Object { Get-Prop $_ 'Name' }) -join ', ')")
     [void]$L.Add("OS: $(Get-Prop $s 'OS') (빌드 $(Get-Prop $s 'Build')) · 보드: $(Get-Prop $s 'Board') BIOS $(Get-Prop $s 'BIOS')")
@@ -1031,7 +1034,7 @@ function Get-SummaryText($Data, $Dx) {
         [void]$L.Add('의심 원인:')
         $i = 0; foreach ($x in $Dx.Causes | Select-Object -First 3) { $i++; [void]$L.Add("  $i. $($x.Name) — $($x.Score)점(가능성 $($x.Confidence)): $(@($x.Reasons | Select-Object -First 2) -join '; ')") }
     }
-    return (Tr ($L -join "`r`n"))
+    return (Tr ($L -join "`r`n")).Replace('%%PCNOTE%%', [string](Get-Prop $m 'Note'))
 }
 
 function New-HtmlReport {
@@ -1112,6 +1115,7 @@ details.sec{background:var(--card);border:1px solid var(--line);border-radius:12
 pre{white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:12px;font:12px/1.6 Consolas,monospace;margin:0}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:8px 14px;cursor:pointer}button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
 footer{margin-top:40px;color:var(--muted);font-size:12px}
+.note{margin:4px 0;font-weight:600}
 .next{margin:6px 0 4px;padding:8px 12px;background:var(--soft);border-radius:8px}.next span{color:var(--muted);font-size:13px}
 
 .cmp{border-radius:12px;padding:12px 16px;margin:16px 0;border:1px solid var(--line);background:var(--card)}.cmp p{margin:2px 0 0;color:var(--muted)}
@@ -1151,6 +1155,7 @@ function openAll(v){document.querySelectorAll('details').forEach(function(d){d.o
  <div class="ring $gradeCls"><svg width="128" height="128" viewBox="0 0 128 128"><circle class="bg" cx="64" cy="64" r="52"/><circle class="fg" cx="64" cy="64" r="52" stroke-dasharray="$dash $circS"/></svg><b>$($Dx.Health)</b><small>/ 100</small></div>
  <div class="hd"><h1>PC 진단 보고서</h1><div class="grade">상태: $(HtmlEnc $Dx.Grade)</div>
  $nextHtml
+ $(if (Get-Prop $m 'Note') { "<p class='note'>메모: %%PCNOTE%%</p>" })
  <p class="sub">$(HtmlEnc (Get-Prop $m 'Computer')) · $(HtmlEnc ([string](Get-Prop $m 'Created')).Replace('T',' ')) · 최근 $(Get-Prop $m 'Days')일 분석 · v$(HtmlEnc (Get-Prop $m 'Version'))</p>
  <p class="sub">$(HtmlEnc (Get-Prop $s 'CPU')) · RAM $(HtmlEnc (Get-Prop $s 'RamGB'))GB · $(HtmlEnc ((@(Get-Arr (Get-Prop $Data 'Gpus')) | ForEach-Object { Get-Prop $_ 'Name' }) -join ', '))</p></div>
 </header>
@@ -1221,6 +1226,8 @@ $(ConvertTo-HtmlTable (Get-Prop $Data 'DriverInstalls') @('T','Msg') @('시간',
 </main><script>$js</script></body></html>
 "@
     if ($script:UiLang -eq 'en') { $html = (Tr $html).Replace('<html lang="ko">', '<html lang="en">') }
+    # 사용자가 쓴 메모는 번역하지 않고 그대로 (번역 후에 끼워 넣음)
+    $html = $html.Replace('%%PCNOTE%%', [System.Net.WebUtility]::HtmlEncode([string](Get-Prop $m 'Note')))
     return $html
 }
 
@@ -1990,7 +1997,7 @@ function Test-GuiLayout($root, [int]$RootW = 0, [int]$RootH = 0) {
 function Show-Gui {
 
     # SimScale: 고배율(125~200%) 화면을 흉내 내 레이아웃을 검사할 때만 사용
-    param([int]$Days, [string]$OutDir, [switch]$SmokeTest, [double]$SimScale = 1.0)
+    param([int]$Days, [string]$OutDir, [switch]$SmokeTest, [double]$SimScale = 1.0, [string]$Note)
     Add-Type -AssemblyName System.Windows.Forms, System.Drawing
     if (-not $SmokeTest) {
         # 고해상도 모니터에서 흐릿하지 않게 (DPI 인식) — 실패해도 동작에는 지장 없음
@@ -2031,6 +2038,8 @@ function Show-Gui {
     $desc.AutoEllipsis = $true; $desc.ForeColor = [Drawing.Color]::DimGray
 
     $daysLbl = New-Object Windows.Forms.Label; $daysLbl.Text = '분석 기간'; $daysLbl.AutoSize = $true
+    $noteLbl = New-Object Windows.Forms.Label; $noteLbl.Text = '메모'; $noteLbl.AutoSize = $true
+    $noteBox = New-Object Windows.Forms.TextBox; $noteBox.MaxLength = 200; $noteBox.Text = $Note
     $daysBox = New-Object Windows.Forms.ComboBox; $daysBox.DropDownStyle = 'DropDownList'
     foreach ($o in '7일', '30일', '90일', '180일') { [void]$daysBox.Items.Add($o) }
     $daysBox.SelectedItem = $(if ($Days -le 7) { '7일' } elseif ($Days -le 30) { '30일' } elseif ($Days -le 90) { '90일' } else { '180일' })
@@ -2085,6 +2094,7 @@ function Show-Gui {
         param($data)
         try {
             $status.Text = Tr '분석 중...'
+            if ($noteBox.Text.Trim()) { $data.Meta.Note = $noteBox.Text.Trim() }
             $dx = Get-Diagnosis -Data $data
             $bar.Value = $bar.Maximum - 1
             $state.Result = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
@@ -2162,7 +2172,7 @@ function Show-Gui {
     })
     $f.Add_FormClosing({ if ($state.Job) { try { $state.Job.PS.Stop() } catch {} } })
 
-    $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $grp))
+    $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $noteLbl, $noteBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $grp))
     if ($script:UiLang -eq 'en') {
         # 화면 글자 번역 (컨트롤 · 목록 머리글 · 기간 선택)
         $f.Text = Tr $f.Text
@@ -2183,6 +2193,9 @@ function Show-Gui {
 
         $daysBox.SetBounds($m + (& $u 74), (& $u 86), (& $u 110), $daysBox.Height)
         $start.SetBounds($W - $m - (& $u 200), (& $u 78), (& $u 200), (& $u 44))
+        $nx = $m + (& $u 196)
+        $noteLbl.Left = $nx; $noteLbl.Top = & $u 90
+        $noteBox.SetBounds($nx + (& $u 44), (& $u 86), [math]::Max((& $u 80), $start.Left - (& $u 12) - ($nx + (& $u 44))), $noteBox.Height)
         $bar.SetBounds($m, (& $u 134), $W - 2 * $m, (& $u 10))
         $status.SetBounds($m, (& $u 150), $W - 2 * $m, (& $u 24))
         $grpH = & $u 150; $grpTop = $H - $grpH - (& $u 14)
@@ -2532,7 +2545,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('단계별 최고값', 'Peak values by stage'), @('여기서 꺼짐', 'shut off here'), @('통과', 'passed'), @('GPU 온도', 'GPU temp'), @('GPU 전력', 'GPU power'), @('CPU 사용률', 'CPU usage'), @('결과', 'Result'), @('단계', 'Stage'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('메모:', 'Note:'), @('메모', 'Note'), @('단계별 최고값', 'Peak values by stage'), @('여기서 꺼짐', 'shut off here'), @('통과', 'passed'), @('GPU 온도', 'GPU temp'), @('GPU 전력', 'GPU power'), @('CPU 사용률', 'CPU usage'), @('결과', 'Result'), @('단계', 'Stage'),
     @('RE:권장 파워 용량: (\d+)W 이상', 'Recommended PSU: $1 W or more'),
     @('RE:최대 소비전력 약 (\d+)W \(그래픽카드 (\d+)W·(.+?) \+ CPU (\d+)W \+ 기타 (\d+)W\)\. 순간 전력 급증을 고려해 정격 (\d+)W 이상, 80 PLUS 인증 제품을 권장합니다\. 파워 라벨의 정격 출력과 비교해 보세요\.', 'Estimated peak draw about $1 W (graphics card $2 W · $3 + CPU $4 W + other $5 W). Allowing for power spikes, a rated $6 W or higher 80 PLUS certified PSU is recommended. Compare with the rated output on your PSU label.'),
     @('전력 제한값', 'power limit'), @('블랙박스 측정', 'black box measurement'), @('모델 대표값', 'typical for model'), @('일반 그래픽카드 가정', 'assumed typical card'), @('블랙박스 기록 그래프', 'Black box record chart'), @('기록 끊김', 'recording cut off'),
@@ -2638,7 +2651,7 @@ if (-not $script:IsWin) { Write-Error 'Windows 에서만 검사할 수 있습니
 if ($Mode -eq 'Gui') {
     try {
         if ($GuiSmokeTest) { foreach ($lg in 'ko', 'en') { $script:UiLang = $lg; foreach ($s in 1.0, 1.25, 1.5, 2.0) { Write-Output "[$lg] 배율 $([int]($s * 100))%"; Show-Gui -Days $Days -OutDir $OutDir -SmokeTest -SimScale $s; $bi = @(Show-BlackboxDialog -SmokeTest -SimScale $s); foreach ($i in $bi) { Write-Output "BLACKBOX LAYOUT ISSUE: $i" }; if ($bi.Count) { throw "블랙박스 창 레이아웃 문제 $($bi.Count) 건" } } } }
-        else { Show-Gui -Days $Days -OutDir $OutDir }
+        else { Show-Gui -Days $Days -OutDir $OutDir -Note $Note }
         return
     }
 
@@ -2660,6 +2673,7 @@ if ($Mode -eq 'Gui') {
 
 Write-TrHost "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분석" -ForegroundColor Cyan
 $data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, (Tr $name)) }
+if ($Note) { $data.Meta.Note = $Note.Trim() }
 $dx = Get-Diagnosis -Data $data
 $res = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
 Write-ConsoleResult $dx $res
