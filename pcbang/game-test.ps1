@@ -335,8 +335,11 @@ if ($fps) {
 if ($gpu.tempMax -ge 85) { [void]$verd.Add(('그래픽카드 최고 {0}°C - 먼지 청소·팬 확인' -f $gpu.tempMax)) }
 if ($gpu.clockStart -and $gpu.clockEnd -and $gpu.clockEnd -lt $gpu.clockStart * 0.9 -and $gpu.tempMax -ge 80) { [void]$verd.Add(('그래픽 클럭이 {0}→{1}MHz로 떨어짐 - 발열로 성능 저하(스로틀링) 의심' -f $gpu.clockStart, $gpu.clockEnd)) }
 if ((Mx $memA) -ge 90) { [void]$verd.Add(('메모리 사용 최고 {0}% - 램 부족으로 끊김 가능' -f (Mx $memA))) }
-if ($ping.gw -and ($ping.gw.loss -gt 0 -or ($ping.gw.avg -gt 5))) { [void]$verd.Add(('게임 중 게이트웨이 핑 이상(평균 {0}ms, 손실 {1}%) - 매장 안 네트워크 문제' -f $ping.gw.avg, $ping.gw.loss)) }
-if ($ping.ext -and ($ping.ext.loss -ge 2 -or $ping.ext.spikes -ge 3)) { [void]$verd.Add(('게임 중 외부 핑 불안정(손실 {0}%, 튐 {1}회)' -f $ping.ext.loss, $ping.ext.spikes)) }
+# 응답이 하나도 없으면(100% 손실) 핑 차단이거나 연결 끊김 → 불안정과 구분
+if ($ping.gw -and $ping.gw.loss -ge 100) { [void]$verd.Add('게임 중 게이트웨이 핑 응답 없음 - 공유기·스위치가 핑을 막았거나 연결 문제(게임이 정상이면 핑 차단)') }
+elseif ($ping.gw -and ($ping.gw.loss -gt 0 -or ($ping.gw.avg -gt 5))) { [void]$verd.Add(('게임 중 게이트웨이 핑 이상(평균 {0}ms, 손실 {1}%) - 매장 안 네트워크 문제' -f $ping.gw.avg, $ping.gw.loss)) }
+if ($ping.ext -and $ping.ext.loss -ge 100) { [void]$verd.Add('게임 중 외부(KT DNS) 핑 응답 없음 - 방화벽의 핑 차단 또는 인터넷 끊김(게임이 정상이면 핑 차단)') }
+elseif ($ping.ext -and ($ping.ext.loss -ge 2 -or $ping.ext.spikes -ge 3)) { $sp = ''; if ($null -ne $ping.ext.spikes) { $sp = (', 튐 {0}회' -f $ping.ext.spikes) }; [void]$verd.Add(('게임 중 외부 핑 불안정(손실 {0}%{1})' -f $ping.ext.loss, $sp)) }
 if (-not $verd.Count) { [void]$verd.Add('측정 중 눈에 띄는 문제가 없어요') }
 
 $result = [ordered]@{
@@ -359,9 +362,14 @@ if ($fps) {
 } else { Say ('  FPS: 측정 안 됨 {0}' -f $pmNote) Yellow }
 Say ('  CPU 평균 {0}% (가장 바쁜 코어 평균 {1}%) · 그래픽 평균 {2}% · 메모리 최고 {3}%' -f $result.cpu.avg, $result.cpu.coreAvg, $gpu.utilAvg, $result.mem.max)
 if ($gpu.tempMax) { Say ('  그래픽 온도 평균 {0}°C · 최고 {1}°C' -f $gpu.tempAvg, $gpu.tempMax) }
-if ($ping.gw) { Say ('  게이트웨이 핑 평균 {0}ms · 최대 {1}ms · 손실 {2}%' -f $ping.gw.avg, $ping.gw.max, $ping.gw.loss) }
-if ($ping.ext) { Say ('  외부(KT DNS) 핑 평균 {0}ms · 최대 {1}ms · 손실 {2}%' -f $ping.ext.avg, $ping.ext.max, $ping.ext.loss) }
-if ($ping.gs) { Say ('  게임 서버({0}) 핑 평균 {1}ms · 손실 {2}%' -f $gameSrv, $ping.gs.avg, $ping.gs.loss) }
+function PingLine($label, $o) {
+  if (-not $o) { return }
+  if ($null -eq $o.avg) { Say ('  {0} 핑: 응답 없음 (손실 {1}%)' -f $label, $o.loss) Yellow }
+  else { Say ('  {0} 핑 평균 {1}ms · 최대 {2}ms · 손실 {3}%' -f $label, $o.avg, $o.max, $o.loss) }
+}
+PingLine '게이트웨이' $ping.gw
+PingLine '외부(KT DNS)' $ping.ext
+if ($gameSrv) { PingLine ('게임 서버({0})' -f $gameSrv) $ping.gs }
 Say ('  병목: {0}' -f $bottle)
 foreach ($v in $verd) { Say ('  - ' + $v) Yellow }
 
