@@ -326,7 +326,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <section data-panel="net" class="stack" hidden>
     <div class="card stack">
       <div class="h2">인터넷 지연·속도 (브라우저 측정)</div>
-      <p class="small muted">여러 서버에 짧은 요청을 20번씩 보내 응답 시간(지연), 흔들림(지터), 실패율, 다운로드 속도를 재요. 웹 요청 기준이라 게임 안의 핑보다 조금 높게 나오는 게 정상이에요.</p>
+      <p class="small muted">여러 서버에 짧은 요청을 15번씩 보내 응답 시간(지연), 흔들림(지터), 실패율, 다운로드 속도를 재요. 웹 요청 기준이라 게임 안의 핑보다 조금 높게 나오는 게 정상이에요.</p>
       <div class="row"><button class="btn primary" id="netRun" type="button">인터넷 측정 (약 15초)</button></div>
       <div class="bar"><i id="netBar"></i></div>
       <div class="tblwrap"><table id="netTbl"><thead><tr><th>대상</th><th>지연(중간값)</th><th>최소</th><th>지터</th><th>실패</th><th>판정</th></tr></thead><tbody></tbody></table></div>
@@ -337,7 +337,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
       <div class="h2">게이트웨이 핑·외부 핑 (윈도우 점검 프로그램)</div>
       <p class="small muted">공유기/스위치(게이트웨이)까지, 통신사 DNS·구글·클라우드플레어까지 진짜 핑(ICMP)과 게임사 서버 접속 시간(TCP)을 재려면 <b>pc-check.bat</b>을 실행하고 결과를 <b>내 사양</b> 탭에 붙여넣으세요.</p>
       <div id="nativeNet"><p class="small muted">아직 붙여넣은 결과가 없어요.</p></div>
-      <div class="note"><b>읽는 법</b> · 게이트웨이 핑이 1~2ms를 넘거나 손실이 있으면 <b>PC~공유기 구간</b>(랜선·랜카드·허브) 문제예요. 게이트웨이는 정상인데 외부만 높으면 <b>통신사 회선</b> 문제예요. 모든 대상이 같이 흔들리면(지터 큼) 같은 매장 안에서 누가 대용량을 받고 있는지 확인하세요.</div>
+      <div class="note"><b>읽는 법</b> · 게이트웨이 핑이 3ms를 넘거나(정상은 보통 1~2ms) 손실이 있으면 <b>PC~공유기 구간</b>(랜선·랜카드·허브) 문제예요. 게이트웨이는 정상인데 외부만 높으면 <b>통신사 회선</b> 문제예요. 모든 대상이 같이 흔들리면(지터 큼) 같은 매장 안에서 누가 대용량을 받고 있는지 확인하세요.</div>
     </div>
   </section>
 
