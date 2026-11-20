@@ -650,9 +650,16 @@ function renderGpuOut() {
 var COMMON_HZ = [30, 50, 60, 75, 85, 90, 100, 120, 144, 160, 165, 170, 175, 180, 200, 240, 280, 300, 360, 390, 480, 500, 540];
 function measureHz(ms) {
   return new Promise(function (res) {
-    var ts = [], t0 = null;
-    function f(t) { if (t0 == null) t0 = t; ts.push(t); if (t - t0 < ms) requestAnimationFrame(f); else done(); }
+    var ts = [], t0 = null, hidden = document.hidden, fin = false;
+    // 다른 창으로 넘어가면 브라우저가 화면 갱신을 멈추거나 늦춰 값이 틀어짐 → 무효
+    function onVis() { if (document.hidden) { hidden = true; finish({ invalid: true }); } }
+    function finish(r) { if (fin) return; fin = true; document.removeEventListener('visibilitychange', onVis); clearTimeout(guard); res(r); }
+    document.addEventListener('visibilitychange', onVis);
+    var guard = setTimeout(function () { finish({ invalid: true }); }, ms + 4000); // 화면 갱신이 멈춘 경우 대비
+    if (hidden) { finish({ invalid: true }); return; }
+    function f(t) { if (fin) return; if (t0 == null) t0 = t; ts.push(t); if (t - t0 < ms) requestAnimationFrame(f); else done(); }
     function done() {
+      if (ts.length < 20) { finish({ invalid: true }); return; }
       var d = []; for (var i = 1; i < ts.length; i++) d.push(ts[i] - ts[i - 1]);
       d = d.slice(Math.floor(d.length * 0.25)); // 앞부분 버림
       var med = median(d), hz = 1000 / med;
@@ -660,14 +667,17 @@ function measureHz(ms) {
       if (Math.abs(snap - hz) / hz > 0.04) snap = Math.round(hz);
       var jit = median(d.map(function (x) { return Math.abs(x - med); }));
       var drops = d.filter(function (x) { return x > med * 1.5; }).length;
-      res({ hz: snap, raw: hz, jitter: jit, drops: drops, frames: d.length });
+      finish({ hz: snap, raw: hz, jitter: jit, drops: drops, frames: d.length });
     }
     requestAnimationFrame(f);
   });
 }
 $('#hzRun').addEventListener('click', async function () {
   var b = this; if (testBusy) { toast('다른 측정이 끝난 뒤 눌러 주세요'); return; } lockTests(true); $('#hzOut').innerHTML = '<span class="muted small">측정 중… 가만히 두세요</span>';
-  var r = await measureHz(3000); S.dev.hz = r.hz; S.dev.hzInfo = r; save(); renderHz(); lockTests(false);
+  var r = await measureHz(3000);
+  if (r.invalid) $('#hzOut').innerHTML = '<div class="warnbox">측정 중에 창이 가려져서 주사율을 잴 수 없었어요. 이 창을 앞에 둔 채로 다시 측정하세요.</div>';
+  else { S.dev.hz = r.hz; S.dev.hzInfo = r; save(); renderHz(); }
+  lockTests(false);
 });
 function renderHz() {
   var r = S.dev.hzInfo; if (!r) return;
@@ -1006,7 +1016,7 @@ $('#runAll').addEventListener('click', async function () {
   var setP = function (base, span) { return function (p) { bar.style.width = (base + span * p / 100) + '%'; }; };
   async function step(key, base, span, fn) { st[key] = 'run'; drawSteps(st); try { await fn(setP(base, span)); st[key] = 'done'; } catch (e) { st[key] = 'err'; console.error(e); } bar.style.width = (base + span) + '%'; drawSteps(st); }
   await step('detect', 0, 5, async function () { await detect(); });
-  await step('hz', 5, 10, async function () { var r = await measureHz(2500); S.dev.hz = r.hz; S.dev.hzInfo = r; save(); });
+  await step('hz', 5, 10, async function () { var r = await measureHz(2500); if (r.invalid) { toast('창이 가려져 주사율을 못 쟀어요. 장비 테스트에서 다시 재세요'); throw new Error('hidden'); } S.dev.hz = r.hz; S.dev.hzInfo = r; save(); });
   await step('cpu', 15, 25, async function (p) { Object.assign(S.bench, await benchCpu(p)); save(); });
   await step('gpu', 40, 30, async function (p) { Object.assign(S.bench, await benchGpu(p)); save(); });
   await step('net', 70, 30, async function (p) { S.net = await runNet(p); save(); });
