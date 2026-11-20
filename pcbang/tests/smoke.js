@@ -178,6 +178,9 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   const igc = await page.evaluate(() => { const f = c => (window.__pcbang.igpuFromCpu(c) || {}).name || null; return [f('Intel(R) Core(TM) Ultra 5 245K'), f('Intel(R) Core(TM) Ultra 5 245KF'), f('AMD Ryzen 5 7500F 6-Core Processor'), f('AMD Ryzen 5 7600 6-Core Processor')]; });
   ok(/울트라 245/.test(igc[0]) && igc[1] === null && igc[2] === null && /2CU/.test(igc[3]), '내장 그래픽 추정: 코어 울트라 245K 있음·245KF·7500F 없음·7600 2CU');
 
+  const cpuOrd = await page.evaluate(() => { const P = window.__pcbang, pubg = window.GAMES.find(g => g.id === 'pubg'), gm = P.matchGpu('RTX 5090'); const f = c => P.judge(pubg, { gpu: gm, cpu: P.matchCpu(c), ram: 32, vram: 32, src: {}, hz: 240 }, { res: '1080', preset: 'low', target: 'auto' }).fps; return [f('Ryzen 7 7800X3D'), f('i7-14700'), f('i5-12400')]; });
+  ok(cpuOrd[0] > cpuOrd[1] && cpuOrd[1] > cpuOrd[2], '배그 CPU 순서: 7800X3D > 14700 > 12400 (' + cpuOrd.join(' / ') + ')');
+
   // 7. 웹 결과 파일 이름이 점검 프로그램 결과(seat-23.txt)와 겹치지 않음
   const ctx2 = await browser.newContext({ acceptDownloads: true }); const p3 = await ctx2.newPage();
   p3.on('pageerror', e => errs.push(e.message));

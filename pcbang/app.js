@@ -214,6 +214,8 @@ function cpuOfList(list) {
 }
 // 게임용 CPU 지수: 단일 코어 60% + 전체 40% (게임은 단일 코어 영향이 큼)
 function cpuIndex(c) { return c ? 0.6 * (c.single / 2500) + 0.4 * (c.multi / 10000) : null; }
+// 게임 fps용: 게임은 8코어(16스레드) 넘게 거의 못 씀 → 멀티 점수를 8코어 수준(32000)에서 자름. 기준 CPU(i5-12400, 19500)는 영향 없음
+function cpuGameIndex(c) { return c ? 0.6 * (c.single / 2500) + 0.4 * (Math.min(c.multi, 32000) / 10000) : null; }
 
 /* ---------------- 자동 감지 ---------------- */
 async function detect() {
@@ -373,7 +375,7 @@ function judge(game, sp, opt) {
     // 고성능 쪽은 실제 fps가 점수보다 가파르게 오름(eHi), 저사양 쪽은 완만(e)
     var gr = sp.gpu.score / 17000;
     var gpuFps = Math.pow(gr, gr > 1 && f.eHi ? f.eHi : (f.e || 0.85)) * f.g3060 * PRESET[opt.preset] * RES[opt.res];
-    var cpuFps = sp.cpu ? (cpuIndex(sp.cpu) / cpuIndex({ single: 3500, multi: 19500 })) * f.c12400 * (opt.preset === 'low' ? 1.08 : opt.preset === 'high' ? 0.95 : 1) : null;
+    var cpuFps = sp.cpu ? (cpuGameIndex(sp.cpu) / cpuGameIndex({ single: 3500, multi: 19500 })) * f.c12400 * (opt.preset === 'low' ? 1.08 : opt.preset === 'high' ? 0.95 : 1) : null;
     // X3D(대용량 캐시) CPU는 CPU 부담 큰 게임에서 점수보다 빠름
     if (cpuFps && sp.cpu && /x3d/i.test(sp.cpu.name || '')) cpuFps *= 1.15;
     var fps = cpuFps == null ? gpuFps : Math.min(gpuFps, cpuFps);
