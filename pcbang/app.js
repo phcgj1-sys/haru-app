@@ -897,9 +897,14 @@ async function timeFetch(url, mode) {
   } catch (e) { clearTimeout(to); return null; }
 }
 async function pingTarget(t, n, onEach) {
-  await timeFetch(t.url, t.mode); // 첫 연결(DNS·TLS) 제외
+  var warm = await timeFetch(t.url, t.mode); // 첫 연결(DNS·TLS) 제외
   var rs = [], fail = 0;
-  for (var i = 0; i < n; i++) { var ms = await timeFetch(t.url, t.mode); if (ms == null) fail++; else rs.push(ms); if (onEach) onEach(); await sleep(60); }
+  for (var i = 0; i < n; i++) {
+    var ms = await timeFetch(t.url, t.mode); if (ms == null) fail++; else rs.push(ms); if (onEach) onEach();
+    // 응답 없이 버려지는 대상은 한 번에 3초씩 기다리므로, 예열 포함 처음 3번이 모두 실패하면 나머지는 건너뜀
+    if (warm == null && i === 1 && !rs.length) { for (var k = i + 1; k < n; k++) { fail++; if (onEach) onEach(); } break; }
+    await sleep(60);
+  }
   var med = rs.length ? median(rs) : null, jit = 0;
   for (var j = 1; j < rs.length; j++) jit += Math.abs(rs[j] - rs[j - 1]);
   jit = rs.length > 1 ? jit / (rs.length - 1) : 0;
