@@ -417,7 +417,10 @@ It 'Windows 안 RAM 검사: 실제 패턴 쓰기/읽기, 오류 0' {
     Start-RamTest -MB 128
     $sw = [Diagnostics.Stopwatch]::StartNew()
     while ((Get-RamTestState).Passes -lt 1 -and $sw.Elapsed.TotalSeconds -lt 120) { Start-Sleep -Milliseconds 200 }
+    $during = [GC]::GetTotalMemory($false)
     $st = Get-RamTestState; Stop-RamTest
+    $after = [GC]::GetTotalMemory($false)
+    Assert ($during - $after -gt 100MB) "중지 후 메모리 반환 ($([int]($during / 1MB)) MB → $([int]($after / 1MB)) MB)"
     Assert ($st.Passes -ge 1) "1회 이상 완료 ($($st.TestedMB) MB)"
     Assert-Eq $st.Errors 0 'RAM 오류 없음'
     Assert (-not (Get-RamTestState).Running) '중지됨'

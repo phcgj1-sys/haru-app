@@ -1237,7 +1237,11 @@ public static class PCCheckRamTest {
         worker = new Thread(() => Run(megabytes)); worker.IsBackground = true; worker.Priority = ThreadPriority.BelowNormal;
         Running = true; worker.Start();
     }
-    public static void Stop() { StopFlag = true; if (worker != null) worker.Join(15000); Running = false; }
+    public static void Stop() {
+        StopFlag = true; if (worker != null) worker.Join(15000); Running = false;
+        // 다음 단계(GPU·전체 부하)가 메모리 부족 상태로 돌지 않도록 즉시 반환
+        GC.Collect(); GC.WaitForPendingFinalizers(); GC.Collect();
+    }
     static void Run(int megabytes) {
         var blocks = new List<long[]>();
         try {
