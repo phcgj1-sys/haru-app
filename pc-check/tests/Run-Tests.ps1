@@ -598,6 +598,24 @@ It '기록기: 순간 쓰기 오류는 다시 시도, 계속되면 기록 오류
     Assert (-not $a.Abrupt) '전원 차단으로 오판 안 함'; Assert ($a.Events.ContainsKey('LOGERR')) '기록 오류 표시'
     Assert (@($a.Notes) -match '기록 오류').Count '안내'
 }
+It '화면 → 기록기 사건 전달: 연달아 생겨도, 쓰기 실패해도 잃지 않음' {
+    $sy = [hashtable]::Synchronized(@{ Pending = '' })
+    Add-BlackboxEvent $sy 'GPUFAIL'; Add-BlackboxEvent $sy 'OVERHEAT_STOP'
+    Assert-Eq (Get-BlackboxPending $sy) 'GPUFAIL ; OVERHEAT_STOP' '둘 다 전달'; Assert-Eq $sy.Pending '' '꺼내면 비움'
+    # 실제 기록기: 쓰기 실패 중 생긴 사건이 복구 후 기록되는지
+    $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb4') -IntervalSec 0.1 -NoEvents
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($job.Sync.Rows -lt 2 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
+    $job.Sync.Path = Join-Path (Join-Path $OutDir 'no_such_dir_z') 'z.csv'
+    Add-BlackboxEvent $job.Sync 'OVERHEAT_STOP'
+    $sw.Restart(); while (-not $job.Sync.Warn -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
+    Start-Sleep -Milliseconds 300
+    $job.Sync.Path = $job.Path; $r0 = $job.Sync.Rows
+    $sw.Restart(); while ($job.Sync.Rows -le $r0 + 1 -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
+    Stop-Blackbox $job
+    $a = Read-BlackboxAnalysis $job.Path
+    Assert-Eq $a.Events['OVERHEAT_STOP'] 1 '실패 중 사건도 정확히 한 번 기록'
+}
 It '기록 화면: 쓰기 재시도 중이면 경고 문구 (영어 번역 포함)' {
     Assert-Eq (Get-BlackboxWarnText @{ Warn = '' }) '' '정상이면 없음'
     Assert-Eq (Get-BlackboxWarnText $null) '' 'null 안전'
@@ -607,7 +625,7 @@ It '기록 화면: 쓰기 재시도 중이면 경고 문구 (영어 번역 포�
 }
 It '화면 쪽 사건(GPU 도구 실패)이 기록에 남아 GPU 단계 미시험으로 판정' {
     $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb2') -IntervalSec 0.3 -NoEvents
-    $job.Sync.Stage = 'gpu'; $job.Sync.Pending = 'GPUFAIL'
+    $job.Sync.Stage = 'gpu'; Add-BlackboxEvent $job.Sync 'GPUFAIL'
     $sw = [Diagnostics.Stopwatch]::StartNew()
     while ($job.Sync.Rows -lt 2 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 200 }
     Stop-Blackbox $job

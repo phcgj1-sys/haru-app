@@ -1526,11 +1526,11 @@ function Start-Blackbox {
             $lastPoll = Get-Date; $n = 0; $fails = 0
             while (-not $sync.Stop) {
               # 한 번의 센서·쓰기 오류(USB 순간 끊김 등)로 기록 전체가 멈추면 '갑자기 꺼짐'으로 오판되므로 잠시 후 다시 시도
+              $ev = ''
               try {
                 $s = Get-LiveSample
                 $ram = Get-RamTestState
-                $ev = ''
-                if ($sync.Pending) { $ev = [string]$sync.Pending; $sync.Pending = '' }   # 화면 쪽에서 알려 온 사건 (예: GPU 도구 실패)
+                $ev = Get-BlackboxPending $sync   # 화면 쪽에서 알려 온 사건 (예: GPU 도구 실패)
                 $gpuErr = $null
                 if ($sync.GpuLog -and ($n % 3) -eq 0) {
                     # memtest_vulkan 출력에서 VRAM 오류·장치 끊김·시작 실패를 읽어 기록
@@ -1550,6 +1550,7 @@ function Start-Blackbox {
                 $sync.Rows++; $sync.Last = $s; $n++; $fails = 0; $sync.Warn = ''
               } catch {
                 $fails++; $sync.Warn = $_.Exception.Message
+                if ($ev) { Add-BlackboxEvent $sync $ev -Front }   # 기록하지 못한 사건은 다음 줄에 다시 기록
                 if ($fails -ge 10) { throw }
               }
                 $until = (Get-Date).AddSeconds($interval)
@@ -1596,6 +1597,18 @@ function Stop-CpuStress($Job) {
     try { $Job.Pool.Dispose() } catch {}
 }
 
+function Add-BlackboxEvent($Sync, [string]$Code, [switch]$Front) {
+    # 화면 쪽 사건을 기록기에 전달 (덮어쓰지 않고 이어 붙임 — 연달아 생긴 사건도 모두 기록)
+    [Threading.Monitor]::Enter($Sync.SyncRoot)
+    try {
+        $cur = [string]$Sync.Pending
+        if (-not $cur) { $Sync.Pending = $Code } elseif ($Front) { $Sync.Pending = "$Code ; $cur" } else { $Sync.Pending = "$cur ; $Code" }
+    } finally { [Threading.Monitor]::Exit($Sync.SyncRoot) }
+}
+function Get-BlackboxPending($Sync) {
+    [Threading.Monitor]::Enter($Sync.SyncRoot)
+    try { $v = [string]$Sync.Pending; $Sync.Pending = ''; return $v } finally { [Threading.Monitor]::Exit($Sync.SyncRoot) }
+}
 function Get-BlackboxWarnText($Sync) {
     # 기록기가 쓰기를 다시 시도하는 중이면 화면에 알림 (USB 가 빠지면 기록이 남지 않으므로)
     if ($Sync -and [string]$Sync.Warn) { return "`n기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)" }
@@ -1829,7 +1842,7 @@ function Show-BlackboxDialog {
             catch {
                 # 다운로드·실행 실패: 기록에 남겨 'GPU 단계 미시험'으로 판정되게 함 (조용히 통과 처리 방지)
                 Write-PCLog "gpu load: $($_.Exception.Message)"; $st.Gpu = $null; $st.GpuFailed = $true
-                if ($st.Box -and $st.Box.Sync.GpuSeen -notmatch 'GPUFAIL') { $st.Box.Sync.Pending = 'GPUFAIL'; $st.Box.Sync.GpuSeen += ' GPUFAIL' }
+                if ($st.Box -and $st.Box.Sync.GpuSeen -notmatch 'GPUFAIL') { Add-BlackboxEvent $st.Box.Sync 'GPUFAIL'; $st.Box.Sync.GpuSeen += ' GPUFAIL' }
             }
         }
         if (-not $gpu -and $st.Gpu) { Stop-GpuLoad $st.Gpu; $st.Gpu = $null }
@@ -1854,7 +1867,7 @@ function Show-BlackboxDialog {
             $el = ((Get-Date) - $st.Start).TotalSeconds
             if ($l -and (Test-OverheatGuard $st $l.GpuTempC)) {
                 # 하드웨어 보호: 부하를 즉시 멈추고 기록에 남김
-                $sy.Pending = 'OVERHEAT_STOP'; Start-Sleep -Milliseconds 1500
+                Add-BlackboxEvent $sy 'OVERHEAT_STOP'; Start-Sleep -Milliseconds 1500
                 $p = $sy.Path; & $stopAll
                 $live.Text = (Tr "과열 보호: 그래픽카드 $($l.GpuTempC) °C 가 이어져 테스트를 멈췄습니다. 쿨링을 점검하세요.") + "`n" + $p
                 [void][Windows.Forms.MessageBox]::Show($f, (Tr "과열 보호: 그래픽카드 $($l.GpuTempC) °C 가 이어져 테스트를 멈췄습니다. 쿨링을 점검하세요."), (Tr $script:AppName), 'OK', 'Warning')
@@ -1892,7 +1905,7 @@ function Show-BlackboxDialog {
                 }
             }
             $st.Box = Start-Blackbox -Dir $dirBox.Text
-            if ($st.GpuFailed) { $st.Box.Sync.Pending = 'GPUFAIL'; $st.Box.Sync.GpuSeen = ' GPUFAIL' }
+            if ($st.GpuFailed) { Add-BlackboxEvent $st.Box.Sync 'GPUFAIL'; $st.Box.Sync.GpuSeen = ' GPUFAIL' }
             if (-not $st.Auto) { & $setLoad $cpuChk.Checked $gpuChk.Checked $ramChk.Checked; $st.Box.Sync.Stage = 'manual' }
             $st.Start = Get-Date; $t.Start()
             $startB.Enabled = $false; $stopB.Enabled = $true; $autoR.Enabled = $false; $manR.Enabled = $false
