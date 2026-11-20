@@ -483,6 +483,14 @@ It '지역 설정 무관: 시간·소수 형식 (핀란드어 시간 구분자, 
         Assert-Eq (ConvertTo-CsvField 'a,b') 'a;b' '쉼표 치환'
         Assert-Eq (ConvertTo-CsvField $null) '' 'null'
         Assert-Eq (ConvertTo-CsvField 3) '3' '정수'
+        # 핀란드어 설정 + 영어 보고서: '이후 테스트 통과' 안내 시간도 번역 규칙에 맞아야 함
+        [Threading.Thread]::CurrentThread.CurrentCulture = [Globalization.CultureInfo]::GetCultureInfo('fi-FI')
+        $bad = Read-BlackboxAnalysis (New-Bb2File 'fi1.csv' (Rep 4 @('full', 100, 97, 70, 99, 280, '', 0, '')))
+        $allF = @(); foreach ($k in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse') { $allF += (Rep 2 @($k, 100, 98, 60, 99, 250, '', 0, '')) }
+        $ok = Read-BlackboxAnalysis (New-Bb2File 'fi2.csv' $allF -Stop); $ok.End = '2026-11-15T10:40:00'
+        $script:UiLang = 'en'
+        try { $f = @((Get-Diagnosis -Data (New-Scenario @{ Blackbox = @($bad, $ok) })).Findings | Where-Object { $_.Title -match '이후 테스트 통과' })[0]; Assert ((Tr $f.Detail) -notmatch '[가-힣]') "영어 번역: $(Tr $f.Detail)"; Assert ($f.Detail -match '10:40') '시간 구분자 :' }
+        finally { $script:UiLang = 'ko' }
     } finally { [Threading.Thread]::CurrentThread.CurrentCulture = $old }
 }
 

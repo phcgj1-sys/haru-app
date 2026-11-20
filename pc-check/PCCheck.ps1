@@ -69,7 +69,7 @@ function Format-BugCode($n) {
 $script:LogFile = $null
 function Write-PCLog([string]$msg) {
     if (-not $script:LogFile) { return }
-    try { Add-Content -Path $script:LogFile -Value ("{0:HH:mm:ss} {1}" -f (Get-Date), $msg) -Encoding UTF8 } catch {}
+    try { Add-Content -Path $script:LogFile -Value ((Get-Date).ToString('HH:mm:ss', [Globalization.CultureInfo]::InvariantCulture) + " $msg") -Encoding UTF8 } catch {}
 }
 
 # =====================================================================
@@ -799,7 +799,7 @@ function Get-Diagnosis {
         $lvl = [string](Get-Prop $bb 'Level'); $cz = [string](Get-Prop $bb 'Cause'); $tt = [string](Get-Prop $bb 'Title')
         $be = ConvertTo-Date (Get-Prop $bb 'End')
         if ($passT -and $be -and $be -lt $passT -and $lvl -in 'bad', 'warn') {
-            & $find 'info' 'META' "$tt (이후 테스트 통과)" ("$(Get-Prop $bb 'Detail') — $($passT.ToString('yyyy-MM-dd HH:mm')) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다.") 0
+            & $find 'info' 'META' "$tt (이후 테스트 통과)" ("$(Get-Prop $bb 'Detail') — $($passT.ToString('yyyy-MM-dd HH:mm', [Globalization.CultureInfo]::InvariantCulture)) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다.") 0
             continue
         }
         if ($lvl -eq 'bad') {
