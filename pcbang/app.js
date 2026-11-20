@@ -298,7 +298,9 @@ function spec(st) {
   // OS
   o.os = st.manual.os || nat.os || st.det.win || null;
   o.threads = (nat.threads) || st.det.threads || (cm && cm.threads) || null;
-  o.hz = (nat.hz) || st.dev.hz || null;
+  // 주사율: 점검 프로그램 값과 브라우저 측정값 중 더 최근 것(설정을 고친 뒤 다시 잰 값이 이기도록)
+  var natAt = Date.parse(String(nat.time || '').replace(' ', 'T')) || 0, devAt = st.dev.hzInfo && st.dev.hzInfo.at || 0;
+  o.hz = (nat.hz && st.dev.hz ? (devAt > natAt ? st.dev.hz : nat.hz) : (nat.hz || st.dev.hz)) || null;
   return o;
 }
 // 브라우저 CPU 점수 → PassMark 단일 코어 근사 환산 계수 (Xeon 2.1GHz 기준 실측 보정, 대략값)
@@ -549,6 +551,11 @@ function sanitizeNative(o) {
   var out = {}; KEEP.forEach(function (k) { if (o[k] !== undefined) out[k] = o[k]; });
   return out;
 }
+$('#nativeClear').addEventListener('click', function () {
+  if (!S.native) { toast('지울 점검 프로그램 결과가 없어요'); return; }
+  if (!confirm('붙여넣은 점검 프로그램 결과를 지울까요? (매장 현황에 넣은 기록은 그대로예요)')) return;
+  S.native = null; save(); renderSpec(); $('#nativeNet').innerHTML = '<p class="small muted">아직 붙여넣은 결과가 없어요.</p>'; $('#nativeMsg').innerHTML = ''; toast('점검 프로그램 결과를 지웠어요');
+});
 $('#nativeApply').addEventListener('click', function () {
   try {
     var o = decodeNative($('#nativeIn').value);
@@ -695,7 +702,7 @@ $('#hzRun').addEventListener('click', async function () {
   var b = this; if (testBusy) { toast('다른 측정이 끝난 뒤 눌러 주세요'); return; } lockTests(true); $('#hzOut').innerHTML = '<span class="muted small">측정 중… 가만히 두세요</span>';
   var r = await measureHz(3000);
   if (r.invalid) $('#hzOut').innerHTML = '<div class="warnbox">측정 중에 창이 가려져서 주사율을 잴 수 없었어요. 이 창을 앞에 둔 채로 다시 측정하세요.</div>';
-  else { S.dev.hz = r.hz; S.dev.hzInfo = r; save(); renderHz(); }
+  else { r.at = Date.now(); S.dev.hz = r.hz; S.dev.hzInfo = r; save(); renderHz(); }
   lockTests(false);
 });
 function renderHz() {
@@ -1036,7 +1043,7 @@ $('#runAll').addEventListener('click', async function () {
   var setP = function (base, span) { return function (p) { bar.style.width = (base + span * p / 100) + '%'; }; };
   async function step(key, base, span, fn) { st[key] = 'run'; drawSteps(st); try { await fn(setP(base, span)); st[key] = 'done'; } catch (e) { st[key] = 'err'; console.error(e); } bar.style.width = (base + span) + '%'; drawSteps(st); }
   await step('detect', 0, 5, async function () { await detect(); });
-  await step('hz', 5, 10, async function () { var r = await measureHz(2500); if (r.invalid) { toast('창이 가려져 주사율을 못 쟀어요. 장비 테스트에서 다시 재세요'); throw new Error('hidden'); } S.dev.hz = r.hz; S.dev.hzInfo = r; save(); });
+  await step('hz', 5, 10, async function () { var r = await measureHz(2500); if (r.invalid) { toast('창이 가려져 주사율을 못 쟀어요. 장비 테스트에서 다시 재세요'); throw new Error('hidden'); } r.at = Date.now(); S.dev.hz = r.hz; S.dev.hzInfo = r; save(); });
   await step('cpu', 15, 25, async function (p) { Object.assign(S.bench, await benchCpu(p)); save(); });
   await step('gpu', 40, 30, async function (p) { Object.assign(S.bench, await benchGpu(p)); save(); });
   await step('net', 70, 30, async function (p) { S.net = await runNet(p); save(); });
@@ -1228,7 +1235,7 @@ function webPayload() {
     det: { renderer: S.det.renderer || '', threads: S.det.threads || null, memGB: S.det.memGB || null, win: S.det.win || null, osName: S.det.osName || '' },
     manual: S.manual || {},
     bench: { cpuSingle: S.bench.cpuSingle || null, cpuMulti: S.bench.cpuMulti || null, gpu: S.bench.gpu || null },
-    dev: { chk: S.dev.chk || {}, note: S.dev.note || '', mBtns: S.dev.mBtns || null, wheel: !!S.dev.wheel, kbMissing: S.dev.kbMissing || null, hz: S.dev.hz || null, measuredHz: !!S.dev.hzInfo, pollMax: S.dev.pollMax || null, pollAvg: S.dev.pollAvg || null, chatter: S.dev.chatter || 0, kbChat: S.dev.kbChat || 0, kbMax: S.dev.kbMax || null, kbKeys: S.dev.kbKeys || null, react: S.dev.react || null, mic: S.dev.mic || null },
+    dev: { chk: S.dev.chk || {}, note: S.dev.note || '', mBtns: S.dev.mBtns || null, wheel: !!S.dev.wheel, kbMissing: S.dev.kbMissing || null, hz: S.dev.hz || null, measuredHz: !!S.dev.hzInfo, hzAt: (S.dev.hzInfo && S.dev.hzInfo.at) || null, pollMax: S.dev.pollMax || null, pollAvg: S.dev.pollAvg || null, chatter: S.dev.chatter || 0, kbChat: S.dev.kbChat || 0, kbMax: S.dev.kbMax || null, kbKeys: S.dev.kbKeys || null, react: S.dev.react || null, mic: S.dev.mic || null },
     net: n ? { targets: n.targets.map(function (t) { return { name: t.name, med: t.med, min: t.min, jitter: t.jitter, loss: t.loss }; }), down: n.down } : null
   };
 }
@@ -1247,7 +1254,7 @@ function sanitizeWeb(o) {
     det: { renderer: str(d.renderer), threads: num(d.threads), memGB: num(d.memGB), win: ['win11', 'win10', 'win7'].indexOf(d.win) >= 0 ? d.win : null, osName: str(d.osName), at: 1 },
     manual: { cpu: str(m.cpu), gpu: str(m.gpu), ram: num(m.ram) ? String(num(m.ram)) : '', os: str(m.os) },
     bench: { cpuSingle: num(b.cpuSingle), cpuMulti: num(b.cpuMulti), gpu: num(b.gpu) },
-    dev: { chk: (function (c) { var o = {}; if (c && typeof c === 'object') CHK.forEach(function (x) { if (c[x.id] === 'ok' || c[x.id] === 'bad') o[x.id] = c[x.id]; }); return o; })(v.chk), note: str(v.note).slice(0, 120), mBtns: Array.isArray(v.mBtns) ? v.mBtns.slice(0, 5).map(function (n) { return num(n) || 0; }) : null, wheel: v.wheel === true, kbMissing: Array.isArray(v.kbMissing) ? v.kbMissing.filter(function (k) { return ESS_KEYS.indexOf(k) >= 0; }) : null, hz: num(v.hz), hzInfo: (v.measuredHz || (v.hzInfo && v.hzInfo.hz)) ? { hz: num(v.hz) } : null, pollMax: num(v.pollMax), pollAvg: num(v.pollAvg), chatter: num(v.chatter) || 0, kbChat: num(v.kbChat) || 0, kbMax: num(v.kbMax), kbKeys: num(v.kbKeys), react: num(v.react), mic: ['ok', 'low', 'none'].indexOf(v.mic) >= 0 ? v.mic : null },
+    dev: { chk: (function (c) { var o = {}; if (c && typeof c === 'object') CHK.forEach(function (x) { if (c[x.id] === 'ok' || c[x.id] === 'bad') o[x.id] = c[x.id]; }); return o; })(v.chk), note: str(v.note).slice(0, 120), mBtns: Array.isArray(v.mBtns) ? v.mBtns.slice(0, 5).map(function (n) { return num(n) || 0; }) : null, wheel: v.wheel === true, kbMissing: Array.isArray(v.kbMissing) ? v.kbMissing.filter(function (k) { return ESS_KEYS.indexOf(k) >= 0; }) : null, hz: num(v.hz), hzInfo: (v.measuredHz || (v.hzInfo && v.hzInfo.hz)) ? { hz: num(v.hz), at: num(v.hzAt) || (v.hzInfo && num(v.hzInfo.at)) || null } : null, pollMax: num(v.pollMax), pollAvg: num(v.pollAvg), chatter: num(v.chatter) || 0, kbChat: num(v.kbChat) || 0, kbMax: num(v.kbMax), kbKeys: num(v.kbKeys), react: num(v.react), mic: ['ok', 'low', 'none'].indexOf(v.mic) >= 0 ? v.mic : null },
     net: n && Array.isArray(n.targets) ? { targets: n.targets.slice(0, 20).map(function (t) { return { name: str(t.name), med: num(t.med), min: num(t.min), jitter: num(t.jitter) || 0, loss: num(t.loss) || 0 }; }), down: num(n.down) } : null
   };
 }
