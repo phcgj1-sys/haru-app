@@ -164,7 +164,10 @@ function igpuFromCpu(cpu) {
     if (tier >= 7 || (tier === 5 && (num % 1000 >= 500 || /k/.test(suf)))) return g('Intel UHD 770 (' + gen + '세대 내장)', 1700);
     return g('Intel UHD 730 (' + gen + '세대 내장)', 1300);
   }
-  // 라이젠 7000·9000 데스크톱(G 아님): 최소 화면 출력용 2CU 내장 그래픽
+  // 코어 울트라 200S 데스크톱(225~285, K 포함): 'Intel(R) Graphics'(Xe-LPG 4코어, GTX 1050 Ti 근처). F·KF는 내장 그래픽 없음, 노트북(H·V·U)은 다름
+  if ((m = c.match(/ultra\s*[579]\s*(2[2-8]\d)([a-z]*)/))) { if (/f/.test(m[2]) || !/^k?$/.test(m[2])) return null; return g('Intel Graphics (코어 울트라 ' + m[1] + ' 내장)', 5000); }
+  // 라이젠 7000·9000 데스크톱(G 아님): 최소 화면 출력용 2CU 내장 그래픽 (F 모델은 내장 그래픽 없음)
+  if ((m = c.match(/ryzen\s*[3579]\s*(\d{4})(x3d|x|f)?\b/)) && m[2] === 'f') return null;
   if ((m = c.match(/ryzen\s*[3579]\s*(\d{4})(x3d|x|f)?\b/)) && /^[79]\d{3}$/.test(m[1])) return g('Radeon 2CU (라이젠 ' + m[1] + ' 내장)', 1200);
   return null;
 }
@@ -277,7 +280,7 @@ function spec(st) {
   if (!gm) {
     var rawG = st.manual.gpu || (nat.gpus || []).map(function (x) { return x.name; }).join(' ') || st.det.renderer || '';
     var cpuN = st.manual.cpu || nat.cpu || '';
-    if ((/radeon(\(tm\))? graphics|radeon\(tm\) graphics/i.test(rawG) || /intel(\(r\))? uhd graphics\s*$/i.test(rawG)) && cpuN) { gm = igpuFromCpu(cpuN); if (gm) o.src.gpu = 'CPU 내장 그래픽 추정'; }
+    if ((/radeon(\(tm\))? graphics|radeon\(tm\) graphics/i.test(rawG) || /intel(\(r\))? (uhd )?graphics\s*$/i.test(rawG)) && cpuN) { gm = igpuFromCpu(cpuN); if (gm) o.src.gpu = 'CPU 내장 그래픽 추정'; }
   }
   o.gpu = gm;
   o.gpuRaw = st.manual.gpu || (nat.gpus && nat.gpus[0] && nat.gpus[0].name) || st.det.renderer || '';
@@ -513,7 +516,7 @@ function devKv(nat, kv) {
 function showMatch() {
   var c = $('#cpuIn').value.trim(), g = $('#gpuIn').value.trim(), out = [];
   if (c) { var cm = matchCpu(c); out.push(cm ? '<span class="pill ok">CPU: ' + esc(cm.name) + ' · 단일 ' + fmt(cm.single) + ' / 전체 ' + fmt(cm.multi) + '</span>' : '<span class="pill warn">CPU "' + esc(c) + '"를 표에서 못 찾았어요. 목록에서 가까운 것을 고르세요.</span>'); }
-  if (g) { var gm = matchGpu(g); if (!gm && (/radeon(\(tm\))? graphics/i.test(g) || /intel(\(r\))? uhd graphics\s*$/i.test(g)) && c) { gm = igpuFromCpu(c); if (gm) gm = { name: gm.name + ' (CPU로 추정)', score: gm.score }; } out.push(gm ? '<span class="pill ok">그래픽: ' + esc(gm.name) + ' · 점수 ' + fmt(gm.score) + '</span>' : '<span class="pill warn">그래픽 "' + esc(g) + '"를 표에서 못 찾았어요.</span>'); }
+  if (g) { var gm = matchGpu(g); if (!gm && (/radeon(\(tm\))? graphics/i.test(g) || /intel(\(r\))? (uhd )?graphics\s*$/i.test(g)) && c) { gm = igpuFromCpu(c); if (gm) gm = { name: gm.name + ' (CPU로 추정)', score: gm.score }; } out.push(gm ? '<span class="pill ok">그래픽: ' + esc(gm.name) + ' · 점수 ' + fmt(gm.score) + '</span>' : '<span class="pill warn">그래픽 "' + esc(g) + '"를 표에서 못 찾았어요.</span>'); }
   $('#matchInfo').innerHTML = out.join(' ');
 }
 $('#cpuIn').addEventListener('input', showMatch);
@@ -1820,5 +1823,5 @@ var h = (location.hash || '').slice(1);
 if (h && $('[data-panel="' + h + '"]')) showTab(h);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('../sw.js').catch(function () {});
 // 테스트·디버그용
-window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
+window.__pcbang = { igpuFromCpu: igpuFromCpu, matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
 })();

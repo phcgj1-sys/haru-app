@@ -175,6 +175,9 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   const lab = await page.evaluate(() => { const P = window.__pcbang, G = window.GAMES; const val = G.find(g => g.id === 'val'), sa = G.find(g => g.id === 'sa'); return [P.levelOf(val, { level: 'rec' })[1], P.fpsText(sa, { fps: 200 }), P.fpsText(sa, { fps: 150 })]; });
   ok(/고사양/.test(lab[0]) && lab[1] === '200+' && lab[2] === '약 150', '판정 문구 공용: 발로란트 고사양 충족·서든 200+ (' + lab.join(' / ') + ')');
 
+  const ig = await page.evaluate(() => { const f = c => (window.__pcbang.igpuFromCpu(c) || {}).name || null; return [f('Intel(R) Core(TM) Ultra 5 245K'), f('Intel(R) Core(TM) Ultra 5 245KF'), f('AMD Ryzen 5 7500F 6-Core Processor'), f('AMD Ryzen 5 7600 6-Core Processor')]; });
+  ok(/울트라 245/.test(ig[0]) && ig[1] === null && ig[2] === null && /2CU/.test(ig[3]), '내장 그래픽 추정: 코어 울트라 245K 있음·245KF·7500F 없음·7600 2CU');
+
   // 7. 웹 결과 파일 이름이 점검 프로그램 결과(seat-23.txt)와 겹치지 않음
   const ctx2 = await browser.newContext({ acceptDownloads: true }); const p3 = await ctx2.newPage();
   p3.on('pageerror', e => errs.push(e.message));
