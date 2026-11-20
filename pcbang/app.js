@@ -1328,7 +1328,10 @@ function diffNative(a, b) {
 }
 function stateOf(e) {
   var w = e.web || {};
-  return { manual: w.manual || {}, det: w.det || {}, bench: w.bench || {}, dev: w.dev || {}, net: w.net || null, native: e.native || null, opt: S.opt, seat: e.seat };
+  var manual = w.manual || {};
+  // 실전 테스트 결과만 있는 좌석은 그 결과에 적힌 부품으로 게임 판정
+  if (!e.web && !e.native && e.games && e.games.length) { var lg = e.games[e.games.length - 1]; manual = { cpu: lg.cpuName || '', gpu: lg.gpuName || '', ram: lg.ramGB ? String(lg.ramGB) : '', os: '' }; }
+  return { manual: manual, det: w.det || {}, bench: w.bench || {}, dev: w.dev || {}, net: w.net || null, native: e.native || null, opt: S.opt, seat: e.seat };
 }
 function lastGame(e) { return (e.games || []).slice(-1)[0] || null; }
 function shopRows() {
