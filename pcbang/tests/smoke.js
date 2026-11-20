@@ -98,6 +98,31 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   ok(/150/.test(det) && /응답 없음/.test(det), '실전 테스트: FPS 표시, 핑 100% 손실은 응답 없음');
   ok(!/undefined|NaN|null회/.test(det), '실전 테스트: undefined/NaN 없음');
 
+  // 5-2. 검토 3차 회귀: 잘못된 경보·집계·빠진 칸
+  const r3 = await page.evaluate(() => {
+    const P = window.__pcbang, S = P.S;
+    const base = { manual: {}, det: {}, bench: {}, dev: {}, net: null, opt: { res: '1080', preset: 'mid', target: 'auto' } };
+    // 디스크 OK/Unknown 은 정상, Warning 만 이상
+    const nat1 = { cpu: 'Intel(R) Core(TM) i5-12400F', gpus: [{ name: 'NVIDIA GeForce RTX 3060', vram: 12 }], ramGB: 16, os: 'win11', physDisks: [{ name: 'A', health: 'OK' }, { name: 'B', health: 'Unknown' }, { name: 'C', health: 'Warning' }], pings: [{ name: 'gw', host: '1', isGateway: true, recv: 0, loss: 100 }] };
+    // problems 는 내부 함수라 홈 요약 대신 spec+판정 경로로 확인할 수 없어 화면 문구로 확인
+    return { nat1 };
+  });
+  await page.click('[data-tab="spec"]'); await page.click('#nativeClear').catch(() => {});
+  await page.fill('#nativeIn', 'PCBANG1:' + b64(Object.assign({ v: 2, time: '2026-11-19 10:00', hz: 60, monitorMaxHz: 144, cores: 4 }, r3.nat1))); await page.click('#nativeApply'); await page.waitForTimeout(150);
+  ok(!/undefined|null/.test(await page.innerText('#detKv')), '빠진 칸: 내 사양에 undefined/null 없음(스레드 없음)');
+  await page.click('[data-tab="home"]'); await page.waitForTimeout(150);
+  const h3 = await page.innerText('#summary');
+  ok(/디스크 상태 이상: C/.test(h3) && !/디스크 상태 이상: A|디스크 상태 이상: B/.test(h3), '디스크: OK·Unknown 은 정상, Warning 만 이상');
+  ok(await page.$$eval('#summary .badbox', e => !e.some(x => /게이트웨이/.test(x.textContent))), '게이트웨이 핑 차단은 고칠 것(빨강)이 아님');
+  ok(/60Hz로 동작/.test(h3), '주사율: 점검 결과 60Hz 경고');
+  await page.evaluate(() => { const S = window.__pcbang.S; S.dev.hz = 144; S.dev.hzInfo = { hz: 144, at: Date.now() }; });
+  await page.click('[data-tab="games"]'); await page.click('[data-tab="home"]'); await page.waitForTimeout(150);
+  ok(!/60Hz로 동작/.test(await page.innerText('#summary')), '주사율: 나중에 다시 잰 144Hz 가 우선');
+  await page.click('[data-tab="log"]');
+  const before = await page.textContent('#shopCount');
+  await page.click('#shopAddThis'); await page.click('#shopAddThis'); await page.waitForTimeout(150);
+  ok(await page.textContent('#shopCount') === before, '매장 현황: 같은 PC 결과를 다시 넣어도 줄이 늘지 않음 (' + before + ')');
+
   // 6. 모바일 폭 가로 넘침
   await page.setViewportSize({ width: 390, height: 844 });
   for (const t of ['home', 'game', 'games', 'log', 'dev', 'fix']) { await page.click(`[data-tab="${t}"]`); await page.waitForTimeout(100); }
