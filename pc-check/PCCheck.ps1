@@ -1617,7 +1617,8 @@ function Read-BlackboxAnalysis([string]$Path) {
     $lines = @(Get-Content -Path $Path -Encoding UTF8 -ErrorAction Stop)
     $cols = $script:BlackboxColsV1 -split ','
     foreach ($l in $lines) { if ($l -and $l.StartsWith('Time,')) { $cols = $l.Trim() -split ','; break } }
-    $rows = @(); $stopped = $false; $events = @{}
+    # 긴 기록(수 시간 = 수만 줄)에서 배열 += 는 줄 수의 제곱으로 느려지므로 List 에 모은 뒤 배열로 변환
+    $rowList = New-Object System.Collections.Generic.List[object]; $stopped = $false; $events = @{}
     foreach ($l in $lines) {
         if (-not $l -or $l.StartsWith('#') -or $l.StartsWith('Time,')) { continue }
         $v = $l -split ','
@@ -1626,10 +1627,13 @@ function Read-BlackboxAnalysis([string]$Path) {
         for ($i = 0; $i -lt $cols.Count; $i++) { $r[$cols[$i]] = $v[$i] }
         if ($r['Event'] -eq 'STOP') { $stopped = $true; continue }
         if ($r['Event']) { foreach ($e in ($r['Event'] -split '\s*;\s*')) { if ($e) { $events[$e] = 1 + [int]$events[$e] } } }
-        $rows += $r
+        $rowList.Add($r)
     }
+    $rows = $rowList.ToArray()
     $num = { param($x) $d = 0.0; if ($null -ne $x -and [double]::TryParse([string]$x, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { $d } else { $null } }
-    $maxOf = { param($set, $col) $m = $null; foreach ($r in $set) { $x = & $num $r[$col]; if ($null -ne $x -and ($null -eq $m -or $x -gt $m)) { $m = $x } }; $m }
+    # 긴 기록에서도 빠르도록 스크립트 블록 호출 없이 바로 변환
+    $maxOf = { param($set, $col) $m = $null; $d = 0.0; $inv = [Globalization.CultureInfo]::InvariantCulture; $fl = [Globalization.NumberStyles]::Float
+        foreach ($r in $set) { if ([double]::TryParse([string]$r[$col], $fl, $inv, [ref]$d) -and ($null -eq $m -or $d -gt $m)) { $m = $d } }; $m }
     $res = [ordered]@{
         File = [IO.Path]::GetFileName($Path); Rows = $rows.Count; Stopped = $stopped; Abrupt = $false
         Start = $null; End = $null; Minutes = 0
@@ -1655,9 +1659,10 @@ function Read-BlackboxAnalysis([string]$Path) {
     # 단계별 요약
     $stageNames = @{}; foreach ($p in $script:StagePlan) { $stageNames[$p.Key] = $p.Name }
     $stageNames['manual'] = '직접 설정'   # 직접 설정 모드 기록
-    $order = @(); foreach ($r in $rows) { $k = [string]$r['Stage']; if ($k -and $order -notcontains $k) { $order += $k } }
+    $order = New-Object System.Collections.Generic.List[string]; $byStage = @{}
+    foreach ($r in $rows) { $k = [string]$r['Stage']; if (-not $k) { continue }; if (-not $byStage.ContainsKey($k)) { $order.Add($k); $byStage[$k] = New-Object System.Collections.Generic.List[object] }; $byStage[$k].Add($r) }
     foreach ($k in $order) {
-        $set = @($rows | Where-Object { $_['Stage'] -eq $k })
+        $set = $byStage[$k].ToArray()
         $res.Stages += [ordered]@{ Key = $k; Name = $(if ($stageNames.ContainsKey($k)) { $stageNames[$k] } else { $k }); Rows = $set.Count; MaxGpuTempC = (& $maxOf $set 'GpuTempC'); MaxGpuPowerW = (& $maxOf $set 'GpuPowerW'); MaxCpuPct = (& $maxOf $set 'CpuPct') }
     }
     $thr = @{}; foreach ($r in $rows) { foreach ($x in ([string]$r['GpuThrottle'] -split '\+')) { if ($x -and $x -ne 'PWRCAP') { $thr[$x] = 1 + [int]$thr[$x] } } }
@@ -1684,7 +1689,7 @@ function Read-BlackboxAnalysis([string]$Path) {
     if ($gpuFail) { $res.Notes += 'GPU 부하 도구가 시작되지 못해 GPU 단계는 시험되지 않음 (Vulkan 드라이버 확인)' }
     if ($thr.ContainsKey('HWSLOW') -or $thr.ContainsKey('PBRAKE')) { $res.Notes += '그래픽카드 하드웨어 감속 신호 (전원 공급 불안정 또는 과열)' }
     if ($thr.ContainsKey('HWTHERM') -or $thr.ContainsKey('SWTHERM')) { $res.Notes += '그래픽카드 온도 제한 동작' }
-    $cpuSet = @($rows | Where-Object { $_['Stage'] -eq 'cpu' -and (& $num $_['CpuPct']) -ge 80 })
+    $cpuSet = @($(if ($byStage.ContainsKey('cpu')) { $byStage['cpu'].ToArray() }) | Where-Object { $null -ne $_ -and (& $num $_['CpuPct']) -ge 80 })
     $perf = @($cpuSet | ForEach-Object { & $num $_['CpuPerfPct'] } | Where-Object { $null -ne $_ -and $_ -gt 0 })
     if ($perf.Count -ge 5 -and ($perf | Measure-Object -Minimum).Minimum -lt 60) { $res.Notes += "CPU 부하 중 클럭이 $([int]($perf | Measure-Object -Minimum).Minimum)% 까지 떨어짐 (과열·전력 제한)" }
     $noteText = $(if ($res.Notes.Count) { ' ' + (($res.Notes | ForEach-Object { "[$_]" }) -join ' ') } else { '' })

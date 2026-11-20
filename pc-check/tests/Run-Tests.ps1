@@ -427,6 +427,19 @@ function New-Bb2File([string]$name, [object[]]$rows, [switch]$Stop) {
     [IO.File]::WriteAllLines($p, [string[]]$l); return $p
 }
 function Rep($n, $row) { return @(1..$n | ForEach-Object { , $row }) }
+It '블랙박스: 긴 기록(2만 줄)도 빠르게 분석, 한 줄 기록도 정상' {
+    $p = Join-Path $OutDir 'bb_long.csv'
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.AppendLine('# PCCheck blackbox,v2,TEST,2026-11-14T10:00:00,2.2.0'); [void]$sb.AppendLine($script:BlackboxCols)
+    $t = Get-Date '2026-11-14T10:00:00'
+    for ($i = 0; $i -lt 20000; $i++) { [void]$sb.AppendLine(('{0},manual,50,99,40,45,70,90,250,2500,3000,,1,1,0,0,0,' -f (Format-T $t.AddSeconds($i)))) }
+    [IO.File]::WriteAllText($p, $sb.ToString())
+    $sw = [Diagnostics.Stopwatch]::StartNew(); $a = Read-BlackboxAnalysis $p; $sw.Stop()
+    Assert-Eq $a.Rows 20000 '줄 수'; Assert-Eq $a.LastStage 'manual' '마지막 단계'
+    Assert ($sw.Elapsed.TotalSeconds -lt 30) "분석 시간 $([int]$sw.Elapsed.TotalSeconds)초"
+    $one = New-Bb2File 'bb_one.csv' @(, @('cpu', 90, 99, 60, 10, 100, '', 0, ''))
+    $b = Read-BlackboxAnalysis $one; Assert-Eq $b.Rows 1 '한 줄'; Assert-Eq $b.LastStage 'cpu' '한 줄 단계'
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
