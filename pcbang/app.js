@@ -57,6 +57,8 @@ function showTab(name) {
   if (name === 'fix') renderFixes();
   if (name === 'spec') renderSpec();
   if (name === 'dev') { buildKeyboard(); renderChk(); }
+  // 장비 테스트를 떠나면 마이크·반응 속도 타이머 같은 진행 중인 장치 테스트를 멈춤
+  if (name !== 'dev') document.dispatchEvent(new Event('pcbang:leavedev'));
   try { history.replaceState(null, '', '#' + name); } catch (e) {}
   window.scrollTo(0, 0);
 }
@@ -923,11 +925,24 @@ document.addEventListener('click', function (e) {
   })(); } catch (err) { toast('소리를 낼 수 없어요: 소리 장치를 확인하세요'); }
 });
 (function () {
-  var stream = null, raf = 0;
+  var stream = null, raf = 0, micSrc = null, micBusy = false;
+  // 마이크 끄기: 트랙을 모두 멈춰 브라우저의 마이크 사용 표시가 꺼지게 하고, 마지막 결과를 저장
+  function stopMic() {
+    cancelAnimationFrame(raf); raf = 0;
+    if (micSrc) { try { micSrc.disconnect(); } catch (e) {} micSrc = null; }
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); stream = null;
+    $('#micRun').hidden = false; $('#micStop').hidden = true; $('#micBar').style.width = '0';
+    save();
+  }
+  document.addEventListener('pcbang:leavedev', function () { if (stream) stopMic(); });
+  window.addEventListener('pagehide', function () { if (stream) stopMic(); });
   $('#micRun').addEventListener('click', async function () {
+    if (micBusy) return; micBusy = true; this.disabled = true; // 권한 창이 떠 있는 동안 두 번 눌러 마이크가 두 개 열리지 않게
+    if (stream) stopMic();
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
-      var c = ac(), src = c.createMediaStreamSource(stream), an = c.createAnalyser(); an.fftSize = 1024; src.connect(an);
+      if ($('[data-panel="dev"]').hidden) { stopMic(); micBusy = false; $('#micRun').disabled = false; return; } // 권한 창을 기다리는 동안 탭을 떠났으면 바로 끔
+      var c = ac(), src = c.createMediaStreamSource(stream), an = c.createAnalyser(); an.fftSize = 1024; src.connect(an); micSrc = src;
       var buf = new Float32Array(an.fftSize), peak = 0;
       var label = stream.getAudioTracks()[0] && stream.getAudioTracks()[0].label;
       $('#micRun').hidden = true; $('#micStop').hidden = false;
@@ -937,13 +952,14 @@ document.addEventListener('click', function (e) {
         if (lvl > peak) peak = lvl;
         $('#micBar').style.width = lvl + '%';
         $('#micOut').textContent = (label ? label + ' · ' : '') + '지금 ' + Math.round(db) + 'dB · 최고 ' + Math.round(peak) + '%' + (peak > 30 ? ' · 마이크 정상' : ' · 말을 해 보세요');
-        S.dev.mic = peak > 30 ? 'ok' : 'low';
+        var mv = peak > 30 ? 'ok' : 'low'; if (S.dev.mic !== mv) { S.dev.mic = mv; save(); } // 바뀔 때 저장(정상 결과가 새로 고침 후에도 남게)
         raf = requestAnimationFrame(loop);
       })();
     } catch (e) { $('#micOut').textContent = '마이크를 쓸 수 없어요: ' + (e.name === 'NotAllowedError' ? '권한이 거부됐어요(주소창 왼쪽 자물쇠에서 허용)' : e.name === 'NotFoundError' ? '마이크가 연결되지 않았어요' : e.message); S.dev.mic = 'none'; }
+    micBusy = false; $('#micRun').disabled = false;
     save();
   });
-  $('#micStop').addEventListener('click', function () { cancelAnimationFrame(raf); if (stream) stream.getTracks().forEach(function (t) { t.stop(); }); stream = null; $('#micRun').hidden = false; $('#micStop').hidden = true; $('#micBar').style.width = '0'; });
+  $('#micStop').addEventListener('click', stopMic);
 })();
 
 /* ---------------- 인터넷 (브라우저) ---------------- */

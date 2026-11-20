@@ -203,6 +203,21 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   ok(!md2 && (await p4.innerText('#mouseVerdict')).trim() === '', '마우스: 초기화하면 기록 지움');
   await p4.context().close();
 
+  // 9. 마이크: 탭을 떠나면 꺼짐, 두 번 눌러도 하나만, 정상 결과는 새로 고침 후에도 남음 (큰 소리 가짜 마이크)
+  {
+    const p5 = await (await browser.newContext()).newPage(); p5.on('pageerror', e => errs.push(e.message));
+    await p5.addInitScript(() => { window.__tracks = []; navigator.mediaDevices.getUserMedia = async () => { await new Promise(r => setTimeout(r, 100)); const c = new AudioContext(); const o = c.createOscillator(); const d = c.createMediaStreamDestination(); o.connect(d); o.start(); await c.resume(); d.stream.getTracks().forEach(t => window.__tracks.push(t)); return d.stream; }; });
+    await p5.goto(URL + '#dev'); await p5.waitForTimeout(300);
+    await p5.evaluate(() => { document.querySelector('#micRun').click(); document.querySelector('#micRun').click(); }); await p5.waitForTimeout(700);
+    const t1 = await p5.evaluate(() => window.__tracks.map(t => t.readyState).join());
+    await p5.click('[data-tab="home"]'); await p5.waitForTimeout(150);
+    const t2 = await p5.evaluate(() => window.__tracks.map(t => t.readyState).join());
+    await p5.reload(); await p5.waitForTimeout(300);
+    const mic = await p5.evaluate(() => window.__pcbang.S.dev.mic);
+    ok(t1 === 'live' && t2 === 'ended' && mic === 'ok', '마이크: 두 번 눌러도 1개·탭 떠나면 꺼짐·정상 결과 저장 (' + t1 + ' → ' + t2 + ', ' + mic + ')');
+    await p5.context().close();
+  }
+
   ok(errs.length === 0, '페이지 오류 없음' + (errs.length ? ': ' + errs.join(' / ') : ''));
   await browser.close();
   console.log(fails ? `\n${fails}개 실패` : '\n모두 통과');
