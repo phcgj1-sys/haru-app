@@ -399,6 +399,21 @@ It '실제 기록기: 줄 기록 후 중지 표시, CPU 부하 시작/중지' {
     $a = Read-BlackboxAnalysis $job.Path; Assert (-not $a.Abrupt) '정상 종료'
 }
 
+It '지역 설정 무관: 시간·소수 형식 (핀란드어 시간 구분자, 독일어 소수점)' {
+    $old = [Threading.Thread]::CurrentThread.CurrentCulture
+    try {
+        [Threading.Thread]::CurrentThread.CurrentCulture = [Globalization.CultureInfo]::GetCultureInfo('fi-FI')
+        $t = Format-T (Get-Date '2026-11-14T10:20:30')
+        Assert-Eq $t '2026-11-14T10:20:30' '시간 형식'
+        Assert-Eq (ConvertTo-Date $t).Minute 20 '다시 읽기'
+        [Threading.Thread]::CurrentThread.CurrentCulture = [Globalization.CultureInfo]::GetCultureInfo('de-DE')
+        Assert-Eq (ConvertTo-CsvField 72.5) '72.5' '소수점'
+        Assert-Eq (ConvertTo-CsvField 'a,b') 'a;b' '쉼표 치환'
+        Assert-Eq (ConvertTo-CsvField $null) '' 'null'
+        Assert-Eq (ConvertTo-CsvField 3) '3' '정수'
+    } finally { [Threading.Thread]::CurrentThread.CurrentCulture = $old }
+}
+
 Write-Host "`n[영어]" -ForegroundColor Cyan
 
 It '영어 보고서·요약에 한글이 남지 않음 (모든 시나리오)' {

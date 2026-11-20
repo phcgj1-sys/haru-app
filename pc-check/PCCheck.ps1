@@ -33,7 +33,13 @@ $script:IsWin      = ($env:OS -eq 'Windows_NT')
 # =====================================================================
 function HtmlEnc($s) { if ($null -eq $s) { return '' }; return [System.Net.WebUtility]::HtmlEncode((Tr ([string]$s))) }
 
-function Format-T($dt) { if ($null -eq $dt) { return '' }; return ([datetime]$dt).ToString('yyyy-MM-ddTHH:mm:ss') }
+function Format-T($dt) { if ($null -eq $dt) { return '' }; return ([datetime]$dt).ToString('yyyy-MM-ddTHH:mm:ss', [Globalization.CultureInfo]::InvariantCulture) }
+function ConvertTo-CsvField($v) {
+    # 지역 설정과 무관하게 소수점은 항상 '.' (독일어 등 ',' 소수점 Windows 에서 CSV 가 깨지지 않도록)
+    if ($null -eq $v) { return '' }
+    if ($v -is [IFormattable] -and -not ($v -is [string])) { $s = $v.ToString($null, [Globalization.CultureInfo]::InvariantCulture) } else { $s = [string]$v }
+    return ($s -replace ',', ';')
+}
 function ConvertTo-Date($s) {
     if ($null -eq $s -or $s -eq '') { return $null }
     if ($s -is [datetime]) { return $s }
@@ -1372,7 +1378,7 @@ function Start-Blackbox {
                 }
                 $vals = @($s.Time, $sync.Stage, $s.CpuPct, $s.CpuPerfPct, $s.MemPct, $s.BoardTempC, $s.GpuTempC, $s.GpuUtilPct, $s.GpuPowerW, $s.GpuClockMHz, $s.GpuMemMB, $s.GpuThrottle,
                     [int][bool]$sync.CpuStress, [int][bool]$sync.GpuStress, [int][bool]$ram.Running, $ram.Errors, ($ev -replace ',', ';'))
-                Write-DurableLine $sync.Path (($vals | ForEach-Object { if ($null -eq $_) { '' } else { ([string]$_) -replace ',', ';' } }) -join ',')
+                Write-DurableLine $sync.Path (($vals | ForEach-Object { ConvertTo-CsvField $_ }) -join ',')
                 $sync.Rows++; $sync.Last = $s; $n++
                 $until = (Get-Date).AddSeconds($interval)
                 while (-not $sync.Stop -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 100 }
