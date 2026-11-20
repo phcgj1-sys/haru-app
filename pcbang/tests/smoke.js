@@ -136,6 +136,14 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   for (const t of ['home', 'game', 'games', 'log', 'dev', 'fix']) { await page.click(`[data-tab="${t}"]`); await page.waitForTimeout(100); }
   ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 390, '모바일: 가로 넘침 없음');
 
+  // 7. 웹 결과 파일 이름이 점검 프로그램 결과(seat-23.txt)와 겹치지 않음
+  const ctx2 = await browser.newContext({ acceptDownloads: true }); const p3 = await ctx2.newPage();
+  p3.on('pageerror', e => errs.push(e.message));
+  await p3.goto(URL + '?seat=23'); await p3.waitForTimeout(300);
+  const [dl] = await Promise.all([p3.waitForEvent('download'), p3.click('#codeSave')]);
+  ok(dl.suggestedFilename() === 'seat-23-web.txt', '결과 파일 저장: seat-23-web.txt (점검 프로그램 파일을 덮어쓰지 않음)');
+  await ctx2.close();
+
   ok(errs.length === 0, '페이지 오류 없음' + (errs.length ? ': ' + errs.join(' / ') : ''));
   await browser.close();
   console.log(fails ? `\n${fails}개 실패` : '\n모두 통과');

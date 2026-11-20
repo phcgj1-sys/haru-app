@@ -1550,7 +1550,7 @@ $('#codeCopy').addEventListener('click', function () {
   (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('결과 코드를 복사했어요'); }, function () { prompt('아래 코드를 복사하세요', t); });
 });
 $('#codeSave').addEventListener('click', function () {
-  var nm = S.seat ? 'seat-' + S.seat.replace(/[^0-9A-Za-z가-힣_-]/g, '') : 'pcbang-result-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
+  var nm = S.seat ? 'seat-' + S.seat.replace(/[^0-9A-Za-z가-힣_-]/g, '') + '-web' : 'pcbang-result-' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 12);
   downloadText(nm + '.txt', seatCodes() + '\r\n');
 });
 $('#copyRep').addEventListener('click', function () {
