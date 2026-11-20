@@ -153,6 +153,16 @@ function igpuFromCpu(cpu) {
     if (n === 3400 || n === 2400) return g('Radeon Vega 11 (' + n + 'G 내장)', 2400);
     if (n === 3200 || n === 2200) return g('Radeon Vega 8 (' + n + 'G 내장)', 1900);
   }
+  // 인텔 11세대 이후: 이름이 'Intel(R) UHD Graphics'로만 보이는 경우가 많음 (F 모델은 내장 그래픽 없음)
+  if ((m = c.match(/\bi[3579][\s-]*(1[1-4])\d{2}(u|h|p|g\d)/))) return g('Intel UHD (노트북 ' + m[1] + '세대 내장)', 1000); // 예: i5-1235U
+  if ((m = c.match(/\bi([3579])[\s-]*(1[1-4])(\d{3})([a-z]*)/))) {
+    var tier = +m[1], gen = +m[2], num = +(m[2] + m[3]), suf = m[4] || '';
+    if (/f/.test(suf)) return null;
+    if (/^(h|u|p|g\d)/.test(suf)) return g('Intel UHD (노트북 ' + gen + '세대 내장)', 1000);
+    if (gen === 11) return tier >= 7 ? g('Intel UHD 750 (11세대 내장)', 1500) : g('Intel UHD 730 (11세대 내장)', 1300);
+    if (tier >= 7 || (tier === 5 && (num % 1000 >= 500 || /k/.test(suf)))) return g('Intel UHD 770 (' + gen + '세대 내장)', 1700);
+    return g('Intel UHD 730 (' + gen + '세대 내장)', 1300);
+  }
   // 라이젠 7000·9000 데스크톱(G 아님): 최소 화면 출력용 2CU 내장 그래픽
   if ((m = c.match(/ryzen\s*[3579]\s*(\d{4})(x3d|x|f)?\b/)) && /^[79]\d{3}$/.test(m[1])) return g('Radeon 2CU (라이젠 ' + m[1] + ' 내장)', 1200);
   return null;
@@ -262,7 +272,7 @@ function spec(st) {
   if (!gm) {
     var rawG = st.manual.gpu || (nat.gpus || []).map(function (x) { return x.name; }).join(' ') || st.det.renderer || '';
     var cpuN = st.manual.cpu || nat.cpu || '';
-    if (/radeon(\(tm\))? graphics|radeon\(tm\) graphics/i.test(rawG) && cpuN) { gm = igpuFromCpu(cpuN); if (gm) o.src.gpu = 'CPU 내장 그래픽 추정'; }
+    if ((/radeon(\(tm\))? graphics|radeon\(tm\) graphics/i.test(rawG) || /intel(\(r\))? uhd graphics\s*$/i.test(rawG)) && cpuN) { gm = igpuFromCpu(cpuN); if (gm) o.src.gpu = 'CPU 내장 그래픽 추정'; }
   }
   o.gpu = gm;
   o.gpuRaw = st.manual.gpu || (nat.gpus && nat.gpus[0] && nat.gpus[0].name) || st.det.renderer || '';
@@ -482,7 +492,7 @@ function devKv(nat, kv) {
 function showMatch() {
   var c = $('#cpuIn').value.trim(), g = $('#gpuIn').value.trim(), out = [];
   if (c) { var cm = matchCpu(c); out.push(cm ? '<span class="pill ok">CPU: ' + esc(cm.name) + ' · 단일 ' + fmt(cm.single) + ' / 전체 ' + fmt(cm.multi) + '</span>' : '<span class="pill warn">CPU "' + esc(c) + '"를 표에서 못 찾았어요. 목록에서 가까운 것을 고르세요.</span>'); }
-  if (g) { var gm = matchGpu(g); if (!gm && /radeon(\(tm\))? graphics/i.test(g) && c) { gm = igpuFromCpu(c); if (gm) gm = { name: gm.name + ' (CPU로 추정)', score: gm.score }; } out.push(gm ? '<span class="pill ok">그래픽: ' + esc(gm.name) + ' · 점수 ' + fmt(gm.score) + '</span>' : '<span class="pill warn">그래픽 "' + esc(g) + '"를 표에서 못 찾았어요.</span>'); }
+  if (g) { var gm = matchGpu(g); if (!gm && (/radeon(\(tm\))? graphics/i.test(g) || /intel(\(r\))? uhd graphics\s*$/i.test(g)) && c) { gm = igpuFromCpu(c); if (gm) gm = { name: gm.name + ' (CPU로 추정)', score: gm.score }; } out.push(gm ? '<span class="pill ok">그래픽: ' + esc(gm.name) + ' · 점수 ' + fmt(gm.score) + '</span>' : '<span class="pill warn">그래픽 "' + esc(g) + '"를 표에서 못 찾았어요.</span>'); }
   $('#matchInfo').innerHTML = out.join(' ');
 }
 $('#cpuIn').addEventListener('input', showMatch);
