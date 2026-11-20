@@ -407,6 +407,14 @@ It '수리 후 전 단계 통과 기록이 더 새로우면 이전 실패는 참
     Assert-Eq (Top $dx2) 'PSU' '통과 기록 없으면 그대로 파워'
     $script:UiLang = 'en'; try { Assert ((Tr "$($bad.Title) (이후 테스트 통과)") -notmatch '[가-힣]') '영어' } finally { $script:UiLang = 'ko' }
 }
+It 'GPU 도구 미실행 상태의 단계에서 꺼지면 실제 부하 기준으로 판정' {
+    $r1 = @(,@('gpu', 5, 100, 40, 0, 20, '', 0, 'GPUFAIL')) + (Rep 3 @('gpu', 5, 100, 40, 0, 20, '', 0, ''))
+    $a = Read-BlackboxAnalysis (New-Bb2File 'k1.csv' $r1)
+    Assert ($a.Title -notmatch 'GPU 단독') 'GPU 탓 아님'; Assert ($a.Title -match '대기') '대기와 같음'
+    $r2 = @(,@('full', 100, 97, 40, 0, 20, '', 0, 'GPUFAIL')) + (Rep 3 @('full', 100, 97, 40, 0, 20, '', 0, ''))
+    Assert ((Read-BlackboxAnalysis (New-Bb2File 'k2.csv' $r2)).Title -match 'CPU 단독') '전체 → CPU 단독'
+    Assert ((Read-BlackboxAnalysis (New-Bb2File 'k3.csv' (Rep 3 @('gpu', 5, 100, 70, 99, 250, '', 0, '')))).Title -match 'GPU 단독') 'GPU 정상 실행이면 그대로'
+}
 It 'NVIDIA 감속 원인 해석' {
     Assert-Eq (ConvertFrom-NvThrottle '0x0000000000000004') 'PWRCAP' '전력 제한'
     Assert-Eq (ConvertFrom-NvThrottle '0x88') 'HWSLOW+PBRAKE' '하드웨어'

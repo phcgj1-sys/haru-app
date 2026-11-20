@@ -1531,6 +1531,9 @@ function Read-BlackboxAnalysis([string]$Path) {
     if ($perf.Count -ge 5 -and ($perf | Measure-Object -Minimum).Minimum -lt 60) { $res.Notes += "CPU 부하 중 클럭이 $([int]($perf | Measure-Object -Minimum).Minimum)% 까지 떨어짐 (과열·전력 제한)" }
     $noteText = $(if ($res.Notes.Count) { ' ' + (($res.Notes | ForEach-Object { "[$_]" }) -join ' ') } else { '' })
 
+    # GPU 도구가 돌지 않았다면 GPU 가 들어간 단계는 실제 부하 기준으로 다시 해석 (GPU 단독 → 대기, 전체·출렁임 → CPU 단독)
+    $effStage = $res.LastStage
+    if ($events.ContainsKey('GPUFAIL')) { if ($effStage -eq 'gpu') { $effStage = 'idle' } elseif ($effStage -in 'full', 'pulse') { $effStage = 'cpu' } }
     if (-not $stopped) {
         $res.Abrupt = $true; $res.Level = 'bad'
         $stName = $(if ($res.LastStage -and $stageNames.ContainsKey($res.LastStage)) { $stageNames[$res.LastStage] } else { '' })
@@ -1539,22 +1542,22 @@ function Read-BlackboxAnalysis([string]$Path) {
         if ($null -ne $lastTemp -and $lastTemp -ge 88) {
             $res.Cause = 'THERMAL'; $res.Title = '블랙박스: 고온 상태에서 기록이 끊김 (과열 의심)'
             $res.Detail = "$state. 꺼지기 직전 그래픽카드 온도가 매우 높았습니다. 쿨링(팬·먼지·써멀)을 먼저 점검하세요."
-        } elseif ($res.LastStage -eq 'pulse') {
+        } elseif ($effStage -eq 'pulse') {
             $res.Cause = 'PSU'; $res.Title = '블랙박스: 전력 출렁임 단계에서 꺼짐 (파워 품질·노후 의심)'
             $res.Detail = "$state. 부하가 급하게 바뀌는 순간을 파워가 버티지 못했습니다. 용량이 충분해도 노후·저품질 파워에서 흔한 패턴입니다. 파워 교체 1순위."
-        } elseif ($res.LastStage -eq 'full') {
+        } elseif ($effStage -eq 'full') {
             $res.Cause = 'PSU'; $res.Title = '블랙박스: 전체 부하 단계에서 꺼짐 (파워 용량 부족 의심)'
             $res.Detail = "$state. CPU·GPU 를 각각 돌릴 때는 버텼지만 함께 돌리자 꺼졌습니다. 파워 용량 부족·노후가 가장 유력합니다."
-        } elseif ($res.LastStage -eq 'gpu') {
+        } elseif ($effStage -eq 'gpu') {
             $res.Cause = 'GPU_HW'; $res.Title = '블랙박스: GPU 단독 부하에서 꺼짐 (그래픽카드·보조전원 의심)'
             $res.Detail = "$state. 그래픽카드만 부하를 받았을 때 꺼졌습니다. 그래픽카드 자체 또는 보조전원 케이블·파워의 PCIe 출력이 의심됩니다."
-        } elseif ($res.LastStage -eq 'cpu') {
+        } elseif ($effStage -eq 'cpu') {
             $res.Cause = 'CPU_OC'; $res.Title = '블랙박스: CPU 단독 부하에서 꺼짐 (CPU·메인보드 전원부 의심)'
             $res.Detail = "$state. CPU 만 부하를 받았을 때 꺼졌습니다. CPU 보조전원(4+4핀), 메인보드 전원부, CPU 쿨러 장착, 오버클럭 설정을 확인하세요."
-        } elseif ($res.LastStage -eq 'ram') {
+        } elseif ($effStage -eq 'ram') {
             $res.Cause = 'RAM'; $res.Title = '블랙박스: RAM 검사 중 꺼짐 (RAM·메인보드 의심)'
             $res.Detail = "$state. 메모리를 집중적으로 쓰는 중에 꺼졌습니다. XMP/EXPO 를 끄고, RAM 을 한 개씩 꽂아 다시 시험하세요."
-        } elseif ($res.LastStage -eq 'idle') {
+        } elseif ($effStage -eq 'idle') {
             $res.Cause = 'PSU'; $res.Title = '블랙박스: 대기 중에 꺼짐 (전원 연결·메인보드 의심)'
             $res.Detail = "$state. 부하가 없는데 꺼졌습니다. 전원 케이블·멀티탭, 파워, 메인보드 순서로 의심됩니다."
         } elseif ($lastLoad -ge 70 -or $stress) {
