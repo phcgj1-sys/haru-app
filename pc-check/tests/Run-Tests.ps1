@@ -182,6 +182,19 @@ It '단일 항목 목록 (5.1 배열 풀림 회귀 방지)' {
 }
 
 Write-Host "`n[유틸]" -ForegroundColor Cyan
+It '그래픽 드라이버 설치 기록 판별 (칩셋·오디오·SATA 제외)' {
+    foreach ($y in @(
+        'Driver Management concluded the process to install driver nv_dispi.inf_amd64_1f2e3d for Device Instance ID PCI\VEN_10DE&DEV_2786 with the following status: 0x0.',
+        'Driver Management concluded the process to install driver u0401234.inf_amd64_aa for Device Instance ID PCI\VEN_1002&DEV_744C with the following status: 0x0.',
+        'Driver Management concluded the process to install driver iigd_dch.inf_amd64_bb for Device Instance ID PCI\VEN_8086&DEV_A780',
+        'NVIDIA GeForce RTX 4070 driver installed', 'Intel(R) Arc(TM) A770 Graphics')) { Assert (Test-DisplayDriverMessage $y) "그래픽: $y" }
+    foreach ($n in @(
+        'Driver Management concluded the process to install driver hdaudio.inf for NVIDIA High Definition Audio',
+        'Driver Management concluded the process to install driver amd_sata.inf for AMD SATA Controller',
+        'Driver Management concluded the process to install driver amdgpio2.inf for AMD GPIO Controller',
+        'Driver Management concluded the process to install driver nvhda.inf for Device Instance ID HDAUDIO\FUNC_01&VEN_10DE (NVIDIA Audio)',
+        'Driver Management concluded the process to install driver netrtwlane.inf for Realtek Wi-Fi Architecture', '', $null)) { Assert (-not (Test-DisplayDriverMessage $n)) "그래픽 아님: $n" }
+}
 It 'GitHub 릴리스에서 Windows 파일 고르기' {
     $mk = { param($n) [pscustomobject]@{ name = $n } }
     Assert-Eq (Select-WindowsAsset @((& $mk 'memtest_vulkan-v0.5.0_DesktopLinux_X86_64.tar.xz'), (& $mk 'memtest_vulkan-v0.5.0.zip'))).name 'memtest_vulkan-v0.5.0.zip' 'zip'

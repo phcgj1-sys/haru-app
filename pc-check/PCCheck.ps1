@@ -307,6 +307,14 @@ function Get-GpuSensors {
     } catch { Write-PCLog "gpu sensors: $($_.Exception.Message)" }
     return $out
 }
+function Test-DisplayDriverMessage([string]$Text) {
+    # 드라이버 설치 기록(UserPnp 20001)이 '그래픽(디스플레이) 드라이버'인지 판별
+    # 제조사 이름만으로는 칩셋·SATA·HDMI 오디오 드라이버까지 섞이므로, 디스플레이 INF 이름·장치명 기준으로 판단
+    if (-not $Text) { return $false }
+    if ($Text -match '(?i)audio|오디오|\bHDMI\b.*sound|SATA|AHCI|GPIO|SMBus|chipset|칩셋|USB|PSP|PCI Express Root|Bluetooth|Ethernet|Wi-?Fi|Network') { return $false }
+    if ($Text -match '(?i)\bnv_disp\w*\.inf|\bnvlt\w*\.inf|\bnvdm\w*\.inf|\bnvami\w*\.inf|\bu\d{6,7}\.inf|\biigd\w*\.inf|\bigdlh\w*\.inf|\bcui_dch\.inf|\bamdkmdag') { return $true }
+    return ($Text -match '(?i)Display adapter|디스플레이 어댑터|\bGeForce\b|\bRadeon\b|\bQuadro\b|\bRTX\b|\bGTX\b|Intel\(R\).*(Graphics|Arc)|\bArc\(TM\)|Intel Arc')
+}
 function Test-IsAdmin {
     try { return [bool](([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) }
     catch { return $false }
@@ -452,7 +460,7 @@ function Invoke-Collect {
         @{ Name = '드라이버 설치·앱 충돌·온도'; Run = {
             $D.DriverInstalls = @(Get-EventsSafe 'System' 20001 'Microsoft-Windows-UserPnp' $since 200 | ForEach-Object {
                 $txt = Get-EventText $_
-                if ($txt -match 'Display|디스플레이|NVIDIA|GeForce|Radeon|AMD|Intel\(R\).*Graphics|Arc') { [ordered]@{ T = (Format-T $_.TimeCreated); Msg = (Get-FirstLine $txt) } }
+                if (Test-DisplayDriverMessage $txt) { [ordered]@{ T = (Format-T $_.TimeCreated); Msg = (Get-FirstLine $txt) } }
             } | Where-Object { $_ })
             $crash = @(Get-EventsSafe 'Application' 1000 'Application Error' $since 400 | ForEach-Object { try { [string]$_.Properties[0].Value } catch { '' } } | Where-Object { $_ })
             $D.AppCrashes = @($crash | Group-Object | Sort-Object Count -Descending | Select-Object -First 8 | ForEach-Object { [ordered]@{ App = $_.Name; Count = $_.Count } })
