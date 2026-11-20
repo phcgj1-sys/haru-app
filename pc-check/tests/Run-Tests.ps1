@@ -579,6 +579,25 @@ It '실제 기록기: 줄 기록 후 중지 표시, CPU 부하 시작/중지' {
     Assert ($lines[-1] -match ',STOP$') '중지 표시'
     $a = Read-BlackboxAnalysis $job.Path; Assert (-not $a.Abrupt) '정상 종료'
 }
+It '기록기: 순간 쓰기 오류는 다시 시도, 계속되면 기록 오류로 표시 (갑자기 꺼짐으로 오판 안 함)' {
+    $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb3') -IntervalSec 0.1 -NoEvents
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($job.Sync.Rows -lt 2 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
+    $bad = Join-Path (Join-Path $OutDir 'no_such_dir_x') 'y.csv'
+    $job.Sync.Path = $bad
+    $sw.Restart(); while (-not $job.Sync.Warn -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
+    Assert ([string]$job.Sync.Warn) '순간 오류 감지'
+    $job.Sync.Path = $job.Path; $r0 = $job.Sync.Rows
+    $sw.Restart(); while ($job.Sync.Rows -le $r0 -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
+    Assert ($job.Sync.Rows -gt $r0) '다시 기록 계속'; Assert ($null -eq $job.Sync.Error) '오류로 멈추지 않음'
+    $job.Sync.Path = $bad
+    $sw.Restart(); while (-not $job.Sync.Done -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
+    Assert $job.Sync.Done '계속되는 오류면 중지'; Assert ([string]$job.Sync.Error) '오류 보고'
+    Stop-Blackbox $job
+    $a = Read-BlackboxAnalysis $job.Path
+    Assert (-not $a.Abrupt) '전원 차단으로 오판 안 함'; Assert ($a.Events.ContainsKey('LOGERR')) '기록 오류 표시'
+    Assert (@($a.Notes) -match '기록 오류').Count '안내'
+}
 It '화면 쪽 사건(GPU 도구 실패)이 기록에 남아 GPU 단계 미시험으로 판정' {
     $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb2') -IntervalSec 0.3 -NoEvents
     $job.Sync.Stage = 'gpu'; $job.Sync.Pending = 'GPUFAIL'

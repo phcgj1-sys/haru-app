@@ -1511,18 +1511,22 @@ function Start-Blackbox {
     if (-not $Dir) { $Dir = (Get-BlackboxDefaultDir).Dir }
     New-Item -ItemType Directory -Force -Path $Dir | Out-Null
     $path = Join-Path $Dir ("PCCheck_blackbox_{0}_{1:yyyyMMdd_HHmmss}.csv" -f $env:COMPUTERNAME, (Get-Date))
-    $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; Stage = ''; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0; GpuLog = ''; GpuSeen = ''; Pending = '' })
+    $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; Stage = ''; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0; GpuLog = ''; GpuSeen = ''; Pending = ''; Warn = '' })
     Write-DurableLine $path ("# PCCheck blackbox,v2,{0},{1},{2}" -f $env:COMPUTERNAME, (Format-T (Get-Date)), $script:AppVersion)
     Write-DurableLine $path $script:BlackboxCols
     $rs = New-PCRunspace
     $rs.SessionStateProxy.SetVariable('sync', $sync)
     $rs.SessionStateProxy.SetVariable('interval', $IntervalSec)
     $rs.SessionStateProxy.SetVariable('noEvents', [bool]$NoEvents)
+    $rs.SessionStateProxy.SetVariable('origPath', $path)
     $ps = [powershell]::Create(); $ps.Runspace = $rs
     [void]$ps.AddScript({
+        $endLine = { param($ev) (@((Format-T (Get-Date))) + @('') * ($script:BlackboxCols.Split(',').Count - 2) + @($ev)) -join ',' }
         try {
-            $lastPoll = Get-Date; $n = 0
+            $lastPoll = Get-Date; $n = 0; $fails = 0
             while (-not $sync.Stop) {
+              # 한 번의 센서·쓰기 오류(USB 순간 끊김 등)로 기록 전체가 멈추면 '갑자기 꺼짐'으로 오판되므로 잠시 후 다시 시도
+              try {
                 $s = Get-LiveSample
                 $ram = Get-RamTestState
                 $ev = ''
@@ -1543,12 +1547,20 @@ function Start-Blackbox {
                 $vals = @($s.Time, $sync.Stage, $s.CpuPct, $s.CpuPerfPct, $s.MemPct, $s.BoardTempC, $s.GpuTempC, $s.GpuUtilPct, $s.GpuPowerW, $s.GpuClockMHz, $s.GpuMemMB, $s.GpuThrottle,
                     [int][bool]$sync.CpuStress, [int][bool]$sync.GpuStress, [int][bool]$ram.Running, $ram.Errors, $gpuErr, ($ev -replace ',', ';'))
                 Write-DurableLine $sync.Path (($vals | ForEach-Object { ConvertTo-CsvField $_ }) -join ',')
-                $sync.Rows++; $sync.Last = $s; $n++
+                $sync.Rows++; $sync.Last = $s; $n++; $fails = 0; $sync.Warn = ''
+              } catch {
+                $fails++; $sync.Warn = $_.Exception.Message
+                if ($fails -ge 10) { throw }
+              }
                 $until = (Get-Date).AddSeconds($interval)
                 while (-not $sync.Stop -and (Get-Date) -lt $until) { Start-Sleep -Milliseconds 100 }
             }
-            Write-DurableLine $sync.Path ((@((Format-T (Get-Date))) + @('') * ($script:BlackboxCols.Split(',').Count - 2) + @('STOP')) -join ',')
-        } catch { $sync.Error = $_.Exception.Message } finally { $sync.Done = $true }
+            Write-DurableLine $sync.Path (& $endLine 'STOP')
+        } catch {
+            $sync.Error = $_.Exception.Message
+            # 기록 오류로 멈춘 것을 남겨 두어 분석에서 전원 차단으로 오판하지 않게 함 (처음 파일에 기록)
+            try { Write-DurableLine $origPath (& $endLine 'LOGERR'); Write-DurableLine $origPath (& $endLine 'STOP') } catch {}
+        } finally { $sync.Done = $true }
     })
     $h = $ps.BeginInvoke()
     return [pscustomobject]@{ Sync = $sync; PS = $ps; Handle = $h; Runspace = $rs; Path = $path }
@@ -1684,6 +1696,7 @@ function Read-BlackboxAnalysis([string]$Path) {
     # 부가 신호
     if ($res.RamErrors -gt 0) { $res.Notes += "RAM 검사 오류 $($res.RamErrors) 건 (RAM 불량이 거의 확실)" }
     if ($res.GpuTestErrors -gt 0) { $res.Notes += "VRAM 검사 오류 $($res.GpuTestErrors) 건 (그래픽카드 메모리 불량 의심)" }
+    if ($events.ContainsKey('LOGERR')) { $res.Notes += '기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)' }
     if ($events.ContainsKey('GPULOST')) { $res.Notes += '그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)' }
     $gpuFail = $events.ContainsKey('GPUFAIL')
     if ($gpuFail) { $res.Notes += 'GPU 부하 도구가 시작되지 못해 GPU 단계는 시험되지 않음 (Vulkan 드라이버 확인)' }
@@ -2609,7 +2622,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
