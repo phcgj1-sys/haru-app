@@ -1265,6 +1265,8 @@ function Get-NewSince($Data, [datetime]$Since) {
     return $n
 }
 
+# 영어 사용자에게 한글 파일·폴더 이름이 보이지 않도록 언어별 이름 사용
+function Get-OutputPrefix { if ($script:UiLang -eq 'en') { return 'PCCheck' } else { return 'PC진단' } }
 function Get-HistoryPath { return (Join-Path $script:WorkDir 'history.json') }
 function Read-History {
     $p = Get-HistoryPath
@@ -1296,7 +1298,7 @@ function Save-Results {
     if (-not (Test-Path $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
     if ($Track) { Add-Comparison $Data $Dx (Read-History) }
     $stamp = (ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created')); if (-not $stamp) { $stamp = Get-Date }
-    $base = Join-Path $Dir ("PC진단_{0:yyyyMMdd_HHmmss}" -f $stamp)
+    $base = Join-Path $Dir ("{0}_{1:yyyyMMdd_HHmmss}" -f (Get-OutputPrefix), $stamp)
     $html = New-HtmlReport -Data $Data -Dx $Dx
     $utf8 = New-Object System.Text.UTF8Encoding($true)
     [IO.File]::WriteAllText("$base.html", $html, $utf8)
@@ -2692,7 +2694,7 @@ $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 if (-not $OutDir) {
     $desk = [Environment]::GetFolderPath('Desktop'); if (-not $desk) { $desk = $HOME }
-    $OutDir = Join-Path $desk 'PC진단'
+    $OutDir = Join-Path $desk (Get-OutputPrefix)
 }
 New-Item -ItemType Directory -Force -Path $script:WorkDir, (Join-Path $script:WorkDir 'logs') -ErrorAction SilentlyContinue | Out-Null
 $script:LogFile = Join-Path $script:WorkDir ("logs\{0:yyyyMMdd_HHmmss}.log" -f (Get-Date))

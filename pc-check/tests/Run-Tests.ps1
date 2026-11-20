@@ -302,6 +302,15 @@ It '증상·고객 메모: 보고서 상단·요약에 표시, HTML 이스케이
     try { $he = New-HtmlReport -Data $d -Dx $dx; Assert ($he -match 'Note: 홍길동 / 게임 중 꺼짐') "영어에서도 메모 원문 유지"; Assert ((Get-SummaryText $d $dx) -match 'Note: 홍길동 / 게임 중 꺼짐') '요약도 원문' }
     finally { $script:UiLang = 'ko' }
 }
+It '영어 모드: 저장 파일 이름에 한글 없음 (PCCheck_...)' {
+    $dir = Join-Path ([IO.Path]::GetTempPath()) ("pcc_en_" + [guid]::NewGuid().ToString('N'))
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try {
+        $d = New-Scenario @{}; $r = Save-Results -Data $d -Dx (Get-Diagnosis -Data $d) -Dir $dir
+        foreach ($f in $r.Html, $r.Json, $r.Txt) { Assert ((Split-Path $f -Leaf) -match '^PCCheck_\d{8}_\d{6}\.') "영문 이름 $f"; Assert (Test-Path $f) '파일 존재' }
+    } finally { $script:UiLang = $old }
+    Assert ((Get-OutputPrefix) -eq 'PC진단') '한국어는 기존 이름 유지'
+}
 It '인쇄용 점검 확인란: 화면에서는 숨기고 인쇄 시에만 표시' {
     $h = New-HtmlReport -Data (New-Scenario @{}) -Dx (Get-Diagnosis -Data (New-Scenario @{}))
     Assert ($h -match 'class="sign"') '확인란'; Assert ($h -match '\.sign\{display:none') '화면 숨김'; Assert ($h -match '@media print\{\.sign\{display:flex\}') '인쇄 표시'
