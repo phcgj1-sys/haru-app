@@ -151,7 +151,7 @@ for ($sec = 0; $sec -lt $Seconds; $sec++) {
   try { if ($gateway) { $pgGw = $pingGw.SendPingAsync($gateway, 900) } } catch {}
   try { $pgEx = $pingEx.SendPingAsync($extHost, 900) } catch {}
   try { if ($gameSrv) { $pgGs = $pingGs.SendPingAsync($gameSrv, 900) } } catch {}
-  $smp = [ordered]@{ t = [math]::Round($swAll.Elapsed.TotalSeconds, 1); cpu = $null; core = $null; gpu = $null; mem = $null; gw = $null; ext = $null; gs = $null }
+  $smp = [ordered]@{ t = [math]::Round($swAll.Elapsed.TotalSeconds, 1); cpu = $null; core = $null; gpu = $null; mem = $null; gw = $null; ext = $null; gs = $null; clk = $null }
   try {
     $cp = @(Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -OperationTimeoutSec 2)
     $tot = $cp | Where-Object { $_.Name -eq '_Total' } | Select-Object -First 1
@@ -169,6 +169,8 @@ for ($sec = 0; $sec -lt $Seconds; $sec++) {
     }
     if ($byEng.Count) { $smp.gpu = [int][math]::Min(100, ($byEng.Values | Measure-Object -Maximum).Maximum) }
   } catch {}
+  # CPU 실제 클럭(MHz) = 기본 클럭 × 성능% (관리자 권한 없이 읽는 성능 카운터)
+  try { $pi = Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter "Name='_Total'" -OperationTimeoutSec 2; if ($pi -and $pi.ProcessorFrequency) { $smp.clk = [int]([double]$pi.ProcessorFrequency * [double]$pi.PercentProcessorPerformance / 100) } } catch {}
   try { $os = Get-CimInstance Win32_OperatingSystem -OperationTimeoutSec 2; $smp.mem = [int](100 - [double]$os.FreePhysicalMemory / [double]$os.TotalVisibleMemorySize * 100) } catch {}
   # 게임 서버(TCP) 찾기: 10초마다, 그래픽을 가장 많이 쓰는 프로세스의 연결 중 웹(80/443)이 아닌 공인 IP
   if (-not $gameSrv -and ($sec % 10) -eq 5 -and $gpuByPid.Count) {
@@ -334,6 +336,14 @@ if ($fps) {
 }
 if ($gpu.tempMax -ge 85) { [void]$verd.Add(('그래픽카드 최고 {0}°C - 먼지 청소·팬 확인' -f $gpu.tempMax)) }
 if ($gpu.clockStart -and $gpu.clockEnd -and $gpu.clockEnd -lt $gpu.clockStart * 0.9 -and $gpu.tempMax -ge 80) { [void]$verd.Add(('그래픽 클럭이 {0}→{1}MHz로 떨어짐 - 발열로 성능 저하(스로틀링) 의심' -f $gpu.clockStart, $gpu.clockEnd)) }
+# CPU 클럭: 처음(4~18초)과 마지막 1/3 비교. 28초쯤부터 크게 떨어지면 PL1(장기 전력) 제한이나 발열 의심
+$clkA = @($tl | ForEach-Object { $_.clk }); $clkStart = $null; $clkEnd = $null
+$clkOk = @($clkA | Where-Object { $_ -gt 0 })
+if ($clkOk.Count -ge 30) {
+  $clkStart = Avg ($clkA[4..17] | Where-Object { $_ -gt 0 })
+  $clkEnd = Avg ($clkA[([int]($clkA.Count * 2 / 3))..($clkA.Count - 1)] | Where-Object { $_ -gt 0 })
+  if ($clkStart -and $clkEnd -and $clkEnd -lt $clkStart * 0.85 -and (Avg $coreA) -ge 50) { [void]$verd.Add(('게임 중 CPU 클럭이 {0}→{1}MHz로 떨어짐 - 전원 제한(PL1: K 없는 인텔은 65W로 묶이는 경우 많음)이나 CPU 발열 확인' -f $clkStart, $clkEnd)) }
+}
 if ((Mx $memA) -ge 90) { [void]$verd.Add(('메모리 사용 최고 {0}% - 램 부족으로 끊김 가능' -f (Mx $memA))) }
 # 응답이 하나도 없으면(100% 손실) 핑 차단이거나 연결 끊김 → 불안정과 구분
 if ($ping.gw -and $ping.gw.loss -ge 100) { [void]$verd.Add('게임 중 게이트웨이 핑 응답 없음 - 공유기·스위치가 핑을 막았거나 연결 문제(게임이 정상이면 핑 차단)') }
@@ -347,9 +357,9 @@ $result = [ordered]@{
   app = $(if ($pmApp) { $pmApp } else { $gameExe }); admin = $isAdmin; pmUsed = [bool]$pm; pmNote = $pmNote
   cpuName = $cpuName; gpuName = $gpuName; ramGB = $ramGB; hz = $hz; resW = $resW; resH = $resH
   fps = $fps; gpuBusyPct = $gpuBusyRatio; bottleneck = $bottle
-  cpu = [ordered]@{ avg = (Avg $cpuA); max = (Mx $cpuA); coreAvg = (Avg $coreA); coreMax = (Mx $coreA) }
+  cpu = [ordered]@{ avg = (Avg $cpuA); max = (Mx $cpuA); coreAvg = (Avg $coreA); coreMax = (Mx $coreA); clockStart = $clkStart; clockEnd = $clkEnd }
   gpu = $gpu; mem = [ordered]@{ avg = (Avg $memA); max = (Mx $memA) }; ping = $ping
-  tl = [ordered]@{ fps = [object[]]$fpsTl; ftMax = [object[]]$ftMaxTl; cpu = [object[]]$cpuA; core = [object[]]$coreA; gpu = [object[]]$gpuUse; temp = [object[]]$nvT; mem = [object[]]$memA; gw = [object[]]@($tl | ForEach-Object { $_.gw }); ext = [object[]]@($tl | ForEach-Object { $_.ext }) }
+  tl = [ordered]@{ clk = [object[]]$clkA; fps = [object[]]$fpsTl; ftMax = [object[]]$ftMaxTl; cpu = [object[]]$cpuA; core = [object[]]$coreA; gpu = [object[]]$gpuUse; temp = [object[]]$nvT; mem = [object[]]$memA; gw = [object[]]@($tl | ForEach-Object { $_.gw }); ext = [object[]]@($tl | ForEach-Object { $_.ext }) }
   verdicts = [object[]]$verd
 }
 
@@ -360,6 +370,7 @@ if ($fps) {
   Say ('  평균 {0}fps · 1% 최저 {1}fps · 0.1% 최저 {2}fps' -f $fps.avg, $fps.low1, $fps.low01) Green
   Say ('  프레임 시간 중간 {0}ms · 상위 1% {1}ms · 최대 {2}ms · 끊김 {3}회' -f $fps.p50ms, $fps.p99ms, $fps.maxms, $fps.stutters)
 } else { Say ('  FPS: 측정 안 됨 {0}' -f $pmNote) Yellow }
+if ($clkStart) { Say ('  CPU 실제 클럭: 처음 {0}MHz → 끝 {1}MHz' -f $clkStart, $clkEnd) }
 Say ('  CPU 평균 {0}% (가장 바쁜 코어 평균 {1}%) · 그래픽 평균 {2}% · 메모리 최고 {3}%' -f $result.cpu.avg, $result.cpu.coreAvg, $gpu.utilAvg, $result.mem.max)
 if ($gpu.tempMax) { Say ('  그래픽 온도 평균 {0}°C · 최고 {1}°C' -f $gpu.tempAvg, $gpu.tempMax) }
 function PingLine($label, $o) {
