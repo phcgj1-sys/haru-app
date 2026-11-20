@@ -1156,6 +1156,12 @@ function problems(st) {
   if (gw && !gw.recv) add('gwdead', 'warn', '게이트웨이(공유기) 응답 없음', '랜선·허브 포트·랜카드를 확인하세요. 공유기가 핑을 막아 둔 경우도 있으니 인터넷이 되는지 함께 보세요.', '게이트웨이 무응답');
   else if (gw && (gw.loss > 0 || gw.avg > 3)) add('gw', 'bad', '게이트웨이 핑 이상 (평균 ' + fmt(gw.avg, 1) + 'ms, 손실 ' + gw.loss + '%)', '매장 안 네트워크 문제예요. 랜선 교체(Cat5e 이상), 허브 포트 변경, 랜카드 드라이버 업데이트 순서로 확인하세요.', '게이트웨이 핑');
   var ext = (nat.pings || []).filter(function (x) { return !x.isGateway && x.recv; });
+  var extAll = (nat.pings || []).filter(function (x) { return !x.isGateway; });
+  if (extAll.length && !ext.length) {
+    var tcpOk = (nat.tcp || []).some(function (t) { return t.ok; });
+    if (tcpOk) add('extping', 'info', '외부 핑이 모두 막힘 (게임사 서버 접속은 정상)', '인터넷은 되고 있어요. 매장 방화벽·공유기가 외부 핑(ICMP)을 막아 둔 경우라 게임에는 보통 문제없어요.', '외부 핑 차단');
+    else add('extdead', 'bad', '외부 인터넷 응답 없음' + (gw && gw.recv ? ' (매장 안 게이트웨이는 정상)' : ''), gw && gw.recv ? '매장 안 네트워크는 정상이고 공유기 바깥(통신사 회선)이 끊겼을 수 있어요. 공유기·모뎀 WAN 표시등, 통신사 장애 공지를 확인하고, 공유기를 껐다 켜 보세요.' : '랜선·공유기·모뎀 전원과 연결을 확인하세요.', '외부 인터넷 끊김');
+  }
   if (gw && gw.recv && !(gw.loss > 0 || gw.avg > 3) && ext.length && median(ext.map(function (x) { return x.avg; })) > 40) add('ext', 'warn', '외부 핑이 높음 (중간값 ' + fmt(median(ext.map(function (x) { return x.avg; }))) + 'ms)', '매장 안은 정상이에요. 통신사 회선 상태를 문의하세요.', '외부 핑 높음');
   if (nat.adapter) {
     if (/무선|wi-?fi|wireless/i.test(nat.adapter)) add('wifi', 'warn', '와이파이로 연결됨', '게임용 좌석은 유선 랜 연결을 권장해요.', '와이파이');
@@ -1208,7 +1214,7 @@ function renderSummary() {
     '<div class="tblwrap"><table><thead><tr><th>게임</th><th>판정</th><th>예상 fps (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</th></tr></thead><tbody>' +
     games.map(function (x) { var lv = levelOf(x.g, x.j); var fl = x.j.fps != null ? fpsLabel(x.j.fps, tgt, x.g.fps.cap, x.g.fightFactor) : null; return '<tr><td>' + x.g.rank + '. ' + esc(x.g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (x.j.fps != null ? fpsText(x.g, x.j) + ' <span class="pill ' + fl[0] + '">' + (fl[0] === 'ok' ? '쾌적' : fl[0] === 'warn' ? '보통' : '버벅임') + '</span>' : '-') + '</td></tr>'; }).join('') +
     '</tbody></table></div>' +
-    (function () { var cl = chkState(S.dev, S.native), ok = cl.filter(function (x) { return x.st === 'ok'; }).length; return '<div class="note"><b>다음 단계: 장비 체크리스트 ' + ok + '/' + cl.length + '</b> — 모니터 화면·헤드셋 좌우·마우스·키보드는 <a href="#dev" data-goto="dev">장비 테스트</a>에서 눌러 확인하세요. 게이트웨이·외부 핑과 보안 부팅·TPM은 윈도우 점검 프로그램이 필요해요.</div>'; })() + '</div>';
+    (function () { var cl = chkState(S.dev, S.native), ok = cl.filter(function (x) { return x.st === 'ok'; }).length; return '<div class="note"><b>다음 단계: 장비 체크리스트 ' + ok + '/' + cl.length + '</b> — 모니터 화면·헤드셋 좌우·마우스·키보드는 <a href="#dev" data-goto="dev">장비 테스트</a>에서 눌러 확인하세요. ' + (S.native ? '윈도우 점검 프로그램 결과(' + esc(S.native.time || '') + ')도 반영했어요.' : '게이트웨이·외부 핑과 보안 부팅·TPM은 <a href="#spec" data-goto="spec">윈도우 점검 프로그램</a>이 필요해요.') + '</div>'; })() + '</div>';
   $('#summary').innerHTML = html;
   $('#sumSave').addEventListener('click', function () { $('#shopAddThis').click(); });
 }
@@ -1866,5 +1872,5 @@ var h = (location.hash || '').slice(1);
 if (h && $('[data-panel="' + h + '"]')) showTab(h);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('../sw.js').catch(function () {});
 // 테스트·디버그용
-window.__pcbang = { igpuFromCpu: igpuFromCpu, matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
+window.__pcbang = { igpuFromCpu: igpuFromCpu, matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, problems: problems, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
 })();

@@ -244,6 +244,13 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     await p8.context().close();
   }
 
+  // 점검 프로그램: 게이트웨이 정상·외부 핑 전부 무응답 → TCP 도 실패면 '외부 인터넷 응답 없음', TCP 성공이면 '핑만 막힘'
+  {
+    const pr = await page.evaluate(() => { const P = window.__pcbang; const pings = [{ name: 'gw', isGateway: true, avg: 1, loss: 0, recv: 20 }, { name: 'KT', avg: null, loss: 100, recv: 0 }];
+      const run = tcp => P.problems ? P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: { pings, tcp } }).map(x => x.id) : null; return [run([{ name: 'n', ok: false }]), run([{ name: 'n', ok: true }])]; });
+    ok(pr[0] && pr[0].indexOf('extdead') >= 0 && pr[1].indexOf('extping') >= 0 && pr[1].indexOf('extdead') < 0, '점검 프로그램: 외부 핑 전부 무응답 판정 (' + (pr[0] || []).filter(x => /ext/.test(x)) + ' / ' + (pr[1] || []).filter(x => /ext/.test(x)) + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
