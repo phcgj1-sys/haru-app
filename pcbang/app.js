@@ -39,7 +39,11 @@ function applyTheme() {
   $('#themeBtn').textContent = t === 'dark' ? '밝은 화면' : '어두운 화면';
   var m = document.querySelector('meta[name=theme-color]'); if (m) m.content = t === 'dark' ? '#0E1116' : '#F5F6F8';
 }
-$('#themeBtn').addEventListener('click', function () { var cur = document.documentElement.getAttribute('data-theme'); store.set('pcbang_theme', cur === 'dark' ? 'light' : 'dark'); applyTheme(); });
+// 테마가 바뀌면 그래프처럼 색을 직접 칠한 부분도 다시 그림
+function themeChanged() { applyTheme(); var gp = $('[data-panel="game"]'); if (gp && !gp.hidden && typeof renderGameDetail === 'function') renderGameDetail(); }
+$('#themeBtn').addEventListener('click', function () { var cur = document.documentElement.getAttribute('data-theme'); store.set('pcbang_theme', cur === 'dark' ? 'light' : 'dark'); themeChanged(); });
+// 직접 고른 적이 없으면 윈도우·휴대폰의 다크 모드 전환을 바로 따라감
+try { var mqDark = window.matchMedia('(prefers-color-scheme: dark)'); var onMq = function () { if (!store.get('pcbang_theme', null)) themeChanged(); }; if (mqDark.addEventListener) mqDark.addEventListener('change', onMq); else if (mqDark.addListener) mqDark.addListener(onMq); } catch (e) {}
 applyTheme();
 
 /* ---------------- 탭 ---------------- */
