@@ -659,6 +659,11 @@ It '정수 리터럴 [math]::Min/Max 함정 없음 (소수가 정수로 잘림)'
     $bad = @(); for ($i = 0; $i -lt $src.Length; $i++) { if ($src[$i] -notmatch 'int-ok' -and $src[$i] -match '\[math\]::M(in|ax)\(\d+, [^)]*(\d\.\d|/ |\$eff|\$bw|\$v\b|\$score)') { $bad += "$($i + 1)" } }
     Assert-Eq $bad.Count 0 "줄: $($bad -join ', ')"
 }
+It '프로그램 버전과 변경 이력 최신 버전이 같음' {
+    $cl = [IO.File]::ReadAllText((Join-Path $root 'CHANGELOG.md'))
+    $m = [regex]::Match($cl, '(?m)^## (\d+\.\d+\.\d+)')
+    Assert $m.Success '변경 이력에 버전 제목'; Assert-Eq $m.Groups[1].Value $script:AppVersion '버전 일치'
+}
 It '배치 파일은 ASCII + CRLF' {
 
     $bat = Get-ChildItem $root -Filter *.bat
