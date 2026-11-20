@@ -275,6 +275,18 @@ It '지난 검사 대비: 이후 새 문제 집계와 보고서 표시, 이력 �
     } finally { $script:WorkDir = $old }
 }
 
+It '백그라운드 실행 공간에 필요한 설정값이 모두 전달됨 (GPU 센서 코드·단계 계획 등)' {
+    # 스크립트 수준 설정 중 함수 안에서 $script: 로 쓰는 것은 모두 SharedVars 에 있어야 함 (분석·보고서 전용 제외)
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    $rs = New-PCRunspace
+    try {
+        $ps = [powershell]::Create(); $ps.Runspace = $rs
+        [void]$ps.AddScript('[pscustomobject]@{ Gpu = [bool]$script:GpuPerfSource; Stages = @($script:StagePlan).Count; Ram = [bool]$script:RamTestSource; Pin = [bool]$script:MemtestPinned; Cols = [bool]$script:BlackboxColsV1 }')
+        $r = @($ps.Invoke())[0]; $ps.Dispose()
+        Assert $r.Gpu 'GPU 센서 코드'; Assert-Eq $r.Stages 6 '단계 계획'; Assert $r.Ram 'RAM 검사 코드'; Assert $r.Pin '고정 버전'; Assert $r.Cols 'v1 열'
+    } finally { $rs.Dispose() }
+    Assert ($src -notmatch "foreach \(\`$v in 'AppName'") '설정 목록이 한 곳(SharedVars)에만 있음'
+}
 It '백그라운드 수집: 진행 상황 전달 후 데이터 반환' {
     $job = Start-CollectAsync -Days 3
     $sw = [Diagnostics.Stopwatch]::StartNew(); $seen = 0

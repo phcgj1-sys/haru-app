@@ -479,15 +479,7 @@ function Start-CollectAsync {
     # 수집을 별도 런스페이스에서 실행 (화면 멈춤 방지). 진행 상황은 동기화 해시테이블로 전달
     param([int]$Days = 30)
     $sync = [hashtable]::Synchronized(@{ I = 0; N = 0; Name = ''; Done = $false; Data = $null; Error = $null })
-    $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-    foreach ($fn in @(Get-ChildItem function:)) {
-        if ($fn.ScriptBlock) { $iss.Commands.Add((New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($fn.Name, $fn.Definition))) }
-    }
-    foreach ($v in 'AppName', 'AppVersion', 'LogFile', 'IsWin', 'WorkDir') {
-        $iss.Variables.Add((New-Object System.Management.Automation.Runspaces.SessionStateVariableEntry($v, (Get-Variable -Name $v -Scope Script -ValueOnly -ErrorAction SilentlyContinue), '')))
-    }
-    $rs = [runspacefactory]::CreateRunspace($iss)
-    $rs.Open()
+    $rs = New-PCRunspace   # 함수와 설정값(GPU 센서 코드·단계 계획 등)을 모두 가진 실행 공간
     $rs.SessionStateProxy.SetVariable('sync', $sync)
     $rs.SessionStateProxy.SetVariable('days', $Days)
     $ps = [powershell]::Create()
@@ -1193,13 +1185,15 @@ function Get-StageAt($Plan, [double]$Elapsed) {
     return [pscustomobject]@{ Index = $Plan.Count; Count = $Plan.Count; Key = 'done'; Name = '완료'; Remaining = 0; Cpu = $false; Gpu = $false; Ram = $false; Done = $true; TotalSec = $t }
 }
 
+# 별도 실행 공간(백그라운드 수집·블랙박스)에 넘겨야 하는 설정값 — 새 전역 설정을 만들면 여기에 추가
+$script:SharedVars = @('AppName', 'AppVersion', 'LogFile', 'IsWin', 'WorkDir', 'GpuPerfSource', 'RamTestSource', 'BlackboxCols', 'BlackboxColsV1', 'StagePlan', 'MemtestPinned', 'UiLang', 'EnPairs')
 function New-PCRunspace {
     # 이 스크립트의 함수·설정을 그대로 가진 별도 실행 공간
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     foreach ($fn in @(Get-ChildItem function:)) {
         if ($fn.ScriptBlock) { $iss.Commands.Add((New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry($fn.Name, $fn.Definition))) }
     }
-    foreach ($v in 'AppName', 'AppVersion', 'LogFile', 'IsWin', 'WorkDir', 'GpuPerfSource', 'RamTestSource', 'BlackboxCols', 'BlackboxColsV1', 'UiLang') {
+    foreach ($v in $script:SharedVars) {
         $iss.Variables.Add((New-Object System.Management.Automation.Runspaces.SessionStateVariableEntry($v, (Get-Variable -Name $v -Scope Script -ValueOnly -ErrorAction SilentlyContinue), '')))
     }
     $rs = [runspacefactory]::CreateRunspace($iss); $rs.Open()
