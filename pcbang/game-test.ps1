@@ -199,7 +199,12 @@ for ($sec = 0; $sec -lt $Seconds; $sec++) {
   Write-Host -NoNewline ("`r  남은 {0,3}초 | CPU {1,3}% | 그래픽 {2,3}% | 메모리 {3,3}% | 게이트웨이 {4}      " -f $left, $smp.cpu, $smp.gpu, $smp.mem, $pingTxt)
   $rest = ($sec + 1) * 1000 - [int]$swAll.ElapsedMilliseconds
   if ($rest -gt 0) { Start-Sleep -Milliseconds $rest }
-  elseif ($rest -lt -1500) { $sec = [int][math]::Floor($swAll.ElapsedMilliseconds / 1000) - 1 }
+  elseif ($rest -lt -1500) {
+    # 측정이 1.5초 넘게 밀리면(성능 카운터 응답 지연 등) 건너뛴 초를 빈 칸으로 채워 그래프 시간축을 FPS 그래프와 맞춤
+    $nsec = [int][math]::Floor($swAll.ElapsedMilliseconds / 1000) - 1
+    for ($m = $sec + 1; $m -le $nsec -and $m -lt $Seconds; $m++) { [void]$tl.Add([ordered]@{ t = $m; cpu = $null; core = $null; gpu = $null; mem = $null; gw = $null; ext = $null; gs = $null; clk = $null }) }
+    $sec = $nsec
+  }
 }
 Write-Host ''
 try { [Console]::Beep(660, 200); [Console]::Beep(990, 300) } catch {}
