@@ -576,10 +576,10 @@ function Get-Diagnosis {
     $plButton = @($powerLoss | Where-Object { Get-Prop $_ 'PowerButton' }).Count
     $plSleep = @($powerLoss | Where-Object { Get-Prop $_ 'Sleep' }).Count
     if ($plCount -gt 0) {
-        $eff = [math]::Max(0, $plCount - $plButton * 0.7)
-        & $add 'PSU' ([math]::Min(45, 14 * $eff)) "블루스크린 없이 꺼짐 $plCount 회"
-        & $add 'THERMAL' ([math]::Min(18, 5 * $eff)) '블루스크린 없이 꺼짐 (과열 보호 차단 가능)'
-        & $add 'GPU_HW' ([math]::Min(12, 3 * $eff)) ''
+        $eff = [math]::Max(0.0, $plCount - $plButton * 0.7)
+        & $add 'PSU' ([math]::Min(45.0, 14 * $eff)) "블루스크린 없이 꺼짐 $plCount 회"
+        & $add 'THERMAL' ([math]::Min(18.0, 5 * $eff)) '블루스크린 없이 꺼짐 (과열 보호 차단 가능)'
+        & $add 'GPU_HW' ([math]::Min(12.0, 3 * $eff)) ''
         $lv = if ($plCount -ge 3) { 'bad' } else { 'warn' }
         $d = "블루스크린 기록 없이 전원이 끊긴 것처럼 꺼진 기록입니다. 파워 부족·노후, 과열 보호, 전원 케이블/멀티탭 접촉 불량에서 전형적으로 나타납니다."
         if ($plButton) { $d += " (이 중 $plButton 회는 전원 버튼을 길게 눌러 끈 흔적이 있습니다 — 멈춤 후 강제 종료였을 수 있습니다.)" }
@@ -817,7 +817,7 @@ function Get-Diagnosis {
     # ---- 결과 정리
     $ranked = @()
     foreach ($k in $script:Causes.Keys) {
-        $v = [math]::Round([math]::Min(100, $score[$k]))
+        $v = [math]::Round([math]::Min(100.0, $score[$k]))
         if ($v -ge 10) {
             $conf = if ($v -ge 60) { '높음' } elseif ($v -ge 30) { '중간' } else { '낮음' }
             $ranked += [ordered]@{ Key = $k; Name = $script:Causes[$k].Name; Icon = $script:Causes[$k].Icon; Score = $v; Confidence = $conf; Reasons = @($why[$k]); Steps = $script:Playbook[$k] }
@@ -882,14 +882,62 @@ function Get-TimelineSvg($Data) {
             $v = $bins[$n][$i]; if ($v -le 0) { continue }
             $h = ($Hh - 14) * $v / $max; $y -= $h
             $tip += "$n $v"
-            [void]$sb.Append(("<rect x='{0}' y='{1}' width='{2}' height='{3}' rx='1.5' fill='{4}'/>" -f $x.ToString('0.#', $inv), $y.ToString('0.#', $inv), ([math]::Max(1, $bw - 2)).ToString('0.#', $inv), $h.ToString('0.#', $inv), $series[$n].C))
+            [void]$sb.Append(("<rect x='{0}' y='{1}' width='{2}' height='{3}' rx='1.5' fill='{4}'/>" -f $x.ToString('0.#', $inv), $y.ToString('0.#', $inv), ([math]::Max(1.0, $bw - 2)).ToString('0.#', $inv), $h.ToString('0.#', $inv), $series[$n].C))
         }
         if ($tip.Count) { [void]$sb.Append(("<rect x='{0}' y='0' width='{1}' height='{2}' fill='transparent'><title>{3}: {4}</title></rect>" -f $x.ToString('0.#', $inv), $bw.ToString('0.#', $inv), $Hh, $day.ToString('MM-dd'), ($tip -join ', '))) }
-        if ($i % [math]::Max(1, [int]($days / 6)) -eq 0 -or $i -eq $days - 1) { [void]$sb.Append(("<text x='{0}' y='{1}' class='lbl'>{2}</text>" -f $x.ToString('0.#', $inv), ($Hh + 16), $day.ToString('MM-dd'))) }
+        if ($i % [math]::Max(1, [int]($days / 6)) -eq 0 -or $i -eq $days - 1) { [void]$sb.Append(("<text x='{0}' y='{1}' class='lbl'>{2}</text>" -f $x.ToString('0.#', $inv), ($Hh + 16), $day.ToString('MM-dd'))) }   # int-ok: 정수 결과가 의도됨
     }
     [void]$sb.Append('</svg><div class="legend">')
     foreach ($n in $series.Keys) { [void]$sb.Append("<span><i style='background:$($series[$n].C)'></i>$n</span>") }
     [void]$sb.Append('</div>')
+    return $sb.ToString()
+}
+
+function Get-BlackboxChartSvg($A) {
+    # 블랙박스 기록 그래프: GPU 온도(°C)·CPU 사용률(%)은 0~100 축, GPU 전력(W)은 최대값 기준. 단계 구간 배경, 끊긴 지점 표시
+    $ser = Get-Prop $A 'Series'; if (-not $ser) { return '' }
+    $sec = @(Get-Arr (Get-Prop $ser 'Sec')); if ($sec.Count -lt 2) { return '' }
+    $temp = @(Get-Arr (Get-Prop $ser 'Temp')); $pow = @(Get-Arr (Get-Prop $ser 'Pow')); $cpu = @(Get-Arr (Get-Prop $ser 'Cpu')); $stg = @(Get-Arr (Get-Prop $ser 'Stage'))
+    $inv = [Globalization.CultureInfo]::InvariantCulture
+    $W = 720; $H = 170; $L = 34; $R = 44; $T = 10; $B = 22
+    $tMax = [double]$sec[-1]; if ($tMax -le 0) { $tMax = 1 }
+    $pMax = 0.0; foreach ($p in $pow) { if ($null -ne $p -and [double]$p -gt $pMax) { $pMax = [double]$p } }; if ($pMax -le 0) { $pMax = 1 }
+    $xOf = { param($t) ($L + ($W - $L - $R) * [double]$t / $tMax).ToString('0.#', $inv) }
+    $yOf = { param($v, $max) ($T + ($H - $T - $B) * (1 - [math]::Min(1.0, [double]$v / $max))).ToString('0.#', $inv) }
+    $sb = New-Object System.Text.StringBuilder
+    [void]$sb.Append("<svg viewBox='0 0 $W $H' class='tl bbc' role='img' aria-label='블랙박스 기록 그래프'>")
+    # 단계 구간
+    $names = @{}; foreach ($p in $script:StagePlan) { $names[$p.Key] = $p.Name }; $names['manual'] = '직접 설정'
+    $i = 0
+    while ($i -lt $sec.Count) {
+        $k = [string]$stg[$i]; $j = $i
+        while ($j + 1 -lt $sec.Count -and [string]$stg[$j + 1] -eq $k) { $j++ }
+        if ($k) {
+            $x1 = & $xOf $sec[$i]; $x2 = & $xOf $sec[[math]::Min($j + 1, $sec.Count - 1)]
+            $fill = $(if ($i % 2 -eq 0) { 'var(--soft)' } else { 'transparent' })
+            [void]$sb.Append("<rect x='$x1' y='$T' width='$(([double]$x2 - [double]$x1).ToString('0.#', $inv))' height='$($H - $T - $B)' fill='$fill'/>")
+            $lbl = $(if ($names.ContainsKey($k)) { $names[$k] } else { $k })
+            [void]$sb.Append("<text x='$(([double]$x1 + 3).ToString('0.#', $inv))' y='$($T + 11)' class='lbl'>$(HtmlEnc $lbl)</text>")
+        }
+        $i = $j + 1
+    }
+    $line = {
+        param($vals, $max, $color)
+        $pts = @(); for ($q = 0; $q -lt $sec.Count; $q++) { if ($null -ne $vals[$q] -and "$($vals[$q])" -ne '') { $pts += ((& $xOf $sec[$q]) + ',' + (& $yOf $vals[$q] $max)) } }
+        if ($pts.Count -ge 2) { [void]$sb.Append("<polyline points='$($pts -join ' ')' fill='none' stroke='$color' stroke-width='1.6'/>") }
+    }
+    & $line $cpu 100 'var(--c-bsod)'
+    & $line $pow $pMax 'var(--c-whea)'
+    & $line $temp 100 'var(--c-psu)'
+    [void]$sb.Append("<line x1='$L' y1='$($H - $B)' x2='$($W - $R)' y2='$($H - $B)' class='axis'/>")
+    [void]$sb.Append("<text x='$($L - 4)' y='$($T + 4)' class='lbl' text-anchor='end'>100</text><text x='$($L - 4)' y='$($H - $B)' class='lbl' text-anchor='end'>0</text>")
+    [void]$sb.Append("<text x='$($W - $R + 4)' y='$($T + 4)' class='lbl'>$([int]$pMax)W</text>")
+    [void]$sb.Append("<text x='$L' y='$($H - 6)' class='lbl'>0</text><text x='$($W - $R)' y='$($H - 6)' class='lbl' text-anchor='end'>$([math]::Round($tMax / 60, 1)) 분</text>")
+    if (Get-Prop $A 'Abrupt') {
+        $xe = & $xOf $tMax
+        [void]$sb.Append("<line x1='$xe' y1='$T' x2='$xe' y2='$($H - $B)' stroke='var(--bad)' stroke-width='2' stroke-dasharray='4 3'/><text x='$xe' y='$($H - $B - 4)' class='lbl' text-anchor='end' fill='var(--bad)'>기록 끊김</text>")
+    }
+    [void]$sb.Append('</svg><div class="legend"><span><i style="background:var(--c-psu)"></i>GPU 온도 (°C)</span><span><i style="background:var(--c-whea)"></i>GPU 전력 (W)</span><span><i style="background:var(--c-bsod)"></i>CPU 사용률 (%)</span></div>')
     return $sb.ToString()
 }
 
@@ -905,7 +953,7 @@ function ConvertTo-HtmlTable($rows, [string[]]$cols, [string[]]$heads, [string]$
         foreach ($c in $cols) {
             $v = Get-Prop $r $c
             if ($v -is [bool]) { $v = $(if ($v) { '예' } else { '' }) }
-            if ($c -eq 'T' -and $v) { $v = ([string]$v).Replace('T', ' ').Substring(0, [math]::Min(16, ([string]$v).Length)) }
+            if ($c -eq 'T' -and $v) { $v = ([string]$v).Replace('T', ' ').Substring(0, [math]::Min(16, ([string]$v).Length)) }   # int-ok: 정수 결과가 의도됨
             [void]$sb.Append("<td>$(HtmlEnc $v)</td>")
         }
         [void]$sb.Append('</tr>')
@@ -1108,7 +1156,7 @@ $(ConvertTo-HtmlTable $dimmRows @('Slot','Sz','Ddr','Sp','Mk','Pt') @('슬롯','
 <details class="sec"><summary>저장장치<span class="cnt">$($diskRows.Count)</span></summary><div>
 $(ConvertTo-HtmlTable $diskRows @('Name','Ty','Sz','He','Tc','We','Re','Ph') @('이름','종류','용량','상태','온도','마모','읽기오류','사용시간(h)'))
 <h4>디스크 오류 기록</h4>$(ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'DiskEvents')) | Select-Object -First 50) @('T','Source','Id','Msg') @('시간','출처','ID','내용'))</div></details>
-$(if (@(Get-Arr (Get-Prop $Data 'Blackbox')).Count) { '<details class="sec" open><summary>블랙박스 기록 (실시간 테스트)</summary><div>' + (ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | ForEach-Object { [ordered]@{ F = (Get-Prop $_ 'File'); S = ([string](Get-Prop $_ 'Start')).Replace('T', ' '); M = "$(Get-Prop $_ 'Minutes') 분"; R = $(if (Get-Prop $_ 'Abrupt') { '갑자기 끊김' } else { '정상 종료' }); G = $(if ($null -ne (Get-Prop $_ 'MaxGpuTempC')) { "$(Get-Prop $_ 'MaxGpuTempC') °C" } else { '-' }); V = (Get-Prop $_ 'Title') } }) @('F','S','M','R','G','V') @('파일','시작','길이','끝','GPU 최고','판정')) + '</div></details>' })
+$(if (@(Get-Arr (Get-Prop $Data 'Blackbox')).Count) { '<details class="sec" open><summary>블랙박스 기록 (실시간 테스트)</summary><div>' + (ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | ForEach-Object { [ordered]@{ F = (Get-Prop $_ 'File'); S = ([string](Get-Prop $_ 'Start')).Replace('T', ' '); M = "$(Get-Prop $_ 'Minutes') 분"; R = $(if (Get-Prop $_ 'Abrupt') { '갑자기 끊김' } else { '정상 종료' }); G = $(if ($null -ne (Get-Prop $_ 'MaxGpuTempC')) { "$(Get-Prop $_ 'MaxGpuTempC') °C" } else { '-' }); V = (Get-Prop $_ 'Title') } }) @('F','S','M','R','G','V') @('파일','시작','길이','끝','GPU 최고','판정')) + '<h4>가장 최근 기록 그래프</h4>' + (Get-BlackboxChartSvg (@(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1)) + '</div></details>' })
 <details class="sec"><summary>그래픽 드라이버 설치 이력 · 자주 충돌한 프로그램</summary><div>
 $(ConvertTo-HtmlTable (Get-Prop $Data 'DriverInstalls') @('T','Msg') @('시간','내용') '기간 내 설치 기록 없음')
 <h4>자주 충돌한 프로그램</h4>$(ConvertTo-HtmlTable (Get-Prop $Data 'AppCrashes') @('App','Count') @('프로그램','횟수'))</div></details>
@@ -1295,7 +1343,7 @@ function Get-RamTestSizeMB {
     try {
         $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop
         $freeMB = [int]($os.FreePhysicalMemory / 1024)
-        return [int][math]::Max(256, [math]::Min($freeMB * 0.7, $freeMB - 1536))
+        return [int][math]::Max(256, [math]::Min($freeMB * 0.7, $freeMB - 1536))   # int-ok: 정수 결과가 의도됨
     } catch { return 512 }
 }
 function Start-RamTest([int]$MB = 0) { Initialize-RamTest; if ($MB -le 0) { $MB = Get-RamTestSizeMB }; [PCCheckRamTest]::Start($MB) }
@@ -1502,6 +1550,15 @@ function Read-BlackboxAnalysis([string]$Path) {
     $t0 = ConvertTo-Date $res.Start; $t1 = ConvertTo-Date $res.End
     if ($t0 -and $t1) { $res.Minutes = [math]::Round(($t1 - $t0).TotalMinutes, 1) }
     $res.LastStage = [string]$rows[-1]['Stage']
+    # 그래프용 요약 계열 (최대 300점으로 줄여 보관)
+    $step = [math]::Max(1, [math]::Ceiling($rows.Count / 300.0))   # int-ok: 정수 결과가 의도됨
+    $ser = [ordered]@{ Sec = @(); Temp = @(); Pow = @(); Cpu = @(); Stage = @() }
+    for ($i = 0; $i -lt $rows.Count; $i += $step) {
+        $r = $rows[$i]; $tt = ConvertTo-Date $r['Time']
+        $ser.Sec += $(if ($t0 -and $tt) { [int]($tt - $t0).TotalSeconds } else { $i })
+        $ser.Temp += (& $num $r['GpuTempC']); $ser.Pow += (& $num $r['GpuPowerW']); $ser.Cpu += (& $num $r['CpuPct']); $ser.Stage += [string]$r['Stage']
+    }
+    $res.Series = $ser
 
     # 단계별 요약
     $stageNames = @{}; foreach ($p in $script:StagePlan) { $stageNames[$p.Key] = $p.Name }
@@ -2420,6 +2477,8 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('블랙박스 기록 그래프', 'Black box record chart'), @('기록 끊김', 'recording cut off'),
+    @('GPU 온도 (°C)', 'GPU temperature (°C)'), @('GPU 전력 (W)', 'GPU power (W)'), @('CPU 사용률 (%)', 'CPU usage (%)'),
     @('GPU 부하 도구를 준비하지 못해 GPU 단계는 시험되지 않습니다 (인터넷 연결 확인).', 'Could not prepare the GPU load tool, so the GPU stages will not be tested (check the internet connection).'),
     @('RE: — ([\d\- :]+) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다\.', ' — passed every stage of the detailed test at $1, so treated as resolved.'),
     @('그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.', 'The graphics memory test (memtest_vulkan) found errors. If they persist with overclocking disabled, the card needs warranty service.'),

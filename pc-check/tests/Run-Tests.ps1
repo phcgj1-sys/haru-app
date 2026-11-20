@@ -132,6 +132,11 @@ It '빈 데이터(필드 없음)도 오류 없이 분석' {
     $dx = Get-Diagnosis -Data ([pscustomobject]@{ Meta = [pscustomobject]@{ Days = 7 } })
     Assert-Eq $dx.Health 100 '점수'
 }
+It '전원 버튼 할인은 소수까지 반영 (3회 중 1회 버튼 → 2.3회분)' {
+    $d = New-Scenario @{ Shutdowns = @([ordered]@{ T = (T 1); Code = ''; PowerButton = $true }, [ordered]@{ T = (T 2); Code = ''; PowerButton = $false }, [ordered]@{ T = (T 3); Code = ''; PowerButton = $false }) }
+    $psu = (@((Get-Diagnosis -Data $d).Causes) | Where-Object Key -eq 'PSU').Score
+    Assert-Eq $psu 32 '14 × 2.3 = 32.2 → 32'
+}
 It '전원 버튼 강제 종료는 파워 점수를 낮춤' {
     $a = Get-Diagnosis -Data (New-Scenario @{ Shutdowns = @(1..3 | ForEach-Object { [ordered]@{ T = (T $_); Code = ''; PowerButton = $false } }) })
     $b = Get-Diagnosis -Data (New-Scenario @{ Shutdowns = @(1..3 | ForEach-Object { [ordered]@{ T = (T $_); Code = ''; PowerButton = $true } }) })
@@ -433,6 +438,21 @@ It '직접 설정 모드 기록: 단계 이름이 내부 키(manual) 대신 표�
     Assert-Eq @($a.Stages)[0].Name '직접 설정' '이름'; Assert ($a.Detail -match '\[직접 설정 단계\]') '판정 문구'
     $script:UiLang = 'en'; try { Assert ((Tr $a.Detail) -match '\[Manual stage\]') '영어' } finally { $script:UiLang = 'ko' }
 }
+It '블랙박스 그래프: 요약 계열(최대 300점)·단계 구간·끊긴 지점 표시, JSON 왕복 후에도 그림' {
+    $rows = @(); foreach ($k in 'idle', 'cpu', 'ram', 'gpu', 'full') { $rows += (Rep 150 @($k, 90, 98, 65, 90, 230, '', 0, '')) }
+    $a = Read-BlackboxAnalysis (New-Bb2File 'ch1.csv' $rows)
+    Assert (@($a.Series.Sec).Count -le 300) "점 수 $(@($a.Series.Sec).Count)"
+    $svg = Get-BlackboxChartSvg $a
+    Assert ($svg -match '<polyline') '선'; Assert ($svg -match '기록 끊김') '끊김 표시'; Assert ($svg -match 'VRAM 단독 부하') '단계 이름'
+    $d = New-Scenario @{ Blackbox = @($a) }
+    $h = New-HtmlReport -Data (RoundTrip $d) -Dx (Get-Diagnosis -Data (RoundTrip $d))
+    Assert ($h -match 'bbc') 'JSON 왕복 보고서에 그래프'
+    Assert-Eq (Get-BlackboxChartSvg ([ordered]@{ Series = $null })) '' '계열 없으면 빈 값'
+    # 값이 중간 높이로 그려지는지 (정수 Min 함정 회귀 방지): 50°C → 0~100 축의 가운데 근처
+    $flat = [ordered]@{ Abrupt = $false; Series = [ordered]@{ Sec = @(0, 60); Temp = @(50, 50); Pow = @(100, 100); Cpu = @(50, 50); Stage = @('cpu', 'cpu') } }
+    $m = [regex]::Match((Get-BlackboxChartSvg $flat), "points='34,([\d\.]+) ")
+    Assert ($m.Success -and [double]$m.Groups[1].Value -gt 60 -and [double]$m.Groups[1].Value -lt 100) "가운데 높이: $($m.Groups[1].Value)"
+}
 It 'NVIDIA 감속 원인 해석' {
     Assert-Eq (ConvertFrom-NvThrottle '0x0000000000000004') 'PWRCAP' '전력 제한'
     Assert-Eq (ConvertFrom-NvThrottle '0x88') 'HWSLOW+PBRAKE' '하드웨어'
@@ -565,6 +585,12 @@ It '쉼표 우선순위 함정 없음 (a + (b), c 형태)' {
     $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'PCCheck.ps1'), [ref]$tk, [ref]$er)
     $bad = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.BinaryExpressionAst] -and $n.Operator -in 'Plus', 'Minus', 'Multiply' -and $n.Right -is [System.Management.Automation.Language.ArrayLiteralAst] }, $true))
     Assert-Eq $bad.Count 0 (($bad | ForEach-Object { "$($_.Extent.StartLineNumber): $($_.Extent.Text)" }) -join '; ')
+}
+It '정수 리터럴 [math]::Min/Max 함정 없음 (소수가 정수로 잘림)' {
+    # [math]::Min(1, 0.39) 은 정수 버전이 골라져 0 이 됨 → 소수가 섞이는 식에는 1.0 처럼 실수 리터럴을 써야 함
+    $src = [IO.File]::ReadAllLines((Join-Path $root 'PCCheck.ps1'))
+    $bad = @(); for ($i = 0; $i -lt $src.Length; $i++) { if ($src[$i] -notmatch 'int-ok' -and $src[$i] -match '\[math\]::M(in|ax)\(\d+, [^)]*(\d\.\d|/ |\$eff|\$bw|\$v\b|\$score)') { $bad += "$($i + 1)" } }
+    Assert-Eq $bad.Count 0 "줄: $($bad -join ', ')"
 }
 It '배치 파일은 ASCII + CRLF' {
 
