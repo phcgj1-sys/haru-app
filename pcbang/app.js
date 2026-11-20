@@ -1166,10 +1166,50 @@ function renderSummary() {
 }
 
 /* ---------------- 문제 해결 안내 ---------------- */
+// 문제 해결 검색: 게임 영어 이름·줄임말, 일상 표현(안켜짐·튕김·소리 안나요) → 같은 뜻 낱말로 넓혀 찾고, 제목에 맞을수록 위로
+var FIX_GAMES = [['배그', '배틀그라운드', 'pubg', 'battleground', 'battlegrounds'], ['롤', '리그 오브 레전드', '리그오브레전드', 'lol', 'league'], ['발로란트', '발로', 'valorant', 'val'], ['오버워치', '옵치', 'overwatch', 'ow', 'ow2'], ['서든', '서든어택', 'sudden', 'suddenattack'], ['메이플', '메이플스토리', 'maple', 'maplestory'], ['fc 온라인', 'fc온라인', 'fc', '피파', 'fifa'], ['로스트아크', '로아', 'lostark', 'lost ark'], ['로블록스', '로블', 'roblox'], ['리니지', 'lineage']];
+var FIX_SYN = [
+  [['안켜짐', '안켜져요', '안켜져', '안켜요', '안 켜짐', '실행안됨', '실행 안됨', '안열림', '안 열림', '시작안됨', '안됨', '안돼요', '안돼'], ['실행', '시작', '안 됨', '안됨', '오류']],
+  [['튕김', '튕겨요', '튕겨', '팅김', '팅겨요', '꺼져요', '꺼짐', '크래시', 'crash', '강종', '강제종료'], ['꺼짐', '재부팅', '블루스크린', '다운', '튕']],
+  [['소리', '사운드', 'sound', '음성'], ['소리', '헤드셋', '들림', '마이크', '발소리']],
+  [['안나요', '안나와요', '안나옴', '안남', '안들려요', '안들림', '안 들림'], ['안들림', '안 들림', '안됨', '인식']],
+  [['렉', '랙', 'lag', '버벅', '버벅임', '버벅여요', '끊겨요', '끊김', '뚝뚝'], ['렉', '버벅', '끊김', '핑', '프레임']],
+  [['프레임', '프레임드랍', 'fps', '프레임 드랍', '드랍'], ['프레임', 'fps']],
+  [['핑', 'ping', '인터넷', '와이파이', '랜', '패킷'], ['핑', '인터넷', '렉', '패킷']],
+  [['키보드', '키', '자판'], ['키', '키보드']],
+  [['블스', '블루스크린', 'bsod', '재부팅'], ['블루스크린', '재부팅']],
+  [['모니터', '화면', '주사율', 'hz'], ['모니터', '화면', '주사율', 'hz']]
+];
+function fixSearch(q) {
+  q = String(q || '').trim().toLowerCase().replace(/\s+/g, ' ');
+  var words = q ? q.split(' ').filter(Boolean) : [];
+  // 붙여 쓴 표현('소리안나요')도 통째로 한 번 더 봄
+  if (words.length > 1) { var joined = words.join(''); FIX_SYN.forEach(function (g) { if (g[0].indexOf(joined) >= 0) words = [joined]; }); }
+  var alts = words.map(function (w) {
+    var game = FIX_GAMES.filter(function (g) { return g.indexOf(w) >= 0; })[0];
+    if (game) return { game: true, list: game.filter(function (x) { return ['ow', 'ow2', 'val'].indexOf(x) < 0; }) }; // 짧은 영문 줄임말은 다른 낱말 속(windows 등)에 섞여 잘못 맞음
+    var syn = FIX_SYN.filter(function (g) { return g[0].indexOf(w) >= 0; })[0];
+    return { list: syn ? [w].concat(syn[1]) : [w] };
+  });
+  var scored = (window.FIXES || []).map(function (f) {
+    var title = (f.t + ' ' + f.k).toLowerCase(), hay = (f.k + ' ' + f.t + ' ' + f.g + ' ' + f.steps.join(' ')).toLowerCase(), hayNs = hay.replace(/[\s-]/g, ''); // 'VAN81'·'van-81' 도 'VAN -81' 에 맞게 띄어쓰기·하이픈 무시
+    var score = 0;
+    var all = alts.every(function (a) {
+      var hit = a.list.some(function (x) { return hay.indexOf(x) >= 0 || hayNs.indexOf(x.replace(/[\s-]/g, '')) >= 0; });
+      if (a.game && !hit && /모든/.test(f.g)) { score += 1; return true; } // '배그 프레임' → 모든 게임 공통 항목도
+      if (!hit) return false;
+      score += a.list.some(function (x) { return title.indexOf(x) >= 0 || title.replace(/\s/g, '').indexOf(x.replace(/\s/g, '')) >= 0; }) ? 3 : 1;
+      if (title.indexOf(a.list[0]) >= 0) score += 2; // 입력한 말 그대로 제목에 있으면 더 위로
+      return true;
+    });
+    return all ? { f: f, s: score } : null;
+  }).filter(Boolean);
+  if (words.length) scored.sort(function (a, b) { return b.s - a.s; });
+  return scored.map(function (x) { return x.f; });
+}
 function renderFixes() {
   var q = ($('#fixSearch').value || '').trim().toLowerCase().replace(/\s+/g, ' ');
-  var words = q ? q.split(' ') : [];
-  var list = (window.FIXES || []).filter(function (f) { var hay = (f.k + ' ' + f.t + ' ' + f.g + ' ' + f.steps.join(' ')).toLowerCase(); return words.every(function (w) { return hay.indexOf(w) >= 0 || hay.replace(/\s/g, '').indexOf(w) >= 0; }); });
+  var list = fixSearch(q);
   $('#fixList').innerHTML = list.length ? list.map(function (f) {
     return '<article class="card stack"><div class="row between"><div class="h3">' + esc(f.t) + '</div>' + (f.conf === 'high' ? '' : '<span class="pill" title="공식 문서로 확인하지 못한 일반적인 조치">경향</span>') + '</div><div class="xs muted">' + esc(f.g) + '</div><ol class="fixlist">' + f.steps.map(function (s) { return '<li class="small">' + esc(s) + '</li>'; }).join('') + '</ol></article>';
   }).join('') : '<div class="card muted">찾는 내용이 없어요. 다른 말로 찾아보세요.</div>';
@@ -1776,5 +1816,5 @@ var h = (location.hash || '').slice(1);
 if (h && $('[data-panel="' + h + '"]')) showTab(h);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('../sw.js').catch(function () {});
 // 테스트·디버그용
-window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
+window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, fixSearch: fixSearch, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
 })();

@@ -148,6 +148,9 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   const hzC = await page.evaluate(() => { const P = window.__pcbang; return [P.chkHz({ hz: 60 }, { monitorMaxHz: 60 })[0], P.chkHz({ hz: 60 }, { monitorMaxHz: 144 })[0], P.chkHz({}, { hz: 144 })[0], P.chkHz({ hz: 60 }, {})[0]]; });
   ok(hzC.join() === 'ok,bad,ok,', '체크리스트 주사율: 원래 60Hz 정상·144Hz 모니터 60Hz 불량·점검 프로그램 Hz 사용·모르면 직접 확인 (' + hzC.join() + ')');
 
+  const fx = await page.evaluate(() => { const t = q => (window.__pcbang.fixSearch(q)[0] || {}).t || ''; return { pubg: t('pubg'), ow: t('overwatch'), on: t('안켜짐'), snd: t('소리 안나요'), fr: t('배그 프레임'), van: t('van9003'), v81: t('VAN81') }; });
+  ok(/BattlEye/.test(fx.pubg) && /배틀넷/.test(fx.ow) && /실행|시작/.test(fx.on) && /헤드셋/.test(fx.snd) && /프레임/.test(fx.fr) && /9003/.test(fx.van) && /-81/.test(fx.v81), '문제 해결 검색: 영어 게임 이름·일상 표현·게임+증상 (' + Object.values(fx).map(x => x.slice(0, 8)).join(' / ') + ')');
+
   // 7. 웹 결과 파일 이름이 점검 프로그램 결과(seat-23.txt)와 겹치지 않음
   const ctx2 = await browser.newContext({ acceptDownloads: true }); const p3 = await ctx2.newPage();
   p3.on('pageerror', e => errs.push(e.message));
