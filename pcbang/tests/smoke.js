@@ -231,6 +231,19 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     await p7.context().close();
   }
 
+  // 키보드: 한/영 키(code 없음)가 계속 눌린 상태로 남지 않음, 새로 고침 뒤 누른 키 수 유지
+  {
+    const p8 = await (await browser.newContext()).newPage(); p8.on('pageerror', e => errs.push(e.message));
+    await p8.goto(URL + '#dev'); await p8.waitForTimeout(200); await p8.click('#kb'); await p8.focus('#kb');
+    await p8.evaluate(() => { document.dispatchEvent(new KeyboardEvent('keydown', { key: 'HangulMode', code: '', bubbles: true })); document.dispatchEvent(new KeyboardEvent('keyup', { key: 'HangulMode', code: '', bubbles: true })); });
+    for (const k of ['KeyA', 'KeyB', 'KeyC', 'KeyD', 'KeyE', 'KeyF']) await p8.keyboard.press(k);
+    const kmax = await p8.innerText('#kbMax'), c1 = +(await p8.innerText('#kbCount'));
+    await p8.reload(); await p8.waitForTimeout(200); await p8.click('[data-tab="dev"]'); await p8.click('#kb'); await p8.focus('#kb'); await p8.keyboard.press('KeyQ');
+    const c2 = +(await p8.innerText('#kbCount'));
+    ok(kmax === '1' && c2 === c1 + 1, '키보드: 한/영 키 안 남음(최대 동시 ' + kmax + ')·새로 고침 뒤 키 수 ' + c1 + ' → ' + c2);
+    await p8.context().close();
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],

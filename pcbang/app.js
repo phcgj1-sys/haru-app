@@ -871,21 +871,26 @@ function buildKeyboard() {
   kbReset(true);
 }
 function kbReset(keepSaved) {
-  if (keepSaved !== true) { delete S.dev.kbChat; delete S.dev.kbMax; delete S.dev.kbKeys; delete S.dev.kbMissing; save(); }
+  if (keepSaved !== true) { delete S.dev.kbChat; delete S.dev.kbMax; delete S.dev.kbKeys; delete S.dev.kbMissing; delete S.dev.kbDone; save(); }
   kb = { done: {}, down: {}, max: S.dev.kbMax || 0, lastUp: {}, chat: S.dev.kbChat || 0 };
   $$('#kb .k').forEach(function (e) { e.className = 'k'; });
-  // 저장된 결과가 있으면 확인한 필수 키를 다시 초록색으로
-  if (S.dev.kbMissing) ESS_KEYS.forEach(function (k) { if (S.dev.kbMissing.indexOf(k) < 0) { kb.done[k] = 1; var el = kbEl(k); if (el) el.classList.add('done'); } });
+  // 저장된 결과가 있으면 확인한 키를 모두 다시 초록색으로(예전 저장값은 필수 키만 있음) → 새로 고침 뒤 다음 키에 누른 키 수가 줄어들지 않음
+  if (Array.isArray(S.dev.kbDone)) S.dev.kbDone.forEach(function (k) { if (/^[A-Za-z0-9]{1,24}$/.test(k)) kb.done[k] = 1; });
+  else if (S.dev.kbMissing) ESS_KEYS.forEach(function (k) { if (S.dev.kbMissing.indexOf(k) < 0) kb.done[k] = 1; });
+  Object.keys(kb.done).forEach(function (k) { var el = kbEl(k); if (el) el.classList.add('done'); });
   $('#kbCount').textContent = S.dev.kbKeys || Object.keys(kb.done).length; $('#kbNow').textContent = '0'; $('#kbMax').textContent = kb.max; $('#kbChat').textContent = kb.chat;
   $('#kbLast').textContent = '마지막 키: -';
 }
 $('#kbReset').addEventListener('click', function () { kbReset(false); });
 function kbEl(code) { return $('#kb .k[data-code="' + code + '"]'); }
+// 키 이름: 한/영·한자 키는 브라우저에 따라 code 가 비어 key 로만 옴 → 누를 때·뗄 때 같은 규칙(안 그러면 계속 눌린 상태로 남음)
+function kbCode(e) { return CODE_ALIAS[e.code] || e.code || (e.key === 'HangulMode' ? 'Lang1' : e.key === 'HanjaMode' ? 'Lang2' : ''); }
+function kbSave() { S.dev.kbMax = kb.max; S.dev.kbChat = kb.chat; S.dev.kbDone = Object.keys(kb.done).slice(0, 200); S.dev.kbKeys = S.dev.kbDone.length; S.dev.kbMissing = ESS_KEYS.filter(function (k) { return !kb.done[k]; }); }
 function kbActive() { return !$('[data-panel="dev"]').hidden && document.activeElement && document.activeElement.id === 'kb'; }
 document.addEventListener('keydown', function (e) {
   if (!kb || !kbActive()) return;
   if (e.code === 'Escape' && e.shiftKey) { $('#kb').blur(); toast('키보드 테스트에서 나왔어요'); return; }
-  var code = CODE_ALIAS[e.code] || e.code || (e.key === 'HangulMode' ? 'Lang1' : e.key === 'HanjaMode' ? 'Lang2' : '');
+  var code = kbCode(e);
   if (!code) return;
   e.preventDefault();
   if (e.repeat) return;
@@ -896,15 +901,14 @@ document.addEventListener('keydown', function (e) {
   var el = kbEl(code); if (el) { el.classList.add('down', 'done'); }
   $('#kbCount').textContent = Object.keys(kb.done).length; $('#kbNow').textContent = n; $('#kbMax').textContent = kb.max; $('#kbChat').textContent = kb.chat;
   $('#kbLast').textContent = '마지막 키: ' + code + ' (' + (e.key === ' ' ? 'Space' : e.key) + ')';
-  S.dev.kbMax = kb.max; S.dev.kbChat = kb.chat; S.dev.kbKeys = Object.keys(kb.done).length;
-  S.dev.kbMissing = ESS_KEYS.filter(function (k) { return !kb.done[k]; });
+  kbSave();
 });
 document.addEventListener('keyup', function (e) {
   if (!kb) return;
-  var code = CODE_ALIAS[e.code] || e.code; if (!code) return;
+  var code = kbCode(e); if (!code) return;
   delete kb.down[code]; kb.lastUp[code] = performance.now();
   var el = kbEl(code); if (el) el.classList.remove('down');
-  if (code === 'PrintScreen') { kb.done[code] = 1; if (el) el.classList.add('done'); $('#kbCount').textContent = Object.keys(kb.done).length; }
+  if (code === 'PrintScreen') { kb.done[code] = 1; if (el) el.classList.add('done'); $('#kbCount').textContent = Object.keys(kb.done).length; kbSave(); }
   $('#kbNow').textContent = Object.keys(kb.down).length;
   save();
 });
