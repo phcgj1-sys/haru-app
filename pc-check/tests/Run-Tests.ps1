@@ -395,6 +395,18 @@ It 'memtest_vulkan 출력 해석과 VRAM 오류·시작 실패 판정' {
     $b = Read-BlackboxAnalysis (New-Bb2File 'g2.csv' $all -Stop)
     Assert ($b.Title -notmatch '전 단계 통과') 'GPU 미시험이면 전 단계 통과 아님'; Assert ($b.Detail -match 'GPU 단계는 시험되지 않음') '안내'
 }
+It '수리 후 전 단계 통과 기록이 더 새로우면 이전 실패는 참고로만 (점수 감점 없음)' {
+    $bad = Read-BlackboxAnalysis (New-Bb2File 'h1.csv' (Rep 4 @('full', 100, 97, 70, 99, 280, '', 0, '')))
+    $all = @(); foreach ($k in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse') { $all += (Rep 2 @($k, 100, 98, 60, 99, 250, '', 0, '')) }
+    $ok = Read-BlackboxAnalysis (New-Bb2File 'h2.csv' $all -Stop)
+    $ok.Start = '2026-11-15T10:00:00'; $ok.End = '2026-11-15T10:40:00'   # 실패(11-14) 다음 날 통과
+    $dx = Get-Diagnosis -Data (New-Scenario @{ Blackbox = @($bad, $ok) })
+    Assert (-not (@($dx.Causes) | Where-Object { $_.Key -eq 'PSU' })) '파워 감점 없음'
+    Assert (@($dx.Findings) | Where-Object { $_.Title -match '이후 테스트 통과' }) '해결 표시'
+    $dx2 = Get-Diagnosis -Data (New-Scenario @{ Blackbox = @($bad) })
+    Assert-Eq (Top $dx2) 'PSU' '통과 기록 없으면 그대로 파워'
+    $script:UiLang = 'en'; try { Assert ((Tr "$($bad.Title) (이후 테스트 통과)") -notmatch '[가-힣]') '영어' } finally { $script:UiLang = 'ko' }
+}
 It 'NVIDIA 감속 원인 해석' {
     Assert-Eq (ConvertFrom-NvThrottle '0x0000000000000004') 'PWRCAP' '전력 제한'
     Assert-Eq (ConvertFrom-NvThrottle '0x88') 'HWSLOW+PBRAKE' '하드웨어'

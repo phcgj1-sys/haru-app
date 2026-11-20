@@ -779,8 +779,21 @@ function Get-Diagnosis {
         & $find 'info' 'DRIVER' '빠른 시작(Fast Startup) 켜짐' '종료/부팅 관련 문제가 있으면 제어판 > 전원 옵션에서 "빠른 시작 켜기"를 꺼 보세요.' 0
     }
     # ---- 블랙박스(실시간 기록) — 노하드 등 이벤트 기록이 남지 않는 PC
-    foreach ($bb in @(Get-Arr (Get-Prop $Data 'Blackbox'))) {
+    # 수리 후 더 새로운 '전 단계 통과' 기록이 있으면, 그 이전 실패 기록은 해결된 것으로 보고 참고로만 표시
+    $bbAll = @(Get-Arr (Get-Prop $Data 'Blackbox'))
+    $passT = $null
+    foreach ($bb in $bbAll) {
+        if ([string](Get-Prop $bb 'Level') -eq 'ok' -and [string](Get-Prop $bb 'Title') -match '전 단계 통과') {
+            $e = ConvertTo-Date (Get-Prop $bb 'End'); if ($e -and ($null -eq $passT -or $e -gt $passT)) { $passT = $e }
+        }
+    }
+    foreach ($bb in $bbAll) {
         $lvl = [string](Get-Prop $bb 'Level'); $cz = [string](Get-Prop $bb 'Cause'); $tt = [string](Get-Prop $bb 'Title')
+        $be = ConvertTo-Date (Get-Prop $bb 'End')
+        if ($passT -and $be -and $be -lt $passT -and $lvl -in 'bad', 'warn') {
+            & $find 'info' 'META' "$tt (이후 테스트 통과)" ("$(Get-Prop $bb 'Detail') — $($passT.ToString('yyyy-MM-dd HH:mm')) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다.") 0
+            continue
+        }
         if ($lvl -eq 'bad') {
             if ($cz) { & $add $cz 45 $tt }
             & $find 'bad' $(if ($cz) { $cz } else { 'META' }) $tt ([string](Get-Prop $bb 'Detail')) 20
@@ -2371,6 +2384,8 @@ $script:EnPairs = @(
     @('그래픽카드 온도 제한 동작', 'Graphics card thermal limiting'),
     @('RE:VRAM 검사 오류 (\d+) 건 \(그래픽카드 메모리 불량 의심\)', 'VRAM test errors: $1 (faulty graphics memory suspected)'),
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
+    @(' (이후 테스트 통과)', ' (later test passed)'),
+    @('RE: — ([\d\- :]+) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다\.', ' — passed every stage of the detailed test at $1, so treated as resolved.'),
     @('그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.', 'The graphics memory test (memtest_vulkan) found errors. If they persist with overclocking disabled, the card needs warranty service.'),
     @('그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)', 'Graphics card connection lost (ERROR_DEVICE_LOST)'),
     @('GPU 부하 도구가 시작되지 못해 GPU 단계는 시험되지 않음 (Vulkan 드라이버 확인)', 'The GPU load tool failed to start, so the GPU stages were not tested (check the Vulkan driver)'),
