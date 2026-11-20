@@ -387,7 +387,8 @@ var LV = { rec: ['ok', '권장 사양 충족'], min: ['warn', '최소 사양만 
 function targetFps(opt) { if (opt.target !== 'auto') return +opt.target; var hz = spec().hz; return hz ? Math.min(hz, 240) : 60; }
 function fpsLabel(fps, tgt) {
   if (fps >= tgt) return ['ok', tgt + 'fps 이상 유지 예상'];
-  if (tgt > 60 && fps >= 57) return ['warn', '60fps 이상, ' + tgt + 'fps는 어려움'];
+  if (tgt > 60 && fps >= 60) return ['warn', '60fps 이상, ' + tgt + 'fps는 어려움'];
+  if (tgt > 60 && fps >= 57) return ['warn', '60fps 근처, ' + tgt + 'fps는 어려움'];
   if (fps >= 57) return ['warn', '60fps 근처'];
   if (fps >= 30) return ['warn', '30~60fps (옵션 낮춤 권장)'];
   return ['bad', '30fps 미만 (원활하지 않음)'];
@@ -1754,5 +1755,5 @@ var h = (location.hash || '').slice(1);
 if (h && $('[data-panel="' + h + '"]')) showTab(h);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('../sw.js').catch(function () {});
 // 테스트·디버그용
-window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, spec: spec, decodeNative: decodeNative, S: S };
+window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, spec: spec, decodeNative: decodeNative, S: S };
 })();

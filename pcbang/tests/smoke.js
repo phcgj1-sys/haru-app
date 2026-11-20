@@ -136,6 +136,9 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   for (const t of ['home', 'game', 'games', 'log', 'dev', 'fix']) { await page.click(`[data-tab="${t}"]`); await page.waitForTimeout(100); }
   ok(await page.evaluate(() => document.documentElement.scrollWidth) <= 390, '모바일: 가로 넘침 없음');
 
+  const fl = await page.evaluate(() => [window.__pcbang.fpsLabel(58, 144)[1], window.__pcbang.fpsLabel(60, 144)[1]]);
+  ok(!/60fps 이상/.test(fl[0]) && /60fps 이상/.test(fl[1]), '프레임 표시: 58fps 를 60fps 이상으로 부르지 않음');
+
   // 7. 웹 결과 파일 이름이 점검 프로그램 결과(seat-23.txt)와 겹치지 않음
   const ctx2 = await browser.newContext({ acceptDownloads: true }); const p3 = await ctx2.newPage();
   p3.on('pageerror', e => errs.push(e.message));
