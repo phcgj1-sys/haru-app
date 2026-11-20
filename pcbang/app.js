@@ -378,14 +378,17 @@ function judge(game, sp, opt) {
     if (ram && ram < game.min.ram) fps *= 0.55;
     else if (ram && ram < game.rec.ram) fps *= 0.9;
     r.fps = Math.max(1, Math.round(fps));
-    r.bottleneck = cpuFps == null ? null : (cpuFps < gpuFps * 0.9 ? 'CPU' : gpuFps < cpuFps * 0.9 ? '그래픽' : null);
+    r.capped = !!(f.cap && r.fps >= f.cap);
+    r.bottleneck = cpuFps == null || r.capped ? null : (cpuFps < gpuFps * 0.9 ? 'CPU' : gpuFps < cpuFps * 0.9 ? '그래픽' : null);
     r.fpsNoCpu = cpuFps == null;
   }
   return r;
 }
 var LV = { rec: ['ok', '권장 사양 충족'], min: ['warn', '최소 사양만 충족'], fail: ['bad', '사양 부족'], block: ['bad', '설정 때문에 실행 불가'], unk: ['', '정보 부족'], partial: ['info', '일부 확인 필요'] };
 function targetFps(opt) { if (opt.target !== 'auto') return +opt.target; var hz = spec().hz; return hz ? Math.min(hz, 240) : 60; }
-function fpsLabel(fps, tgt) {
+function fpsLabel(fps, tgt, cap) {
+  // 게임이 스스로 막아 둔 최대 fps(서든 200·오버워치 600·로블록스 240)에 닿으면 사양 문제가 아님
+  if (cap && fps >= cap && cap < tgt) return ['ok', '게임 최대 ' + cap + 'fps (게임 자체 제한)'];
   if (fps >= tgt) return ['ok', tgt + 'fps 이상 유지 예상'];
   if (tgt > 60 && fps >= 60) return ['warn', '60fps 이상, ' + tgt + 'fps는 어려움'];
   if (tgt > 60 && fps >= 57) return ['warn', '60fps 근처, ' + tgt + 'fps는 어려움'];
@@ -412,7 +415,7 @@ function renderGames() {
     if (j.level === 'rec' && g.recLabel) lv = ['ok', g.recLabel + ' 충족'];
     var fpsHtml = '';
     if (j.fps != null) {
-      var fl = fpsLabel(j.fps, tgt);
+      var fl = fpsLabel(j.fps, tgt, g.fps.cap);
       fpsHtml = '<div class="fps"><b>' + (j.fps >= (g.fps.cap || 9999) ? g.fps.cap + '+' : '약 ' + fmt(j.fps)) + '</b><span class="muted small">fps 예상</span><span class="pill ' + fl[0] + '">' + fl[1] + '</span></div>' +
         (j.bottleneck ? '<div class="xs muted">병목: ' + j.bottleneck + (j.bottleneck === 'CPU' ? ' (그래픽 옵션을 낮춰도 크게 안 오름)' : ' (옵션·해상도를 낮추면 올라감)') + '</div>' : '') +
         (g.fightFactor && j.fps < (g.fps.cap || 1e9) ? '<div class="small">교전 중 예상: 약 ' + fmt(Math.round(j.fps * g.fightFactor)) + 'fps <span class="xs muted">(' + esc(g.fightNote || '') + ')</span></div>' : '') +
@@ -1146,7 +1149,7 @@ function renderSummary() {
     '<div class="row"><span class="pill ok">권장 충족 ' + cnt.rec + '개</span><span class="pill warn">최소만 ' + cnt.min + '개</span><span class="pill bad">부족·실행 불가 ' + cnt.fail + '개</span></div>' +
     (pr.length ? '<div class="stack">' + pr.map(function (p) { return '<div class="' + (p.lv === 'bad' ? 'badbox' : p.lv === 'warn' ? 'warnbox' : 'note') + '">' + esc(p.t) + (p.fix ? '<div class="small" style="font-weight:500;margin-top:2px">' + esc(p.fix) + '</div>' : '') + '</div>'; }).join('') + '</div>' : '<div class="okbox">눈에 띄는 문제가 없어요.</div>') +
     '<div class="tblwrap"><table><thead><tr><th>게임</th><th>판정</th><th>예상 fps (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</th></tr></thead><tbody>' +
-    games.map(function (x) { var lv = LV[x.j.level]; var fl = x.j.fps != null ? fpsLabel(x.j.fps, tgt) : null; return '<tr><td>' + x.g.rank + '. ' + esc(x.g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (x.j.fps != null ? (x.j.fps >= (x.g.fps.cap || 1e9) ? x.g.fps.cap + '+' : '약 ' + fmt(x.j.fps)) + ' <span class="pill ' + fl[0] + '">' + (fl[0] === 'ok' ? '쾌적' : fl[0] === 'warn' ? '보통' : '버벅임') + '</span>' : '-') + '</td></tr>'; }).join('') +
+    games.map(function (x) { var lv = LV[x.j.level]; var fl = x.j.fps != null ? fpsLabel(x.j.fps, tgt, x.g.fps.cap) : null; return '<tr><td>' + x.g.rank + '. ' + esc(x.g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (x.j.fps != null ? (x.j.fps >= (x.g.fps.cap || 1e9) ? x.g.fps.cap + '+' : '약 ' + fmt(x.j.fps)) + ' <span class="pill ' + fl[0] + '">' + (fl[0] === 'ok' ? '쾌적' : fl[0] === 'warn' ? '보통' : '버벅임') + '</span>' : '-') + '</td></tr>'; }).join('') +
     '</tbody></table></div>' +
     (function () { var cl = chkState(S.dev), ok = cl.filter(function (x) { return x.st === 'ok'; }).length; return '<div class="note"><b>다음 단계: 장비 체크리스트 ' + ok + '/' + cl.length + '</b> — 모니터 화면·헤드셋 좌우·마우스·키보드는 <a href="#dev" data-goto="dev">장비 테스트</a>에서 눌러 확인하세요. 게이트웨이·외부 핑과 보안 부팅·TPM은 윈도우 점검 프로그램이 필요해요.</div>'; })() + '</div>';
   $('#summary').innerHTML = html;
