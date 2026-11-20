@@ -170,6 +170,17 @@ It 'AMD/Intel: Windows GPU 센서 고온 판정 (NVIDIA 정보 없을 때만)' {
 It 'GPU 센서 읽기는 지원 안 되는 환경에서도 오류 없이 빈 결과' {
     $r = @(Get-GpuSensors); Assert ($r.Count -ge 0) 'ok'
 }
+It '노하드(iSCSI·가상 디스크만) 감지 → 블랙박스 안내, 기록 있으면 참고로' {
+    $d = New-Scenario @{ Disks = @([ordered]@{ Name = 'CCBoot iSCSI Disk'; Media = 'Unspecified'; Bus = 'iSCSI'; SizeGB = 120; Health = 'Healthy' }) }
+    $f = @((Get-Diagnosis -Data $d).Findings | Where-Object { $_.Title -match '노하드' })
+    Assert-Eq $f.Count 1 '감지'; Assert-Eq $f[0].Level 'warn' '블랙박스 없으면 경고'
+    $d.Blackbox = @([ordered]@{ Level = 'ok'; Title = 'x'; Detail = 'y' })
+    Assert-Eq @((Get-Diagnosis -Data $d).Findings | Where-Object { $_.Title -match '노하드' })[0].Level 'info' '블랙박스 있으면 참고'
+    Assert (-not (@((Get-Diagnosis -Data (New-Scenario @{})).Findings) | Where-Object { $_.Title -match '노하드' })) '일반 NVMe PC 는 아님'
+    $vm = New-Scenario @{ Disks = @([ordered]@{ Name = 'Msft Virtual Disk'; Bus = 'Virtual'; Health = 'Healthy' }) }; $vm.System.IsVM = $true
+    Assert (-not (@((Get-Diagnosis -Data $vm).Findings) | Where-Object { $_.Title -match '노하드' })) '가상 머신은 제외'
+    $script:UiLang = 'en'; try { Assert ((Tr "$($f[0].Title) $($f[0].Detail)") -notmatch '[가-힣]') '영어' } finally { $script:UiLang = 'ko' }
+}
 It '덤프 저장 꺼짐·페이지 파일 없음 안내' {
 
     $d = New-Scenario @{}; $d.System.CrashDump = 0; $d.System.PageFiles = 0

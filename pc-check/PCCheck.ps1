@@ -745,6 +745,13 @@ function Get-Diagnosis {
         & $find 'warn' 'META' '페이지 파일(가상 메모리)이 꺼져 있음' '페이지 파일이 없으면 블루스크린 덤프를 저장하지 못하고, 메모리 부족 시 프로그램이 갑자기 종료될 수 있습니다. "시스템이 관리하는 크기"로 켜 두세요.' 3
     }
     $isVM = [bool](Get-Prop $sys 'IsVM')
+    # 노하드(네트워크 부팅): 디스크가 iSCSI·가상(파일) 디스크뿐이면 재부팅 시 기록이 사라지므로 블랙박스 안내
+    $busList = @($disks | ForEach-Object { [string](Get-Prop $_ 'Bus') })
+    $diskless = (-not $isVM) -and $busList.Count -gt 0 -and @($busList | Where-Object { $_ -notmatch '(?i)iSCSI|File Backed Virtual|Virtual' }).Count -eq 0
+    if ($diskless) {
+        $hasBb = @(Get-Arr (Get-Prop $Data 'Blackbox')).Count -gt 0
+        & $find $(if ($hasBb) { 'info' } else { 'warn' }) 'META' '노하드(네트워크 부팅) PC 로 보임' $(if ($hasBb) { '재부팅하면 Windows 기록이 사라지는 환경입니다. 아래 블랙박스 기록을 기준으로 판단하세요.' } else { '재부팅하면 Windows 기록이 사라져, 기록이 깨끗해도 문제가 없다는 뜻이 아닙니다. USB 를 꽂고 정밀 검사 → 블랙박스 기록(단계별 자동 테스트)을 실행하세요.' }) 0
+    }
 
     if ($isVM) { & $find 'info' 'META' '가상 머신에서 실행됨' '가상 머신은 실제 하드웨어 정보를 보여 주지 않아 RAM/온도/그래픽카드 진단이 제한됩니다.' 0 }
     if (-not $isVM -and $dimms.Count -ge 2 -and ($sizes.Count -gt 1 -or $parts.Count -gt 1)) {
@@ -2545,7 +2552,10 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('메모:', 'Note:'), @('메모', 'Note'), @('단계별 최고값', 'Peak values by stage'), @('여기서 꺼짐', 'shut off here'), @('통과', 'passed'), @('GPU 온도', 'GPU temp'), @('GPU 전력', 'GPU power'), @('CPU 사용률', 'CPU usage'), @('결과', 'Result'), @('단계', 'Stage'),
+    @('가장 최근 기록 그래프', 'Latest record chart'),
+    @('노하드(네트워크 부팅) PC 로 보임', 'Looks like a diskless (network-boot) PC'),
+    @('재부팅하면 Windows 기록이 사라지는 환경입니다. 아래 블랙박스 기록을 기준으로 판단하세요.', 'Windows records are lost on reboot here. Judge by the black box records below.'),
+    @('재부팅하면 Windows 기록이 사라져, 기록이 깨끗해도 문제가 없다는 뜻이 아닙니다. USB 를 꽂고 정밀 검사 → 블랙박스 기록(단계별 자동 테스트)을 실행하세요.', 'Windows records are lost on reboot, so clean records do not mean there is no problem. Plug in a USB drive and run Detailed tests → Black box recorder (automatic staged test).'), @('메모:', 'Note:'), @('메모', 'Note'), @('단계별 최고값', 'Peak values by stage'), @('여기서 꺼짐', 'shut off here'), @('통과', 'passed'), @('GPU 온도', 'GPU temp'), @('GPU 전력', 'GPU power'), @('CPU 사용률', 'CPU usage'), @('결과', 'Result'), @('단계', 'Stage'),
     @('RE:권장 파워 용량: (\d+)W 이상', 'Recommended PSU: $1 W or more'),
     @('RE:최대 소비전력 약 (\d+)W \(그래픽카드 (\d+)W·(.+?) \+ CPU (\d+)W \+ 기타 (\d+)W\)\. 순간 전력 급증을 고려해 정격 (\d+)W 이상, 80 PLUS 인증 제품을 권장합니다\. 파워 라벨의 정격 출력과 비교해 보세요\.', 'Estimated peak draw about $1 W (graphics card $2 W · $3 + CPU $4 W + other $5 W). Allowing for power spikes, a rated $6 W or higher 80 PLUS certified PSU is recommended. Compare with the rated output on your PSU label.'),
     @('전력 제한값', 'power limit'), @('블랙박스 측정', 'black box measurement'), @('모델 대표값', 'typical for model'), @('일반 그래픽카드 가정', 'assumed typical card'), @('블랙박스 기록 그래프', 'Black box record chart'), @('기록 끊김', 'recording cut off'),
