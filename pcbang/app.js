@@ -135,6 +135,24 @@ function matchGpu(raw) {
   var isIgpuName = /^(radeon)?\d{3}m$/.test(best.keys[0]) || /laptop|내장/i.test(best.name);
   return { name: best.name + (mobile && !isIgpuName ? ' (노트북)' : ''), score: Math.round(best.score * (mobile && !isIgpuName ? 0.72 : 1)), vram: best.vram, base: best };
 }
+// AMD APU·라이젠 내장 그래픽(이름이 'Radeon Graphics'로만 보일 때) — PassMark 근사치
+function igpuFromCpu(cpu) {
+  var c = String(cpu).toLowerCase(), m;
+  var g = function (n, sc) { return { name: n, score: sc, vram: null }; };
+  if ((m = c.match(/ryzen\s*[3579]\s*(?:pro\s*)?(\d{4})(g|ge)\b/))) {
+    var n = +m[1];
+    if (n >= 8700) return g('Radeon 780M (8700G 내장)', 7400);
+    if (n >= 8600) return g('Radeon 760M (8600G 내장)', 6000);
+    if (n >= 8500) return g('Radeon 740M (8500G 내장)', 4000);
+    if (n >= 5700) return g('Radeon Vega 8 (5700G 내장)', 2200);
+    if (n >= 5600 || (n >= 4600 && n < 5000)) return g('Radeon Vega 7 (' + n + 'G 내장)', 1700);
+    if (n === 3400 || n === 2400) return g('Radeon Vega 11 (' + n + 'G 내장)', 2400);
+    if (n === 3200 || n === 2200) return g('Radeon Vega 8 (' + n + 'G 내장)', 1900);
+  }
+  // 라이젠 7000·9000 데스크톱(G 아님): 최소 화면 출력용 2CU 내장 그래픽
+  if ((m = c.match(/ryzen\s*[3579]\s*(\d{4})(x3d|x|f)?\b/)) && /^[79]\d{3}$/.test(m[1])) return g('Radeon 2CU (라이젠 ' + m[1] + ' 내장)', 1200);
+  return null;
+}
 function ckey(s) {
   s = String(s).toLowerCase().replace(/\(r\)|\(tm\)|®|™/g, '').replace(/\s+/g, ' ');
   s = s.replace(/라이젠/g, 'ryzen ').replace(/코어/g, 'core ').replace(/인텔/g, '').replace(/울트라/g, 'ultra ');
@@ -235,6 +253,12 @@ function spec(st) {
     if (cands.length) { gm = cands[0]; o.src.gpu = '점검 프로그램'; }
   }
   if (!gm && st.det.renderer) { gm = matchGpu(st.det.renderer); if (gm) o.src.gpu = '자동 감지'; }
+  // 'AMD Radeon(TM) Graphics'처럼 이름 없는 AMD 내장 그래픽은 CPU 모델로 추정
+  if (!gm) {
+    var rawG = st.manual.gpu || (nat.gpus || []).map(function (x) { return x.name; }).join(' ') || st.det.renderer || '';
+    var cpuN = st.manual.cpu || nat.cpu || '';
+    if (/radeon(\(tm\))? graphics|radeon\(tm\) graphics/i.test(rawG) && cpuN) { gm = igpuFromCpu(cpuN); if (gm) o.src.gpu = 'CPU 내장 그래픽 추정'; }
+  }
   o.gpu = gm;
   o.gpuRaw = st.manual.gpu || (nat.gpus && nat.gpus[0] && nat.gpus[0].name) || st.det.renderer || '';
   o.vram = gm && (gm.vramReal || gm.vram) || null;
