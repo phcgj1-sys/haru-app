@@ -218,6 +218,19 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     await p5.context().close();
   }
 
+  // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
+  for (const [label, handler, expectOk] of [
+    ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
+    ['1.1.1.1 차단', r => r.request().url().includes('1.1.1.1') ? r.abort() : r.fulfill({ status: 200, headers: { 'access-control-allow-origin': '*' }, body: 'ok' }), true]
+  ]) {
+    const p6 = await (await browser.newContext()).newPage(); p6.on('pageerror', e => errs.push(e.message));
+    await p6.route(/^https:/, handler); await p6.goto(URL + '#net'); await p6.waitForTimeout(200);
+    await p6.click('#netRun'); await p6.waitForFunction(() => !document.querySelector('#netRun').disabled, null, { timeout: 60000 });
+    const isOk = !!(await p6.$('#netVerdict .okbox'));
+    ok(isOk === expectOk, '인터넷 측정(' + label + '): ' + (expectOk ? '좋아요' : '좋아요 아님') + ' — ' + (await p6.innerText('#netVerdict')).slice(0, 40));
+    await p6.context().close();
+  }
+
   ok(errs.length === 0, '페이지 오류 없음' + (errs.length ? ': ' + errs.join(' / ') : ''));
   await browser.close();
   console.log(fails ? `\n${fails}개 실패` : '\n모두 통과');

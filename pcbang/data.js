@@ -74,6 +74,8 @@ window.GAMES = [
 
 /* 브라우저 인터넷 측정 대상(no-cors 요청 시간). 게임 매치 서버가 아니라 각 회사 웹/CDN 서버예요. */
 window.NET_TARGETS = [
+  // CORS 허용 서버: 응답 상태(200)를 직접 확인할 수 있어 '진짜 인터넷 연결'을 판정하는 기준. 나머지는 no-cors 라 차단·인증 페이지도 응답으로 보임
+  { name: '클라우드플레어 속도 서버', url: 'https://speed.cloudflare.com/__down?bytes=0', mode: 'cors' },
   { name: '클라우드플레어 (1.1.1.1)', url: 'https://1.1.1.1/cdn-cgi/trace' },
   { name: '구글', url: 'https://www.google.com/generate_204' },
   { name: '네이버', url: 'https://www.naver.com/favicon.ico' },

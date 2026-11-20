@@ -969,8 +969,9 @@ async function timeFetch(url, mode) {
   var ctl = new AbortController(); var to = setTimeout(function () { ctl.abort(); }, 3000);
   var t0 = performance.now();
   try {
-    await fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_=' + Math.random().toString(36).slice(2), { mode: mode || 'no-cors', cache: 'no-store', signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
+    var r = await fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + '_=' + Math.random().toString(36).slice(2), { mode: mode || 'no-cors', cache: 'no-store', signal: ctl.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
     clearTimeout(to);
+    if (mode === 'cors' && !r.ok) return null; // 상태를 볼 수 있는 대상은 403·503 같은 오류를 실패로 셈
     return performance.now() - t0;
   } catch (e) { clearTimeout(to); return null; }
 }
@@ -986,7 +987,7 @@ async function pingTarget(t, n, onEach) {
   var med = rs.length ? median(rs) : null, jit = 0;
   for (var j = 1; j < rs.length; j++) jit += Math.abs(rs[j] - rs[j - 1]);
   jit = rs.length > 1 ? jit / (rs.length - 1) : 0;
-  return { name: t.name, med: med, min: rs.length ? Math.min.apply(null, rs) : null, jitter: jit, loss: fail / n, n: n };
+  return { name: t.name, med: med, min: rs.length ? Math.min.apply(null, rs) : null, jitter: jit, loss: fail / n, n: n, cors: t.mode === 'cors' };
 }
 async function speedTest(onProg) {
   // 클라우드플레어 속도 측정 서버(CORS 허용)에서 받아 보기
@@ -1026,6 +1027,20 @@ async function runNet(onProg) {
   var out = { targets: res, down: sp, at: Date.now(), conn: navigator.connection ? { type: navigator.connection.effectiveType, rtt: navigator.connection.rtt, downlink: navigator.connection.downlink } : null };
   return out;
 }
+// 브라우저 인터넷 측정 요약(화면·문제 목록 공용)
+// - 한 번도 응답 없는 대상(매장 방화벽이 막은 곳 등)은 dead 로 따로 모으고, 실패율·지터는 응답한 대상에서만 계산
+// - verified: 상태를 확인할 수 있는 대상(CORS)이 정상 응답했거나 다운로드가 됐을 때만 '진짜 인터넷 연결'로 봄
+function netSummary(n) {
+  var t = (n && n.targets) || [];
+  var ok = t.filter(function (r) { return r.med != null; }), dead = t.filter(function (r) { return r.med == null; });
+  return {
+    ok: ok, dead: dead,
+    loss: ok.reduce(function (a, r) { return Math.max(a, r.loss || 0); }, 0),
+    jit: ok.reduce(function (a, r) { return Math.max(a, r.jitter || 0); }, 0),
+    bestMed: ok.length ? Math.min.apply(null, ok.map(function (r) { return r.min != null ? r.min : r.med; })) : null,
+    verified: ok.some(function (r) { return r.cors; }) || n.down != null
+  };
+}
 function renderNet() {
   var n = S.net; if (!n) return;
   $('#netTbl tbody').innerHTML = n.targets.map(function (r) {
@@ -1033,15 +1048,15 @@ function renderNet() {
     return '<tr><td>' + esc(r.name) + '</td><td class="num">' + (r.med != null ? fmt(r.med) + 'ms' : '-') + '</td><td class="num">' + (r.min != null ? fmt(r.min) + 'ms' : '-') + '</td><td class="num">' + fmt(r.jitter) + 'ms</td><td class="num">' + Math.round(r.loss * 100) + '%</td><td><span class="pill ' + g[0] + '">' + g[1] + '</span></td></tr>';
   }).join('');
   $('#netSpeed').innerHTML = '<div class="stat"><b>' + (n.down ? fmt(n.down, 0) + ' Mbps' : '-') + '</b><span>다운로드 (브라우저 1회 측정, 실제 회선보다 낮을 수 있음)</span></div>' + (n.conn && n.conn.type ? '<div class="stat"><b>' + esc(n.conn.type) + '</b><span>브라우저가 보는 연결 등급</span></div>' : '');
-  var ok = n.targets.filter(function (r) { return r.med != null; });
-  var worst = ok.reduce(function (a, r) { return Math.max(a, r.jitter); }, 0);
-  var loss = n.targets.reduce(function (a, r) { return Math.max(a, r.loss); }, 0);
-  var bestMed = ok.length ? Math.min.apply(null, ok.map(function (r) { return r.min; })) : null;
+  var ns = netSummary(n), ok = ns.ok, worst = ns.jit, loss = ns.loss, bestMed = ns.bestMed;
+  var deadTxt = ns.dead.length && ok.length ? ' 응답 없는 곳: ' + ns.dead.map(function (r) { return esc(r.name); }).join(', ') + '(매장 방화벽이 막았을 수 있어요).' : '';
   var v;
   if (!ok.length) v = '<div class="badbox">인터넷 응답이 없어요. 랜선·공유기를 확인하세요.</div>';
   else if (loss >= 0.1 || worst > 40) v = '<div class="badbox">응답이 들쭉날쭉하거나 실패가 있어요(지터 ' + fmt(worst) + 'ms, 실패 ' + Math.round(loss * 100) + '%). 게임에서 순간이동·끊김이 생길 수 있어요. 윈도우 점검 프로그램으로 게이트웨이 핑을 확인해 PC~공유기 구간 문제인지 가려 보세요.</div>';
   else if (bestMed > 60) v = '<div class="warnbox">응답이 다소 느려요(최소 ' + fmt(bestMed) + 'ms). 와이파이라면 유선으로 바꿔 보세요.</div>';
-  else v = '<div class="okbox">인터넷 상태 좋아요 (최소 ' + fmt(bestMed) + 'ms, 지터 ' + fmt(worst) + 'ms).</div>';
+  else if (!ns.verified) v = '<div class="warnbox">응답은 왔지만 실제 인터넷에 연결됐는지 확인하지 못했어요. 와이파이 로그인 화면·방화벽 차단 페이지도 응답으로 보일 수 있어요. 브라우저로 아무 사이트나 열어 보고, 윈도우 점검 프로그램의 외부 핑도 확인하세요.</div>';
+  else v = '<div class="okbox">인터넷 상태 좋아요 (최소 ' + fmt(bestMed) + 'ms, 지터 ' + fmt(worst) + 'ms).' + deadTxt + '</div>';
+  if (deadTxt && !/okbox/.test(v) && ok.length) v = v.replace('</div>', deadTxt + '</div>');
   $('#netVerdict').innerHTML = v;
 }
 $('#netRun').addEventListener('click', async function () {
@@ -1120,11 +1135,10 @@ function problems(st) {
   if (dev.mic === 'none' && !((dev.chk || {}).mic === 'bad')) add('mic', 'warn', '마이크가 연결되지 않았거나 권한 없음', '헤드셋 마이크 단자(분홍색)를 확인하고, 윈도우 소리 설정 → 입력 장치를 확인하세요.', '마이크 없음');
   // 인터넷(브라우저)
   if (st.net && st.net.targets) {
-    var ok = st.net.targets.filter(function (r) { return r.med != null; });
-    var loss = st.net.targets.reduce(function (a, r) { return Math.max(a, r.loss || 0); }, 0);
-    var jit = ok.reduce(function (a, r) { return Math.max(a, r.jitter || 0); }, 0);
+    var nsm = netSummary(st.net), ok = nsm.ok, loss = nsm.loss, jit = nsm.jit;
     if (!ok.length) add('netnone', 'bad', '인터넷 응답 없음', '랜선 연결, 공유기/허브 전원, 윈도우 네트워크 어댑터 상태를 확인하세요.', '인터넷 안 됨');
     else if (loss >= 0.1 || jit > 40) add('netbad', 'bad', '인터넷 불안정 (지터 ' + fmt(jit) + 'ms, 실패 ' + Math.round(loss * 100) + '%)', '윈도우 점검 프로그램으로 게이트웨이 핑을 확인해 매장 안 문제인지 통신사 문제인지 가려 보세요.', '인터넷 불안정');
+    else if (!nsm.verified) add('netunv', 'warn', '실제 인터넷 연결을 확인하지 못함 (차단·로그인 페이지일 수 있음)', '브라우저로 아무 사이트나 열어 보세요. 와이파이·방화벽 로그인 화면이 뜨면 통과 후 다시 재세요. 윈도우 점검 프로그램의 외부 핑으로도 확인할 수 있어요.', '인터넷 확인 불가');
   }
   // 윈도우 점검 프로그램 결과
   var gw = (nat.pings || []).filter(function (x) { return x.isGateway; })[0];
@@ -1331,7 +1345,7 @@ function webPayload() {
     manual: S.manual || {},
     bench: { cpuSingle: S.bench.cpuSingle || null, cpuMulti: S.bench.cpuMulti || null, gpu: S.bench.gpu || null },
     dev: { chk: S.dev.chk || {}, note: S.dev.note || '', mBtns: S.dev.mBtns || null, wheel: !!S.dev.wheel, kbMissing: S.dev.kbMissing || null, hz: S.dev.hz || null, measuredHz: !!S.dev.hzInfo, hzAt: (S.dev.hzInfo && S.dev.hzInfo.at) || null, pollMax: S.dev.pollMax || null, pollAvg: S.dev.pollAvg || null, chatter: S.dev.chatter || 0, kbChat: S.dev.kbChat || 0, kbMax: S.dev.kbMax || null, kbKeys: S.dev.kbKeys || null, react: S.dev.react || null, mic: S.dev.mic || null },
-    net: n ? { targets: n.targets.map(function (t) { return { name: t.name, med: t.med, min: t.min, jitter: t.jitter, loss: t.loss }; }), down: n.down } : null
+    net: n ? { targets: n.targets.map(function (t) { return { name: t.name, med: t.med, min: t.min, jitter: t.jitter, loss: t.loss, cors: !!t.cors }; }), down: n.down } : null
   };
 }
 function seatCodes() {
@@ -1350,7 +1364,7 @@ function sanitizeWeb(o) {
     manual: { cpu: str(m.cpu), gpu: str(m.gpu), ram: num(m.ram) ? String(num(m.ram)) : '', os: str(m.os) },
     bench: { cpuSingle: num(b.cpuSingle), cpuMulti: num(b.cpuMulti), gpu: num(b.gpu) },
     dev: { chk: (function (c) { var o = {}; if (c && typeof c === 'object') CHK.forEach(function (x) { if (c[x.id] === 'ok' || c[x.id] === 'bad') o[x.id] = c[x.id]; }); return o; })(v.chk), note: str(v.note).slice(0, 120), mBtns: Array.isArray(v.mBtns) ? v.mBtns.slice(0, 5).map(function (n) { return num(n) || 0; }) : null, wheel: v.wheel === true, kbMissing: Array.isArray(v.kbMissing) ? v.kbMissing.filter(function (k) { return ESS_KEYS.indexOf(k) >= 0; }) : null, hz: num(v.hz), hzInfo: (v.measuredHz || (v.hzInfo && v.hzInfo.hz)) ? { hz: num(v.hz), at: num(v.hzAt) || (v.hzInfo && num(v.hzInfo.at)) || null } : null, pollMax: num(v.pollMax), pollAvg: num(v.pollAvg), chatter: num(v.chatter) || 0, kbChat: num(v.kbChat) || 0, kbMax: num(v.kbMax), kbKeys: num(v.kbKeys), react: num(v.react), mic: ['ok', 'low', 'none'].indexOf(v.mic) >= 0 ? v.mic : null },
-    net: n && Array.isArray(n.targets) ? { targets: n.targets.slice(0, 20).map(function (t) { return { name: str(t.name), med: num(t.med), min: num(t.min), jitter: num(t.jitter) || 0, loss: num(t.loss) || 0 }; }), down: num(n.down) } : null
+    net: n && Array.isArray(n.targets) ? { targets: n.targets.slice(0, 20).map(function (t) { return { name: str(t.name), med: num(t.med), min: num(t.min), jitter: num(t.jitter) || 0, loss: num(t.loss) || 0, cors: t.cors === true }; }), down: num(n.down) } : null
   };
 }
 // 글 안의 모든 결과 코드를 찾아 [{kind, data}]로
