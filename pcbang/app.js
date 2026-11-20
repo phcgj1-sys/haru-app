@@ -737,20 +737,27 @@ function renderHz() {
 (function () {
   var el = $('#react'), state = 'idle', timer, t0, tries = [];
   function set(bg, txt) { el.style.background = bg; el.style.color = bg === 'var(--soft)' ? 'var(--fg)' : '#fff'; el.innerHTML = txt; }
-  function arm() { state = 'wait'; set('#B42B23', '초록색이 되면 바로 누르세요'); timer = setTimeout(function () { state = 'go'; set('#127A42', '지금!'); requestAnimationFrame(function () { t0 = performance.now(); }); }, 1500 + Math.random() * 3000); }
+  function arm() { state = 'wait'; t0 = null; set('#B42B23', '초록색이 되면 바로 누르세요'); timer = setTimeout(function () { state = 'go'; t0 = performance.now(); set('#127A42', '지금!'); requestAnimationFrame(function () { if (state === 'go') t0 = performance.now(); }); }, 1500 + Math.random() * 3000); }
   el.addEventListener('pointerdown', function (e) {
     e.preventDefault();
     if (state === 'idle' || state === 'result') { arm(); return; }
     if (state === 'wait') { clearTimeout(timer); state = 'result'; set('var(--soft)', '너무 빨랐어요!<br><span class="small">다시 누르면 재시작</span>'); return; }
     if (state === 'go') {
-      var ms = Math.round(performance.now() - (t0 || performance.now()));
-      tries.push(ms); state = 'result';
+      var ms = Math.round(performance.now() - t0);
+      state = 'result';
+      // 1초 넘게 걸린 건 반응이 아니라 다른 일을 한 것 → 기록하지 않음
+      if (ms > 1000) { set('var(--soft)', ms + 'ms — 너무 늦어 기록하지 않았어요<br><span class="small">다시 누르면 계속</span>'); return; }
+      tries.push(ms);
       set('var(--soft)', ms + 'ms<br><span class="small">' + (tries.length < 5 ? (5 - tries.length) + '번 더 (누르면 계속)' : '끝! 다시 누르면 새로 시작') + '</span>');
       if (tries.length >= 5) { var m = Math.round(median(tries)); S.dev.react = m; save(); $('#reactOut').innerHTML = '<div class="stat"><b>' + m + 'ms</b><span>5회 중간값 · 보통 200~280ms</span></div><span class="small muted">' + tries.join(', ') + 'ms</span>'; tries = []; }
       else $('#reactOut').innerHTML = '<span class="small muted">' + tries.join(', ') + 'ms</span>';
     }
   });
-  el.addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); el.dispatchEvent(new PointerEvent('pointerdown')); } });
+  el.addEventListener('keydown', function (e) { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (e.repeat) return; el.dispatchEvent(new PointerEvent('pointerdown')); } }); // 길게 눌러 생기는 반복 입력은 무시
+  // 탭을 떠나거나 창이 가려지면 진행 중인 시도를 취소(돌아와서 누르면 몇 초짜리 값이 기록되던 문제)
+  function cancelTry() { if (state === 'wait' || state === 'go') { clearTimeout(timer); state = 'idle'; t0 = null; set('var(--soft)', '여기를 눌러 시작'); } }
+  document.addEventListener('pcbang:leavedev', cancelTry);
+  document.addEventListener('visibilitychange', function () { if (document.hidden) cancelTry(); });
 })();
 
 /* ---------------- 마우스 ---------------- */

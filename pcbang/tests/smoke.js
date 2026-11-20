@@ -218,6 +218,19 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     await p5.context().close();
   }
 
+  // 반응 속도: 시작 후 탭을 떠나면 취소, Space 반복 입력은 '너무 빨랐어요'가 아님
+  {
+    const p7 = await (await browser.newContext()).newPage(); p7.on('pageerror', e => errs.push(e.message));
+    await p7.goto(URL + '#dev'); await p7.waitForTimeout(200);
+    await p7.click('#react'); await p7.click('[data-tab="home"]'); await p7.click('[data-tab="dev"]');
+    const r1 = await p7.innerText('#react');
+    await p7.focus('#react');
+    await p7.evaluate(() => { const el = document.querySelector('#react'); el.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true })); el.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', repeat: true, bubbles: true })); });
+    const r2 = await p7.innerText('#react');
+    ok(/눌러 시작/.test(r1) && !/너무 빨랐/.test(r2), '반응 속도: 탭 떠나면 취소·Space 반복 무시 (' + r1.trim() + ' / ' + r2.trim().slice(0, 20) + ')');
+    await p7.context().close();
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
