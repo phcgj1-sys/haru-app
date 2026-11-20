@@ -138,6 +138,20 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   await page.waitForTimeout(200);
   ok(/판단 불가/.test(await page.innerText('#gtList')), '실전 테스트: 측정값 없는 결과는 판단 불가로 표시');
 
+  // 깨진 결과 코드(틀린 자료형·null·큰 배열·스크립트 문자열)를 넣어도 오류·스크립트 실행 없음 (고정 시드)
+  {
+    let seed = 7; const rnd = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+    const weird = () => [null, true, 0, -1, 1e308, '', '<img src=x onerror=window.__xss=1>', 'x'.repeat(3000), [], [null], {}, [1, 'a', {}], '2026-13-45 99:99', Array(3000).fill(3)][Math.floor(rnd() * 14)];
+    const mutate = o => Array.isArray(o) ? (rnd() < 0.3 ? weird() : o.map(mutate)) : o && typeof o === 'object' ? Object.fromEntries(Object.keys(o).map(k => [k, rnd() < 0.25 ? weird() : mutate(o[k])])) : rnd() < 0.2 ? weird() : o;
+    const NAT = { v: 2, time: '2026-11-20 10:00', seat: 5, computer: 'PC-005', cpu: 'Intel(R) Core(TM) i5-12400F', gpus: [{ name: 'NVIDIA GeForce RTX 4060', vram: 8 }], ramGB: 16, os: 'win11', hz: 144, displays: [{ name: 'M', res: '1920x1080', hz: 144, maxHz: 144, primary: true }], pings: [{ name: '게이트웨이', isGateway: true, avg: 1, loss: 0, recv: 20 }], disks: [{ name: 'C', freeGB: 50 }] };
+    const GAME = { v: 1, kind: 'game', seat: 5, time: '2026-11-20 13:00', app: 'TslGame.exe', fps: { avg: 150, low1: 90 }, cpu: { avg: 50, clockStart: 4000, clockEnd: 3900 }, gpu: { utilAvg: 95 }, ping: { gw: { avg: 1, loss: 0 } }, tl: { fps: [150], gw: [1, -1] } };
+    const codes = []; for (let i = 0; i < 20; i++) codes.push('PCBANG1:' + b64(mutate(NAT)), 'PCBANGG1:' + b64(mutate(GAME)));
+    const before = errs.length;
+    await page.evaluate(c => { document.querySelector('#shopPaste').value = c; document.querySelector('#shopImportBtn').click(); }, codes.join('\n')); await page.waitForTimeout(400);
+    await page.click('[data-tab="log"]'); await page.waitForTimeout(150); await page.click('[data-tab="game"]'); await page.waitForTimeout(150);
+    ok(errs.length === before && !(await page.evaluate(() => window.__xss)), '깨진 결과 코드 40개: 페이지 오류·스크립트 실행 없음');
+  }
+
   // 6. 모바일 폭 가로 넘침
   await page.setViewportSize({ width: 390, height: 844 });
   for (const t of ['home', 'game', 'games', 'log', 'dev', 'fix']) { await page.click(`[data-tab="${t}"]`); await page.waitForTimeout(100); }
