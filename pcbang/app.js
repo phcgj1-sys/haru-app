@@ -351,6 +351,7 @@ function renderGames() {
       var fl = fpsLabel(j.fps, tgt);
       fpsHtml = '<div class="fps"><b>' + (j.fps >= (g.fps.cap || 9999) ? g.fps.cap + '+' : '약 ' + fmt(j.fps)) + '</b><span class="muted small">fps 예상</span><span class="pill ' + fl[0] + '">' + fl[1] + '</span></div>' +
         (j.bottleneck ? '<div class="xs muted">병목: ' + j.bottleneck + (j.bottleneck === 'CPU' ? ' (그래픽 옵션을 낮춰도 크게 안 오름)' : ' (옵션·해상도를 낮추면 올라감)') + '</div>' : '') +
+        (g.fightFactor && j.fps < (g.fps.cap || 1e9) ? '<div class="small">교전 중 예상: 약 ' + fmt(Math.round(j.fps * g.fightFactor)) + 'fps <span class="xs muted">(' + esc(g.fightNote || '') + ')</span></div>' : '') +
         (j.fpsNoCpu ? '<div class="xs muted">CPU 미확인: 그래픽 기준 값</div>' : '') + '<div class="xs muted">fps 근거: ' + (g.fpsBasis ? '공개 측정값으로 보정' : '공개 측정값이 적어 사양 비례 추정') + '</div>';
     }
     var comps = j.comps.map(function (c) {
