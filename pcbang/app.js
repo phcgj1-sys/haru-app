@@ -1106,9 +1106,9 @@ function problems(st) {
   if (nat.ramXmpOff) add('xmp', 'warn', '램이 정격 속도보다 느리게 동작 (XMP/EXPO 꺼짐 의심)', 'BIOS에서 XMP(인텔)/EXPO(AMD) 프로필을 켜면 CPU 병목 게임(롤·발로란트·서든)의 프레임이 올라요.', 'XMP 꺼짐');
   if (nat.rebootPending) add('reboot', 'warn', '재부팅 대기 중인 업데이트가 있음', '영업 전 재부팅하세요. 게임 중 업데이트 재시작을 막을 수 있어요.', '재부팅 필요');
   var now = Date.now();
-  (nat.gpus || []).forEach(function (g) {
-    if (g.driverDate && !g.virtual) { var age = (now - Date.parse(g.driverDate)) / 864e5; if (age > 365) add('drv', 'warn', '그래픽 드라이버가 오래됨 (' + g.driverDate + ')', '최신 게임 패치는 새 드라이버를 기준으로 맞춰요. NVIDIA 앱/AMD Adrenalin으로 업데이트하세요.', '드라이버 오래됨'); }
-  });
+  // 드라이버 날짜는 실제로 게임에 쓰는 주 그래픽(점수가 가장 높은 실물 그래픽)만 봄 — 안 쓰는 내장 그래픽 드라이버는 무시
+  var mainG = (nat.gpus || []).filter(function (g) { return !g.virtual; }).map(function (g) { return { g: g, m: matchGpu(g.name) }; }).sort(function (a, b) { return ((b.m && b.m.score) || 0) - ((a.m && a.m.score) || 0); })[0];
+  if (mainG && mainG.g.driverDate) { var age = (now - Date.parse(mainG.g.driverDate)) / 864e5; if (age > 365) add('drv', 'warn', '그래픽 드라이버가 오래됨 (' + mainG.g.driverDate + ')', '최신 게임 패치는 새 드라이버를 기준으로 맞춰요. NVIDIA 앱/AMD Adrenalin으로 업데이트하세요.', '드라이버 오래됨'); }
   var temp = nat.gpuLive ? nat.gpuLive.tempC : null;
   if (temp != null && temp >= 85) add('hot', 'bad', '그래픽카드 온도 ' + temp + '°C', '먼지 청소, 케이스 팬 동작, 그래픽카드 팬을 확인하세요. 계속 높으면 서멀 그리스를 다시 바르세요.', 'GPU 과열');
   (nat.disks || []).forEach(function (d) { if (d.size && d.free != null && d.free / d.size < 0.1) add('disk', 'warn', d.name + ' 드라이브 여유 공간 ' + d.free + 'GB (' + Math.round(d.free / d.size * 100) + '%)', '게임 패치가 실패할 수 있어요. 필요 없는 파일과 게임을 정리하세요.', '디스크 부족'); });
@@ -1371,7 +1371,8 @@ function renderShop() {
   if (!rows.length) return;
   // 요약
   var probCount = {};
-  rows.forEach(function (r) { r.pr.forEach(function (p) { var k = p.id; probCount[k] = probCount[k] || { t: p.short || p.t, lv: p.lv, n: 0 }; probCount[k].n++; }); });
+  // 같은 좌석에 같은 종류 문제가 여러 개(디스크 2개 등)여도 좌석 하나로 셈
+  rows.forEach(function (r) { var seen = {}; r.pr.forEach(function (p) { var k = p.id; if (seen[k]) return; seen[k] = 1; probCount[k] = probCount[k] || { t: p.short || p.t, lv: p.lv, n: 0 }; if (p.lv === 'bad') probCount[k].lv = 'bad'; probCount[k].n++; }); });
   var top = Object.keys(probCount).map(function (k) { return probCount[k]; }).sort(function (a, b) { return (b.lv === 'bad') - (a.lv === 'bad') || b.n - a.n; }).slice(0, 8);
   var badSeats = rows.filter(function (r) { return r.bad; }).length, warnSeats = rows.filter(function (r) { return !r.bad && r.warn; }).length;
   var gpuDist = {}; rows.forEach(function (r) { gpuDist[r.gpu] = (gpuDist[r.gpu] || 0) + 1; });
