@@ -1696,6 +1696,8 @@ window.addEventListener('resize', function () { if (!$('[data-panel="game"]').hi
 
 /* ---------------- 시작 ---------------- */
 try { var qs = new URLSearchParams(location.search).get('seat'); if (qs) { S.seat = qs.slice(0, 20); save(); } } catch (e) {}
+// zip 등으로 이 폴더만 받아 파일로 열면 상위의 하루 학습 홈이 없으므로 링크를 숨김
+if (location.protocol === 'file:') { var hubA = $('.hub'); if (hubA) hubA.hidden = true; }
 fillLists(); seatPill();
 if (S.native) S.native = sanitizeNative(S.native);
 detect().then(function () { renderSummary(); renderSpec(); var t = $('.tabs [aria-selected="true"]'); if (t && t.dataset.tab === 'games') renderGames(); });
