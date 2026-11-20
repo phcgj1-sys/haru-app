@@ -979,6 +979,23 @@ function Get-BlackboxChartSvg($A) {
     return $sb.ToString()
 }
 
+function Get-BlackboxStageTable($A) {
+    # 단계별 최고값 표 (단계별 정밀 테스트 기록일 때)
+    $st = @(Get-Arr (Get-Prop $A 'Stages')); if ($st.Count -eq 0) { return '' }
+    $last = [string](Get-Prop $A 'LastStage'); $abrupt = [bool](Get-Prop $A 'Abrupt')
+    $rows = @($st | ForEach-Object {
+        $k = [string](Get-Prop $_ 'Key')
+        [ordered]@{
+            N = (Get-Prop $_ 'Name')
+            T = $(if ($null -ne (Get-Prop $_ 'MaxGpuTempC')) { "$(Get-Prop $_ 'MaxGpuTempC') °C" } else { '-' })
+            P = $(if ($null -ne (Get-Prop $_ 'MaxGpuPowerW')) { "$(Get-Prop $_ 'MaxGpuPowerW') W" } else { '-' })
+            C = $(if ($null -ne (Get-Prop $_ 'MaxCpuPct')) { "$(Get-Prop $_ 'MaxCpuPct')%" } else { '-' })
+            R = $(if ($abrupt -and $k -eq $last) { '여기서 꺼짐' } else { '통과' })
+        }
+    })
+    return '<h4>단계별 최고값</h4>' + (ConvertTo-HtmlTable $rows @('N', 'T', 'P', 'C', 'R') @('단계', 'GPU 온도', 'GPU 전력', 'CPU 사용률', '결과'))
+}
+
 function ConvertTo-HtmlTable($rows, [string[]]$cols, [string[]]$heads, [string]$empty = '기록 없음 ✓') {
     $rows = @(Get-Arr $rows)
     if ($rows.Count -eq 0) { return "<p class='none'>$(HtmlEnc $empty)</p>" }
@@ -1194,7 +1211,7 @@ $(ConvertTo-HtmlTable $dimmRows @('Slot','Sz','Ddr','Sp','Mk','Pt') @('슬롯','
 <details class="sec"><summary>저장장치<span class="cnt">$($diskRows.Count)</span></summary><div>
 $(ConvertTo-HtmlTable $diskRows @('Name','Ty','Sz','He','Tc','We','Re','Ph') @('이름','종류','용량','상태','온도','마모','읽기오류','사용시간(h)'))
 <h4>디스크 오류 기록</h4>$(ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'DiskEvents')) | Select-Object -First 50) @('T','Source','Id','Msg') @('시간','출처','ID','내용'))</div></details>
-$(if (@(Get-Arr (Get-Prop $Data 'Blackbox')).Count) { '<details class="sec" open><summary>블랙박스 기록 (실시간 테스트)</summary><div>' + (ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | ForEach-Object { [ordered]@{ F = (Get-Prop $_ 'File'); S = ([string](Get-Prop $_ 'Start')).Replace('T', ' '); M = "$(Get-Prop $_ 'Minutes') 분"; R = $(if (Get-Prop $_ 'Abrupt') { '갑자기 끊김' } else { '정상 종료' }); G = $(if ($null -ne (Get-Prop $_ 'MaxGpuTempC')) { "$(Get-Prop $_ 'MaxGpuTempC') °C" } else { '-' }); V = (Get-Prop $_ 'Title') } }) @('F','S','M','R','G','V') @('파일','시작','길이','끝','GPU 최고','판정')) + '<h4>가장 최근 기록 그래프</h4>' + (Get-BlackboxChartSvg (@(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1)) + '</div></details>' })
+$(if (@(Get-Arr (Get-Prop $Data 'Blackbox')).Count) { '<details class="sec" open><summary>블랙박스 기록 (실시간 테스트)</summary><div>' + (ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | ForEach-Object { [ordered]@{ F = (Get-Prop $_ 'File'); S = ([string](Get-Prop $_ 'Start')).Replace('T', ' '); M = "$(Get-Prop $_ 'Minutes') 분"; R = $(if (Get-Prop $_ 'Abrupt') { '갑자기 끊김' } else { '정상 종료' }); G = $(if ($null -ne (Get-Prop $_ 'MaxGpuTempC')) { "$(Get-Prop $_ 'MaxGpuTempC') °C" } else { '-' }); V = (Get-Prop $_ 'Title') } }) @('F','S','M','R','G','V') @('파일','시작','길이','끝','GPU 최고','판정')) + '<h4>가장 최근 기록 그래프</h4>' + (Get-BlackboxChartSvg (@(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1)) + (Get-BlackboxStageTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1)) + '</div></details>' })
 <details class="sec"><summary>그래픽 드라이버 설치 이력 · 자주 충돌한 프로그램</summary><div>
 $(ConvertTo-HtmlTable (Get-Prop $Data 'DriverInstalls') @('T','Msg') @('시간','내용') '기간 내 설치 기록 없음')
 <h4>자주 충돌한 프로그램</h4>$(ConvertTo-HtmlTable (Get-Prop $Data 'AppCrashes') @('App','Count') @('프로그램','횟수'))</div></details>
@@ -2515,7 +2532,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('단계별 최고값', 'Peak values by stage'), @('여기서 꺼짐', 'shut off here'), @('통과', 'passed'), @('GPU 온도', 'GPU temp'), @('GPU 전력', 'GPU power'), @('CPU 사용률', 'CPU usage'), @('결과', 'Result'), @('단계', 'Stage'),
     @('RE:권장 파워 용량: (\d+)W 이상', 'Recommended PSU: $1 W or more'),
     @('RE:최대 소비전력 약 (\d+)W \(그래픽카드 (\d+)W·(.+?) \+ CPU (\d+)W \+ 기타 (\d+)W\)\. 순간 전력 급증을 고려해 정격 (\d+)W 이상, 80 PLUS 인증 제품을 권장합니다\. 파워 라벨의 정격 출력과 비교해 보세요\.', 'Estimated peak draw about $1 W (graphics card $2 W · $3 + CPU $4 W + other $5 W). Allowing for power spikes, a rated $6 W or higher 80 PLUS certified PSU is recommended. Compare with the rated output on your PSU label.'),
     @('전력 제한값', 'power limit'), @('블랙박스 측정', 'black box measurement'), @('모델 대표값', 'typical for model'), @('일반 그래픽카드 가정', 'assumed typical card'), @('블랙박스 기록 그래프', 'Black box record chart'), @('기록 끊김', 'recording cut off'),

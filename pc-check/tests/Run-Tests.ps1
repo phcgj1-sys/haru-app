@@ -467,6 +467,14 @@ It '블랙박스 그래프: 요약 계열(최대 300점)·단계 구간·끊긴 
     $m = [regex]::Match((Get-BlackboxChartSvg $flat), "points='34,([\d\.]+) ")
     Assert ($m.Success -and [double]$m.Groups[1].Value -gt 60 -and [double]$m.Groups[1].Value -lt 100) "가운데 높이: $($m.Groups[1].Value)"
 }
+It '블랙박스 단계별 최고값 표: 꺼진 단계 표시' {
+    $rows = (Rep 3 @('cpu', 100, 98, 50, 1, 30, '', 0, '')) + (Rep 3 @('full', 100, 97, 78, 99, 281, '', 0, ''))
+    $a = Read-BlackboxAnalysis (New-Bb2File 'st1.csv' $rows)
+    $t = Get-BlackboxStageTable $a
+    Assert ($t -match '여기서 꺼짐') '꺼진 단계'; Assert ($t -match '281 W') '최고 전력'; Assert ($t -match '통과') '앞 단계 통과'
+    Assert-Eq (Get-BlackboxStageTable ([ordered]@{ Stages = @() })) '' '단계 없으면 빈 값'
+    $script:UiLang = 'en'; try { Assert ((Tr $t) -notmatch '[가-힣]') "영어: $(Tr $t)" } finally { $script:UiLang = 'ko' }
+}
 It 'NVIDIA 감속 원인 해석' {
     Assert-Eq (ConvertFrom-NvThrottle '0x0000000000000004') 'PWRCAP' '전력 제한'
     Assert-Eq (ConvertFrom-NvThrottle '0x88') 'HWSLOW+PBRAKE' '하드웨어'
