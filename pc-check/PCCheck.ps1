@@ -1505,6 +1505,7 @@ function Read-BlackboxAnalysis([string]$Path) {
 
     # 단계별 요약
     $stageNames = @{}; foreach ($p in $script:StagePlan) { $stageNames[$p.Key] = $p.Name }
+    $stageNames['manual'] = '직접 설정'   # 직접 설정 모드 기록
     $order = @(); foreach ($r in $rows) { $k = [string]$r['Stage']; if ($k -and $order -notcontains $k) { $order += $k } }
     foreach ($k in $order) {
         $set = @($rows | Where-Object { $_['Stage'] -eq $k })

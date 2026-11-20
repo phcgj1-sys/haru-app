@@ -428,6 +428,11 @@ It 'GPU 도구 미실행 상태의 단계에서 꺼지면 실제 부하 기준�
     Assert ((Read-BlackboxAnalysis (New-Bb2File 'k2.csv' $r2)).Title -match 'CPU 단독') '전체 → CPU 단독'
     Assert ((Read-BlackboxAnalysis (New-Bb2File 'k3.csv' (Rep 3 @('gpu', 5, 100, 70, 99, 250, '', 0, '')))).Title -match 'GPU 단독') 'GPU 정상 실행이면 그대로'
 }
+It '직접 설정 모드 기록: 단계 이름이 내부 키(manual) 대신 표시' {
+    $a = Read-BlackboxAnalysis (New-Bb2File 'm1.csv' (Rep 3 @('manual', 100, 98, 60, 99, 250, '', 0, '')))
+    Assert-Eq @($a.Stages)[0].Name '직접 설정' '이름'; Assert ($a.Detail -match '\[직접 설정 단계\]') '판정 문구'
+    $script:UiLang = 'en'; try { Assert ((Tr $a.Detail) -match '\[Manual stage\]') '영어' } finally { $script:UiLang = 'ko' }
+}
 It 'NVIDIA 감속 원인 해석' {
     Assert-Eq (ConvertFrom-NvThrottle '0x0000000000000004') 'PWRCAP' '전력 제한'
     Assert-Eq (ConvertFrom-NvThrottle '0x88') 'HWSLOW+PBRAKE' '하드웨어'
