@@ -38,6 +38,21 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   ok(m.c3 === 'i7-12700H', 'CPU: 노트북 i7-12700H 가 데스크톱으로 잡히지 않음');
   ok(m.c4 === 'Ryzen 7 5800H', 'CPU: 노트북 5800H');
 
+  // 1-2. 윈도우 장치 이름·시리즈 이름·새 모델·펜티엄
+  const m2 = await page.evaluate(() => {
+    const P = window.__pcbang, g = x => (P.matchGpu(x) || {}).name || null, c = x => (P.matchCpu(x) || {}).name || null;
+    return [g('AMD Radeon R7 200 Series'), g('AMD Radeon RX 9070 GRE'), g('Intel(R) HD Graphics 630'), g('NVIDIA GeForce RTX 3060 8GB'), g('NVIDIA GeForce RTX 4050 Laptop GPU'),
+      c('Intel(R) Pentium(R) Gold G6400 CPU @ 4.00GHz'), c('AMD Ryzen 5 5600G with Radeon Graphics'), c('Intel(R) Core(TM) i3-14100F')];
+  });
+  ok(JSON.stringify(m2) === JSON.stringify(['R7 240', 'RX 9070 GRE', 'Intel HD 630', 'RTX 3060 8GB', 'RTX 4050 Laptop', 'Pentium Gold G6400', 'Ryzen 5 5600G', 'i3-14100']), '부품: 시리즈 이름·새 모델·펜티엄 인식 ' + JSON.stringify(m2));
+
+  // 1-3. 이름 없는 내장 그래픽을 CPU 로 추정
+  const ig = await page.evaluate(() => {
+    const P = window.__pcbang, sp = (cpu, gpu) => { const o = P.spec({ manual: {}, det: {}, bench: {}, dev: {}, native: { cpu, gpus: [{ name: gpu }] } }); return o.gpu ? o.gpu.name : null; };
+    return [sp('AMD Ryzen 5 5600G with Radeon Graphics', 'AMD Radeon(TM) Graphics'), sp('Intel(R) Core(TM) i5-12400', 'Intel(R) UHD Graphics'), sp('Intel(R) Core(TM) i5-12400F', 'Intel(R) UHD Graphics'), sp('AMD Ryzen 5 5600X', 'AMD Radeon(TM) Graphics'), sp('Intel(R) Core(TM) i5-12400', 'NVIDIA GeForce RTX 3060')];
+  });
+  ok(/Vega 7/.test(ig[0]) && /UHD 730/.test(ig[1]) && ig[2] === null && ig[3] === null && ig[4] === 'RTX 3060', '내장 그래픽 추정: 5600G·i5-12400 추정, F·X 모델은 안 함, 외장 우선 ' + JSON.stringify(ig));
+
   // 2. 게임 판정
   const j = await page.evaluate(() => {
     const P = window.__pcbang, opt = { res: '1080', preset: 'mid', target: 'auto' };
