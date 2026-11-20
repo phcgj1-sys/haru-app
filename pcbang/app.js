@@ -171,6 +171,7 @@ function ckey(s) {
   if ((m = s.match(/phenom.*?(\d{3,4})/))) return 'phenom' + m[1];
   if ((m = s.match(/athlon.*?(\d{3,4})(ge|g)?/))) return 'athlon' + m[1] + (m[2] || '');
   if ((m = s.match(/(e\d{4}|q\d{4})/))) return m[1];
+  if ((m = s.match(/(?:pentium|celeron).*?\b(g\d{4})\b/))) return m[1]; // 펜티엄·셀러론 G5400 등
   return s.replace(/[^a-z0-9]/g, '');
 }
 CPUS.forEach(function (c) { c.keys = [ckey(c.name)].concat(c.alias.map(ckey)); });
