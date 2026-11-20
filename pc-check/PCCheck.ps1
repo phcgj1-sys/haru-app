@@ -1364,7 +1364,7 @@ function Start-Blackbox {
     if (-not $Dir) { $Dir = (Get-BlackboxDefaultDir).Dir }
     New-Item -ItemType Directory -Force -Path $Dir | Out-Null
     $path = Join-Path $Dir ("PCCheck_blackbox_{0}_{1:yyyyMMdd_HHmmss}.csv" -f $env:COMPUTERNAME, (Get-Date))
-    $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; Stage = ''; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0; GpuLog = ''; GpuSeen = '' })
+    $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; Stage = ''; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0; GpuLog = ''; GpuSeen = ''; Pending = '' })
     Write-DurableLine $path ("# PCCheck blackbox,v2,{0},{1},{2}" -f $env:COMPUTERNAME, (Format-T (Get-Date)), $script:AppVersion)
     Write-DurableLine $path $script:BlackboxCols
     $rs = New-PCRunspace
@@ -1379,6 +1379,7 @@ function Start-Blackbox {
                 $s = Get-LiveSample
                 $ram = Get-RamTestState
                 $ev = ''
+                if ($sync.Pending) { $ev = [string]$sync.Pending; $sync.Pending = '' }   # 화면 쪽에서 알려 온 사건 (예: GPU 도구 실패)
                 $gpuErr = $null
                 if ($sync.GpuLog -and ($n % 3) -eq 0) {
                     # memtest_vulkan 출력에서 VRAM 오류·장치 끊김·시작 실패를 읽어 기록
@@ -1627,12 +1628,19 @@ function Show-BlackboxDialog {
     $stopB = & $mk Windows.Forms.Button '중지' 196 416 170 44
     $anaB = & $mk Windows.Forms.Button '기록 파일 분석' 376 416 168 44
     $stopB.Enabled = $false
-    $st = @{ Box = $null; Cpu = $null; Gpu = $null; Ram = $false; Start = $null; Auto = $false }
+    $st = @{ Box = $null; Cpu = $null; Gpu = $null; Ram = $false; Start = $null; Auto = $false; GpuFailed = $false }
     $t = New-Object Windows.Forms.Timer; $t.Interval = 1000
     $setLoad = {
         param([bool]$cpu, [bool]$gpu, [bool]$ram)
         if ($cpu) { if (-not $st.Cpu) { $st.Cpu = Start-CpuStress }; $st.Cpu.Sync.Pause = $false } elseif ($st.Cpu) { $st.Cpu.Sync.Pause = $true }
-        if ($gpu -and -not $st.Gpu) { try { $gl = $null; if ($st.Box) { $gl = [IO.Path]::ChangeExtension($st.Box.Path, '.gpu.log'); $st.Box.Sync.GpuLog = $gl }; $st.Gpu = Start-GpuLoad -LogPath $gl } catch { Write-PCLog "gpu load: $($_.Exception.Message)"; $st.Gpu = $null } }
+        if ($gpu -and -not $st.Gpu -and -not $st.GpuFailed) {
+            try { $gl = $null; if ($st.Box) { $gl = [IO.Path]::ChangeExtension($st.Box.Path, '.gpu.log'); $st.Box.Sync.GpuLog = $gl }; $st.Gpu = Start-GpuLoad -LogPath $gl }
+            catch {
+                # 다운로드·실행 실패: 기록에 남겨 'GPU 단계 미시험'으로 판정되게 함 (조용히 통과 처리 방지)
+                Write-PCLog "gpu load: $($_.Exception.Message)"; $st.Gpu = $null; $st.GpuFailed = $true
+                if ($st.Box -and $st.Box.Sync.GpuSeen -notmatch 'GPUFAIL') { $st.Box.Sync.Pending = 'GPUFAIL'; $st.Box.Sync.GpuSeen += ' GPUFAIL' }
+            }
+        }
         if (-not $gpu -and $st.Gpu) { Stop-GpuLoad $st.Gpu; $st.Gpu = $null }
         if ($ram -and -not $st.Ram) { try { Start-RamTest; $st.Ram = $true } catch { Write-PCLog "ram test: $($_.Exception.Message)" } }
         if (-not $ram -and $st.Ram) { Stop-RamTest; $st.Ram = $false }
@@ -1673,8 +1681,18 @@ function Show-BlackboxDialog {
     $browse.Add_Click({ $d = New-Object Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog($f) -eq 'OK') { $dirBox.Text = Join-Path $d.SelectedPath 'PCCheck_blackbox' } })
     $startB.Add_Click({
         try {
-            $st.Auto = $autoR.Checked
+            $st.Auto = $autoR.Checked; $st.GpuFailed = $false
+            if ($st.Auto -or $gpuChk.Checked) {
+                # GPU 부하 도구를 미리 준비 (노하드는 재부팅마다 지워지므로 매번 받음). 실패하면 바로 알림
+                $live.Text = Tr 'GPU 부하 도구 준비 중...'; [Windows.Forms.Application]::DoEvents()
+                try { [void](Install-MemtestVulkan) }
+                catch {
+                    $st.GpuFailed = $true
+                    [void][Windows.Forms.MessageBox]::Show($f, (Tr "GPU 부하 도구를 준비하지 못해 GPU 단계는 시험되지 않습니다 (인터넷 연결 확인).`n$($_.Exception.Message)"), (Tr $script:AppName), 'OK', 'Warning')
+                }
+            }
             $st.Box = Start-Blackbox -Dir $dirBox.Text
+            if ($st.GpuFailed) { $st.Box.Sync.Pending = 'GPUFAIL'; $st.Box.Sync.GpuSeen = ' GPUFAIL' }
             if (-not $st.Auto) { & $setLoad $cpuChk.Checked $gpuChk.Checked $ramChk.Checked; $st.Box.Sync.Stage = 'manual' }
             $st.Start = Get-Date; $t.Start()
             $startB.Enabled = $false; $stopB.Enabled = $true; $autoR.Enabled = $false; $manR.Enabled = $false
@@ -2385,6 +2403,8 @@ $script:EnPairs = @(
     @('RE:VRAM 검사 오류 (\d+) 건 \(그래픽카드 메모리 불량 의심\)', 'VRAM test errors: $1 (faulty graphics memory suspected)'),
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
+    @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
+    @('GPU 부하 도구를 준비하지 못해 GPU 단계는 시험되지 않습니다 (인터넷 연결 확인).', 'Could not prepare the GPU load tool, so the GPU stages will not be tested (check the internet connection).'),
     @('RE: — ([\d\- :]+) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다\.', ' — passed every stage of the detailed test at $1, so treated as resolved.'),
     @('그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.', 'The graphics memory test (memtest_vulkan) found errors. If they persist with overclocking disabled, the card needs warranty service.'),
     @('그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)', 'Graphics card connection lost (ERROR_DEVICE_LOST)'),

@@ -436,6 +436,16 @@ It '실제 기록기: 줄 기록 후 중지 표시, CPU 부하 시작/중지' {
     Assert ($lines[-1] -match ',STOP$') '중지 표시'
     $a = Read-BlackboxAnalysis $job.Path; Assert (-not $a.Abrupt) '정상 종료'
 }
+It '화면 쪽 사건(GPU 도구 실패)이 기록에 남아 GPU 단계 미시험으로 판정' {
+    $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb2') -IntervalSec 0.3 -NoEvents
+    $job.Sync.Stage = 'gpu'; $job.Sync.Pending = 'GPUFAIL'
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($job.Sync.Rows -lt 2 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 200 }
+    Stop-Blackbox $job
+    $a = Read-BlackboxAnalysis $job.Path
+    Assert ($a.Events.ContainsKey('GPUFAIL')) '사건 기록'; Assert ($a.Detail -match 'GPU 단계는 시험되지 않음') '판정 안내'
+    Assert-Eq $job.Sync.Pending '' '한 번만 기록'
+}
 
 It '지역 설정 무관: 시간·소수 형식 (핀란드어 시간 구분자, 독일어 소수점)' {
     $old = [Threading.Thread]::CurrentThread.CurrentCulture
