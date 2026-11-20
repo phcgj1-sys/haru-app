@@ -1609,6 +1609,11 @@ function Get-BlackboxPending($Sync) {
     [Threading.Monitor]::Enter($Sync.SyncRoot)
     try { $v = [string]$Sync.Pending; $Sync.Pending = ''; return $v } finally { [Threading.Monitor]::Exit($Sync.SyncRoot) }
 }
+function Get-BlackboxCloseQuestion($State) {
+    # 기록 중 창을 닫으려 할 때 물어볼 문구 (기록 중이 아니면 빈 값)
+    if (-not $State -or -not $State.Box) { return '' }
+    return "블랙박스 기록 중입니다 ($($State.Box.Sync.Rows) 줄).`n기록을 멈추고 창을 닫을까요?"
+}
 function Get-BlackboxWarnText($Sync) {
     # 기록기가 쓰기를 다시 시도하는 중이면 화면에 알림 (USB 가 빠지면 기록이 남지 않으므로)
     if ($Sync -and [string]$Sync.Warn) { return "`n기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)" }
@@ -1924,7 +1929,13 @@ function Show-BlackboxDialog {
             } catch { [void][Windows.Forms.MessageBox]::Show($f, (Tr "분석하지 못했습니다.`n$($_.Exception.Message)"), (Tr $script:AppName)) }
         }
     })
-    $f.Add_FormClosing({ & $stopAll })
+    $f.Add_FormClosing({
+        param($src, $e)
+        # 32분 테스트 중 실수로 X 를 눌러 기록이 끝나 버리지 않도록 확인
+        $msg = Get-BlackboxCloseQuestion $st
+        if ($msg -and -not $SmokeTest -and [Windows.Forms.MessageBox]::Show($f, (Tr $msg), (Tr $script:AppName), 'YesNo', 'Question') -ne 'Yes') { $e.Cancel = $true; return }
+        & $stopAll
+    })
     if ($script:UiLang -eq 'en') { $f.Text = Tr $f.Text; foreach ($c in $f.Controls) { if ($c.Text) { $c.Text = Tr $c.Text } } }
     if ($SmokeTest) {
         $f.CreateControl()
@@ -2641,7 +2652,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),

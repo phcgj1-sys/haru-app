@@ -616,6 +616,14 @@ It '화면 → 기록기 사건 전달: 연달아 생겨도, 쓰기 실패해도
     $a = Read-BlackboxAnalysis $job.Path
     Assert-Eq $a.Events['OVERHEAT_STOP'] 1 '실패 중 사건도 정확히 한 번 기록'
 }
+It '기록 중 창 닫기: 확인 질문 (기록 중일 때만, 영어 번역)' {
+    Assert-Eq (Get-BlackboxCloseQuestion @{ Box = $null }) '' '기록 안 하면 묻지 않음'
+    Assert-Eq (Get-BlackboxCloseQuestion $null) '' 'null 안전'
+    $q = Get-BlackboxCloseQuestion @{ Box = @{ Sync = @{ Rows = 42 } } }
+    Assert ($q -match '42 줄' -and $q -match '닫을까요') '질문'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $e = Tr $q; Assert ($e -notmatch '[가-힣]') "영어: $e"; Assert ($e -match '42 rows') '줄 수 유지' } finally { $script:UiLang = $old }
+}
 It '기록 화면: 쓰기 재시도 중이면 경고 문구 (영어 번역 포함)' {
     Assert-Eq (Get-BlackboxWarnText @{ Warn = '' }) '' '정상이면 없음'
     Assert-Eq (Get-BlackboxWarnText $null) '' 'null 안전'
