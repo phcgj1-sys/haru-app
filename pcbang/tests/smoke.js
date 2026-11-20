@@ -142,6 +142,9 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   const capL = await page.evaluate(() => window.__pcbang.fpsLabel(200, 240, 200));
   ok(capL[0] === 'ok' && /게임 자체 제한/.test(capL[1]), '프레임 표시: 서든 200fps 제한을 어려움으로 부르지 않음');
 
+  const fightL = await page.evaluate(() => [window.__pcbang.fpsLabel(162, 144, null, 0.7), window.__pcbang.fpsLabel(220, 144, null, 0.7)]);
+  ok(fightL[0][0] === 'warn' && fightL[1][0] === 'ok', '프레임 표시: 배그 교전 중 목표 미달이면 유지 예상이라 하지 않음');
+
   // 7. 웹 결과 파일 이름이 점검 프로그램 결과(seat-23.txt)와 겹치지 않음
   const ctx2 = await browser.newContext({ acceptDownloads: true }); const p3 = await ctx2.newPage();
   p3.on('pageerror', e => errs.push(e.message));
