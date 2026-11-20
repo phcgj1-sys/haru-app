@@ -385,6 +385,9 @@ function judge(game, sp, opt) {
   return r;
 }
 var LV = { rec: ['ok', '권장 사양 충족'], min: ['warn', '최소 사양만 충족'], fail: ['bad', '사양 부족'], block: ['bad', '설정 때문에 실행 불가'], unk: ['', '정보 부족'], partial: ['info', '일부 확인 필요'] };
+// 판정 문구·fps 표기를 카드·홈 요약·좌석 보고서·글 복사에서 똑같이 (발로란트 '고사양(144fps) 충족', 서든 '200+')
+function levelOf(g, j) { return j.level === 'rec' && g.recLabel ? ['ok', g.recLabel + ' 충족'] : LV[j.level]; }
+function fpsText(g, j) { return j.fps == null ? '-' : j.fps >= (g.fps.cap || 1e9) ? g.fps.cap + '+' : '약 ' + fmt(j.fps); }
 function targetFps(opt) { if (opt.target !== 'auto') return +opt.target; var hz = spec().hz; return hz ? Math.min(hz, 240) : 60; }
 function fpsLabel(fps, tgt, cap, fight) {
   // 게임이 스스로 막아 둔 최대 fps(서든 200·오버워치 600·로블록스 240)에 닿으면 사양 문제가 아님
@@ -413,12 +416,11 @@ function renderGames() {
   $('#gameWarn').innerHTML = w.join('');
   var tgt = targetFps(opt);
   $('#gameGrid').innerHTML = GAMES.map(function (g) {
-    var j = judge(g, sp, opt), lv = LV[j.level];
-    if (j.level === 'rec' && g.recLabel) lv = ['ok', g.recLabel + ' 충족'];
+    var j = judge(g, sp, opt), lv = levelOf(g, j);
     var fpsHtml = '';
     if (j.fps != null) {
       var fl = fpsLabel(j.fps, tgt, g.fps.cap, g.fightFactor);
-      fpsHtml = '<div class="fps"><b>' + (j.fps >= (g.fps.cap || 9999) ? g.fps.cap + '+' : '약 ' + fmt(j.fps)) + '</b><span class="muted small">fps 예상</span><span class="pill ' + fl[0] + '">' + fl[1] + '</span></div>' +
+      fpsHtml = '<div class="fps"><b>' + fpsText(g, j) + '</b><span class="muted small">fps 예상</span><span class="pill ' + fl[0] + '">' + fl[1] + '</span></div>' +
         (j.bottleneck ? '<div class="xs muted">병목: ' + j.bottleneck + (j.bottleneck === 'CPU' ? ' (그래픽 옵션을 낮춰도 크게 안 오름)' : ' (옵션·해상도를 낮추면 올라감)') + '</div>' : '') +
         (g.fightFactor && j.fps < (g.fps.cap || 1e9) ? '<div class="small">교전 중 예상: 약 ' + fmt(Math.round(j.fps * g.fightFactor)) + 'fps <span class="xs muted">(' + esc(g.fightNote || '') + ')</span></div>' : '') +
         (j.fpsNoCpu ? '<div class="xs muted">CPU 미확인: 그래픽 기준 값</div>' : '') + '<div class="xs muted">fps 근거: ' + (g.fpsBasis ? '공개 측정값으로 보정' : '공개 측정값이 적어 사양 비례 추정') + '</div>';
@@ -1158,7 +1160,7 @@ function renderSummary() {
     '<div class="row"><span class="pill ok">권장 충족 ' + cnt.rec + '개</span><span class="pill warn">최소만 ' + cnt.min + '개</span><span class="pill bad">부족·실행 불가 ' + cnt.fail + '개</span></div>' +
     (pr.length ? '<div class="stack">' + pr.map(function (p) { return '<div class="' + (p.lv === 'bad' ? 'badbox' : p.lv === 'warn' ? 'warnbox' : 'note') + '">' + esc(p.t) + (p.fix ? '<div class="small" style="font-weight:500;margin-top:2px">' + esc(p.fix) + '</div>' : '') + '</div>'; }).join('') + '</div>' : '<div class="okbox">눈에 띄는 문제가 없어요.</div>') +
     '<div class="tblwrap"><table><thead><tr><th>게임</th><th>판정</th><th>예상 fps (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</th></tr></thead><tbody>' +
-    games.map(function (x) { var lv = LV[x.j.level]; var fl = x.j.fps != null ? fpsLabel(x.j.fps, tgt, x.g.fps.cap, x.g.fightFactor) : null; return '<tr><td>' + x.g.rank + '. ' + esc(x.g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (x.j.fps != null ? (x.j.fps >= (x.g.fps.cap || 1e9) ? x.g.fps.cap + '+' : '약 ' + fmt(x.j.fps)) + ' <span class="pill ' + fl[0] + '">' + (fl[0] === 'ok' ? '쾌적' : fl[0] === 'warn' ? '보통' : '버벅임') + '</span>' : '-') + '</td></tr>'; }).join('') +
+    games.map(function (x) { var lv = levelOf(x.g, x.j); var fl = x.j.fps != null ? fpsLabel(x.j.fps, tgt, x.g.fps.cap, x.g.fightFactor) : null; return '<tr><td>' + x.g.rank + '. ' + esc(x.g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (x.j.fps != null ? fpsText(x.g, x.j) + ' <span class="pill ' + fl[0] + '">' + (fl[0] === 'ok' ? '쾌적' : fl[0] === 'warn' ? '보통' : '버벅임') + '</span>' : '-') + '</td></tr>'; }).join('') +
     '</tbody></table></div>' +
     (function () { var cl = chkState(S.dev, S.native), ok = cl.filter(function (x) { return x.st === 'ok'; }).length; return '<div class="note"><b>다음 단계: 장비 체크리스트 ' + ok + '/' + cl.length + '</b> — 모니터 화면·헤드셋 좌우·마우스·키보드는 <a href="#dev" data-goto="dev">장비 테스트</a>에서 눌러 확인하세요. 게이트웨이·외부 핑과 보안 부팅·TPM은 윈도우 점검 프로그램이 필요해요.</div>'; })() + '</div>';
   $('#summary').innerHTML = html;
@@ -1495,7 +1497,7 @@ function seatReportHTML(r) {
   if (r.e.games && r.e.games.length) h += '<div class="h3">실전 게임 테스트</div><ul class="fixlist small">' + r.e.games.slice().reverse().map(function (g) { var ex = gtExpect(g); return '<li><b>' + esc(ex ? ex.game.name : g.app) + '</b> ' + esc(g.time) + ' — ' + (g.fps ? '평균 ' + fmt(g.fps.avg) + 'fps · 1% 최저 ' + fmt(g.fps.low1) + 'fps · 끊김 ' + fmt(g.fps.stutters) + '회' : 'FPS 없음') + (g.gpu.tempMax != null ? ' · 그래픽 최고 ' + g.gpu.tempMax + '°C' : '') + (g.ping.gw ? ' · 게이트웨이 ' + fmt(g.ping.gw.avg, 1) + 'ms' : '') + ' · 병목 ' + esc(g.bottleneck || '-') + '</li>'; }).join('') + '</ul>';
   if (r.e.history && r.e.history.length) h += '<div class="h3">지난 점검과 달라진 점</div><ul class="fixlist small">' + r.e.history.slice().reverse().map(function (x) { return '<li><b>' + esc(x.from) + ' → ' + esc(x.at) + '</b><br>' + x.ch.map(esc).join('<br>') + '</li>'; }).join('') + '</ul>';
   h += r.pr.length ? '<div class="h3">조치할 것</div><ol class="fixlist">' + r.pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : p.lv === 'warn' ? '확인' : '참고') + '</span> <b>' + esc(p.t) + '</b>' + (p.fix ? '<div class="small muted">' + esc(p.fix) + '</div>' : '') + '</li>'; }).join('') + '</ol>' : '<div class="okbox">문제가 없어요.</div>';
-  h += '<div class="h3">게임별 판정 (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</div><div class="tblwrap"><table><tbody>' + GAMES.map(function (g, i) { var j = r.games[i], lv = LV[j.level]; return '<tr><td>' + g.rank + '. ' + esc(g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (j.fps != null ? '약 ' + fmt(j.fps) + 'fps' : '-') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
+  h += '<div class="h3">게임별 판정 (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</div><div class="tblwrap"><table><tbody>' + GAMES.map(function (g, i) { var j = r.games[i], lv = levelOf(g, j); return '<tr><td>' + g.rank + '. ' + esc(g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (j.fps != null ? fpsText(g, j) + 'fps' : '-') + '</td></tr>'; }).join('') + '</tbody></table></div></div>';
   return h;
 }
 function openSeat(key) {
@@ -1619,7 +1621,7 @@ $('#copyRep').addEventListener('click', function () {
   var st = S, sp = spec(), pr = problems();
   var t = ['[PC방 게임 점검] ' + (S.seat ? S.seat + '번 좌석 · ' : '') + new Date().toLocaleString('ko-KR'),
     'CPU: ' + (sp.cpu ? sp.cpu.name : '-') + ' / 그래픽: ' + (sp.gpu ? sp.gpu.name : '-') + ' / RAM: ' + (sp.ram ? sp.ram + 'GB' : sp.ramAtLeast ? sp.ramAtLeast + 'GB 이상' : '-') + ' / 모니터: ' + (sp.hz ? sp.hz + 'Hz' : '-'),
-    '조치할 것: ' + (pr.length ? pr.map(function (p) { return p.t; }).join(' / ') : '없음'), '게임:'].concat(GAMES.map(function (g) { var j = judge(g, sp, S.opt); return ' ' + g.rank + '. ' + g.name + ' — ' + LV[j.level][1] + (j.fps != null ? ' · 약 ' + j.fps + 'fps' : ''); })).join('\n');
+    '조치할 것: ' + (pr.length ? pr.map(function (p) { return p.t; }).join(' / ') : '없음'), '게임:'].concat(GAMES.map(function (g) { var j = judge(g, sp, S.opt); return ' ' + g.rank + '. ' + g.name + ' — ' + levelOf(g, j)[1] + (j.fps != null ? ' · ' + fpsText(g, j) + 'fps' : ''); })).join('\n');
   (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('복사했어요'); }, function () { prompt('아래 글을 복사하세요', t); });
 });
 $('#seatIn').addEventListener('change', function () { S.seat = this.value.trim(); save(); seatPill(); });
@@ -1816,5 +1818,5 @@ var h = (location.hash || '').slice(1);
 if (h && $('[data-panel="' + h + '"]')) showTab(h);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('../sw.js').catch(function () {});
 // 테스트·디버그용
-window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, fixSearch: fixSearch, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
+window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
 })();

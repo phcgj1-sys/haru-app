@@ -151,6 +151,9 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   const fx = await page.evaluate(() => { const t = q => (window.__pcbang.fixSearch(q)[0] || {}).t || ''; return { pubg: t('pubg'), ow: t('overwatch'), on: t('안켜짐'), snd: t('소리 안나요'), fr: t('배그 프레임'), van: t('van9003'), v81: t('VAN81') }; });
   ok(/BattlEye/.test(fx.pubg) && /배틀넷/.test(fx.ow) && /실행|시작/.test(fx.on) && /헤드셋/.test(fx.snd) && /프레임/.test(fx.fr) && /9003/.test(fx.van) && /-81/.test(fx.v81), '문제 해결 검색: 영어 게임 이름·일상 표현·게임+증상 (' + Object.values(fx).map(x => x.slice(0, 8)).join(' / ') + ')');
 
+  const lab = await page.evaluate(() => { const P = window.__pcbang, G = window.GAMES; const val = G.find(g => g.id === 'val'), sa = G.find(g => g.id === 'sa'); return [P.levelOf(val, { level: 'rec' })[1], P.fpsText(sa, { fps: 200 }), P.fpsText(sa, { fps: 150 })]; });
+  ok(/고사양/.test(lab[0]) && lab[1] === '200+' && lab[2] === '약 150', '판정 문구 공용: 발로란트 고사양 충족·서든 200+ (' + lab.join(' / ') + ')');
+
   // 7. 웹 결과 파일 이름이 점검 프로그램 결과(seat-23.txt)와 겹치지 않음
   const ctx2 = await browser.newContext({ acceptDownloads: true }); const p3 = await ctx2.newPage();
   p3.on('pageerror', e => errs.push(e.message));
