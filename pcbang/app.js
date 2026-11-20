@@ -1297,7 +1297,9 @@ function addToShop(items, fileSeat) {
     var comp = n && n.data.computer ? String(n.data.computer).trim().toUpperCase().slice(0, 40) : '';
     if (!seat && !comp && fileSeat && /^\d{1,4}$/.test(fileSeat)) seat = normSeat(fileSeat);
     // 좌석·PC 이름이 모두 없으면 측정 시각+부품으로 고정 키(같은 파일을 다시 넣어도 중복 안 됨)
-    var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : 'x:' + String((w && w.data.at) || (n && n.data.time) || '') + ':' + String((w && w.data.det && w.data.det.renderer) || (n && n.data.cpu) || '').slice(0, 40);
+    // 좌석·PC 이름이 모두 없으면 그 PC를 나타내는 바뀌지 않는 값(브라우저가 본 그래픽·스레드·메모리)으로 키를 만듦 → 같은 PC를 다시 넣어도 줄이 늘지 않음
+    var fp = w ? [w.data.det && w.data.det.renderer, w.data.det && w.data.det.threads, w.data.det && w.data.det.memGB].map(function (x) { return x == null ? '' : String(x); }).join('|') : String(n && n.data.cpu || '') + '|' + String(n && n.data.time || '');
+    var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : 'x:' + fp.slice(0, 120);
     var e = Object.prototype.hasOwnProperty.call(shop, key) ? shop[key] : { key: key, seat: seat, computer: '', at: 0 };
     if (n) {
       if (e.native && e.native.time !== n.data.time) { var ch = diffNative(e.native, n.data); if (ch.length) { e.history = (e.history || []).concat([{ at: n.data.time || '', from: e.native.time || '', ch: ch }]).slice(-10); } }
@@ -1483,7 +1485,7 @@ $('#shopFile').addEventListener('change', function () { var f = Array.prototype.
 })();
 $('#shopAddThis').addEventListener('click', function () {
   if (!S.bench.cpuSingle && !S.bench.gpu && !S.dev.hzInfo && !S.native && !Object.keys(S.dev.chk || {}).length && !S.net) { toast('먼저 점검 시작이나 장비 테스트를 하세요'); return; }
-  addToShop(parseCodes(seatCodes())); toast('이 PC 결과를 매장 현황에 넣었어요'); renderShop();
+  addToShop(parseCodes(seatCodes())); toast(S.seat ? S.seat + '번 좌석 결과를 매장 현황에 넣었어요' : '넣었어요. 점검 시작 탭에서 좌석 번호를 정하면 좌석별로 구분돼요'); renderShop();
 });
 $('#shopFilter').addEventListener('change', function () { shopFilter = this.value; renderShop(); });
 $('#shopSort').addEventListener('change', function () { shopSort = this.value; renderShop(); });
