@@ -25,7 +25,7 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
       g1: g('ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002504) Direct3D11 vs_5_0 ps_5_0, D3D11)'),
       g2: g('ANGLE (NVIDIA, NVIDIA GeForce GTX 1060 3GB Direct3D11 vs_5_0 ps_5_0, D3D11)'),
       g3: g('NVIDIA GeForce GTX 680M'), g4: g('AMD Radeon 780M Graphics'), g5: g('NVIDIA GeForce RTX 3050 6GB'),
-      c1: c('Intel(R) Core(TM) i7-14700F'), c2: c('AMD Ryzen 7 7800X3D 8-Core Processor'), c3: c('12th Gen Intel(R) Core(TM) i7-12700H'), c4: c('AMD Ryzen 7 5800H with Radeon Graphics')
+      c1: c('Intel(R) Core(TM) i7-14700F'), c2: c('AMD Ryzen 7 7800X3D 8-Core Processor'), c3: c('12th Gen Intel(R) Core(TM) i7-12700H'), c4: c('AMD Ryzen 7 5800H with Radeon Graphics'), c5: c('AMD Ryzen 9 9950X3D 16-Core Processor'), c6: c('Intel(R) Core(TM) Ultra 7 265F')
     };
   });
   ok(m.g1 === 'RTX 3060', '그래픽: ANGLE 문자열 → RTX 3060');
@@ -37,6 +37,8 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   ok(m.c2 === 'Ryzen 7 7800X3D', 'CPU: 7800X3D');
   ok(m.c3 === 'i7-12700H', 'CPU: 노트북 i7-12700H 가 데스크톱으로 잡히지 않음');
   ok(m.c4 === 'Ryzen 7 5800H', 'CPU: 노트북 5800H');
+  ok(m.c5 === 'Ryzen 9 9950X3D', 'CPU: 9950X3D 가 9950X 로 잡히지 않음(X3D 보정 유지)');
+  ok(m.c6 === 'Core Ultra 7 265', 'CPU: Ultra 7 265F 가 265K 로 잡히지 않음');
 
   // 1-2. 윈도우 장치 이름·시리즈 이름·새 모델·펜티엄
   const m2 = await page.evaluate(() => {
