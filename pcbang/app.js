@@ -486,6 +486,7 @@ function renderSpec() {
 }
 // 점검 프로그램이 읽은 장치 정보 (내 사양 탭·좌석 보고서 공용)
 function devKv(nat, kv) {
+  if (nat.board) kv('· 메인보드', esc(nat.board));
   if (nat.computer || nat.seat) kv('· PC 이름', esc(nat.computer || '-') + (nat.seat ? ' (좌석 ' + esc(nat.seat) + ')' : ''));
   if (nat.displays && nat.displays.length) kv('· 모니터', nat.displays.map(function (d) { return esc(d.name || '모니터') + ' ' + esc(d.res) + ' ' + (d.hz || '-') + 'Hz' + (d.maxHz ? ' / 최대 ' + d.maxHz + 'Hz' : '') + (d.primary ? ' (주 모니터)' : ''); }).join('<br>'));
   else if (nat.monitors && nat.monitors.length) kv('· 모니터', nat.monitors.map(esc).join(', ') + (nat.monitorMaxHz ? ' · 최대 ' + nat.monitorMaxHz + 'Hz' : ''));
@@ -535,7 +536,7 @@ function sanitizeNative(o) {
   var num = function (v) { var n = +v; return v == null || v === '' || !isFinite(n) ? null : n; };
   var str = function (v) { return v == null ? null : String(v).slice(0, 200); };
   ['cores', 'threads', 'ramGB', 'ramSpeed', 'ramSticks', 'hz', 'osBuild', 'cpuMHz', 'cpuLoad', 'uptimeH', 'monitorMaxHz', 'ramRated', 'memUsedPct', 'sysFreePct', 'mouseSens', 'v'].forEach(function (k) { if (k in o) o[k] = num(o[k]); });
-  ['cpu', 'os', 'osName', 'power', 'adapter', 'time', 'secureBoot', 'tpm', 'computer', 'disklessWhy', 'hvci', 'vgc', 'vgk', 'wuService', 'gameMode', 'hags', 'diskTypes'].forEach(function (k) { if (k in o) o[k] = str(o[k]); });
+  ['cpu', 'board', 'os', 'osName', 'power', 'adapter', 'time', 'secureBoot', 'tpm', 'computer', 'disklessWhy', 'hvci', 'vgc', 'vgk', 'wuService', 'gameMode', 'hags', 'diskTypes'].forEach(function (k) { if (k in o) o[k] = str(o[k]); });
   if ('seat' in o) o.seat = o.seat == null ? null : String(o.seat).slice(0, 20);
   ['ramXmpOff', 'lowDisk', 'diskless', 'rebootPending', 'mouseAccel'].forEach(function (k) { if (k in o) o[k] = o[k] === true; });
   var strArr = function (a) { return (Array.isArray(a) ? a : a == null ? [] : [a]).slice(0, 20).map(str).filter(Boolean); };
@@ -552,7 +553,7 @@ function sanitizeNative(o) {
   o.tcp = arr(o.tcp).map(function (t) { return { name: str(t.name), host: str(t.host), port: num(t.port), ok: t.ok === true, n: num(t.n) || 0, fail: num(t.fail) || 0, avg: num(t.avg), min: num(t.min) }; });
   // 배열은 길이를 제한(저장 공간 보호)
   [['pings', 20], ['tcp', 20], ['disks', 20], ['gpus', 8], ['physDisks', 12], ['displays', 6]].forEach(function (x) { o[x[0]] = (Array.isArray(o[x[0]]) ? o[x[0]] : []).slice(0, x[1]); });
-  var KEEP = ['v', 'seat', 'computer', 'time', 'cpu', 'cores', 'threads', 'cpuMHz', 'cpuLoad', 'gpus', 'gpuLive', 'hz', 'monitorMaxHz', 'displays', 'monitors', 'ramGB', 'ramSpeed', 'ramSticks', 'ramRated', 'ramXmpOff', 'memUsedPct', 'os', 'osBuild', 'osName', 'uptimeH', 'power', 'secureBoot', 'tpm', 'disks', 'diskTypes', 'physDisks', 'diskless', 'disklessWhy', 'sysFreePct', 'lowDisk', 'adapter', 'pings', 'tcp', 'hvci', 'vgc', 'vgk', 'wuService', 'rebootPending', 'gameMode', 'hags', 'mouseAccel', 'mouseSens', 'mice', 'keyboards', 'audio', 'topProcs', 'warns'];
+  var KEEP = ['v', 'seat', 'computer', 'time', 'cpu', 'board', 'cores', 'threads', 'cpuMHz', 'cpuLoad', 'gpus', 'gpuLive', 'hz', 'monitorMaxHz', 'displays', 'monitors', 'ramGB', 'ramSpeed', 'ramSticks', 'ramRated', 'ramXmpOff', 'memUsedPct', 'os', 'osBuild', 'osName', 'uptimeH', 'power', 'secureBoot', 'tpm', 'disks', 'diskTypes', 'physDisks', 'diskless', 'disklessWhy', 'sysFreePct', 'lowDisk', 'adapter', 'pings', 'tcp', 'hvci', 'vgc', 'vgk', 'wuService', 'rebootPending', 'gameMode', 'hags', 'mouseAccel', 'mouseSens', 'mice', 'keyboards', 'audio', 'topProcs', 'warns'];
   var out = {}; KEEP.forEach(function (k) { if (o[k] !== undefined) out[k] = o[k]; });
   return out;
 }
@@ -1103,6 +1104,7 @@ function problems(st) {
   if (nat.os === 'win11' && /없음/.test(nat.tpm || '')) add('tpm', 'bad', 'TPM 2.0 없음/꺼짐 — 발로란트 실행 불가(VAN9001)', 'BIOS에서 인텔은 PTT, AMD는 fTPM을 켜세요.', 'TPM 꺼짐');
   if (nat.osBuild && nat.osBuild < 19041) add('build', 'bad', 'Windows 10 빌드 ' + nat.osBuild + ' — 롤·발로란트 실행 불가(VAN 9004)', '윈도우 업데이트로 최신 버전(22H2 이상)으로 올리세요.', '윈도우 구버전');
   if (nat.os === 'win10-32') add('os32', 'bad', '32비트 윈도우', '인기 게임은 모두 64비트 전용이에요. 64비트 윈도우를 새로 설치해야 해요.', '32비트 윈도우');
+  if (nat.cpu && nat.board && /i[579]-1[234]\d{3}f?\b/i.test(nat.cpu) && !/i[579]-1[234]\d{3}kf?\b/i.test(nat.cpu) && /\b[bh][67]\d0/i.test(nat.board)) add('pl1', 'info', 'K 없는 인텔 CPU + ' + nat.board.replace(/^.*?\b([BH][67]\d0)/i, '$1') + ' 보드: 장기 전력(PL1)이 65W로 묶였을 수 있어요', 'HWiNFO의 "CPU 전력 제한 PL1"이 65W면 BIOS(ASUS: Ai Tweaker → Internal CPU Power Management → Long Duration Package Power Limit)에서 쿨러에 맞게 95~150W로 올리세요. 실전 테스트의 "CPU 클럭 저하"로도 확인할 수 있어요.', 'PL1 65W 의심');
   if (nat.ramXmpOff) add('xmp', 'warn', '램이 정격 속도보다 느리게 동작 (XMP/EXPO 꺼짐 의심)', 'BIOS에서 XMP(인텔)/EXPO(AMD) 프로필을 켜면 CPU 병목 게임(롤·발로란트·서든)의 프레임이 올라요.', 'XMP 꺼짐');
   // DDR5 기본 속도(4800 이하)인데 그래픽이 강하면 CPU 병목 게임(배그 교전·롤·발로란트)에서 램 속도가 1% 최저 프레임을 깎음
   else if (nat.ramSpeed >= 4000 && nat.ramSpeed <= 4800 && sp.gpu && sp.gpu.score >= 20000) add('ram48', 'info', '램이 DDR5-' + nat.ramSpeed + '(기본 속도)로 동작', '그래픽이 강한 PC는 교전처럼 CPU 부담이 큰 장면에서 램 속도가 1% 최저 프레임을 깎아요. 램이 6000 지원이면 BIOS에서 XMP를 켜고, 4800 램이면 DDR5-6000 CL30~32로 바꾸는 걸 검토하세요.', 'DDR5 기본 속도');

@@ -176,6 +176,9 @@ try {
   if ($top.Count) { Say ("      CPU 사용 상위: {0}" -f (($top | ForEach-Object { "{0} {1}%" -f $_.name, $_.pct }) -join ', ')) }
 } catch {}
 
+# 메인보드 모델(전원 제한 기본값이 보드 칩셋에 따라 다름)
+try { $bb = Get-CimInstance Win32_BaseBoard -OperationTimeoutSec 5 | Select-Object -First 1; if ($bb) { $result.board = (('{0} {1}' -f $bb.Manufacturer, $bb.Product) -replace '\s+', ' ').Trim(); Say ('      메인보드: {0}' -f $result.board) } } catch {}
+
 # ---------- 그래픽 ----------
 Say '[2/9] 그래픽카드 확인' Yellow
 $gpus = @()
@@ -756,6 +759,8 @@ try {
     else { [void]$oks.Add(("그래픽카드 온도 {0}도" -f $gpuLive.tempC)) }
   }
   # 마우스 가속
+  # K 없는 인텔 12~14세대 + B·H 칩셋 보드: 장기 전력(PL1)이 65W로 묶이는 경우가 많음(사용자 PC에서 확인된 원인)
+  if ($result.cpu -match 'i[579]-1[234]\d{3}F?\b' -and $result.cpu -notmatch 'i[579]-1[234]\d{3}KF?\b' -and $result.board -match '\b[BH][67]\d0') { [void]$warns.Add('K 없는 인텔 CPU + B/H 보드: 장기 전력 제한(PL1)이 65W로 묶였을 수 있어요 - HWiNFO로 PL1 확인, 65W면 BIOS에서 95~150W로') }
   if ($result.mouseAccel -eq $true) { [void]$warns.Add('마우스: 향상된 포인터 정밀도 켜짐 (FPS 게임은 끄는 게 좋아요)') }
   elseif ($result.mouseAccel -eq $false) { [void]$oks.Add('마우스 가속 꺼짐') }
   # 메모리 사용량
