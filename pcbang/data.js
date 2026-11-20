@@ -10,7 +10,7 @@ window.GAMES = [
     min: { os: 'win10', cpu: ['i3-530', 'A6-3650'], gpu: ['Intel HD 4600', 'HD 6570', 'GT 430'], ram: 2, vram: 1, storage: '16GB' },
     rec: { os: 'win11', cpu: ['i5-3300', 'Ryzen 3 1200'], gpu: ['GTX 560', 'HD 6950', 'Intel UHD 630'], ram: 4, vram: 2, storage: '16GB SSD' },
     fpsBasis: '실측 보정', fps: { e: 0.45, g3060: 420, c12400: 400, cap: null },
-    checks: ['라이엇 뱅가드(커널 안티치트) 필요 · Windows 10 빌드 19041 이상', 'DirectX 11 기능 수준 11_0 필수(DX9 지원 종료, 부족하면 플레이 버튼이 비활성) · CPU가 SSE4.2를 지원해야 함'],
+    checks: ['라이엇 뱅가드(커널 안티치트) 필요 · Windows 10 빌드 19041 이상 · Windows 11은 TPM 2.0과 보안 부팅이 켜져 있어야 함(VAN9001/9003)', 'DirectX 11 기능 수준 11_0 필수(DX9 지원 종료, 부족하면 플레이 버튼이 비활성) · CPU가 SSE4.2를 지원해야 함'],
     src: 'support.riotgames.com 최소·권장 사양' },
   { id: 'val', rank: 2, name: '발로란트', short: '발로란트', share: '10.2%',
     min: { os: 'win10', cpu: ['Core 2 Duo E8400', 'Athlon 200GE'], gpu: ['Intel HD 4000', 'R5 230'], ram: 4, vram: 1, storage: '약 50GB' },

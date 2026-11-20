@@ -71,7 +71,7 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   });
   ok(j.every(x => x[1] === 'rec'), '판정: RTX 3060 + i5-12400 + 16GB 는 10개 게임 모두 권장 충족');
   ok(j.find(x => x[0] === 'pubg')[2] === 'fail', '판정: UHD 630 + 8GB 는 배그 사양 부족');
-  ok(j.find(x => x[0] === 'val')[3] === 'block', '판정: Win11 보안 부팅 꺼짐 → 발로란트 설정 때문에 실행 불가');
+  ok(j.find(x => x[0] === 'val')[3] === 'block' && j.find(x => x[0] === 'lol')[3] === 'block' && j.find(x => x[0] === 'pubg')[3] === 'rec', '판정: Win11 보안 부팅 꺼짐 → 롤·발로란트만 설정 때문에 실행 불가(배그는 그대로)');
   ok(j.every(x => typeof x[4] === 'number' && x[4] > 0), '판정: 모든 게임 예상 FPS 숫자');
 
   // 3. 점검 프로그램 결과 붙여넣기(악성 HTML 차단 포함)

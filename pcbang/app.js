@@ -348,7 +348,8 @@ function judge(game, sp, opt) {
   }
   // 발로란트: Windows 11에서는 TPM 2.0 + 보안 부팅이 꺼져 있으면 실행 안 됨
   var nat = sp.nat || {};
-  if (game.id === 'val' && sp.os === 'win11') {
+  // 롤·발로란트(라이엇 뱅가드): Windows 11 에서는 TPM 2.0 + 보안 부팅이 켜져 있어야 실행됨
+  if ((game.id === 'val' || game.id === 'lol') && sp.os === 'win11') {
     if (/꺼짐/.test(nat.secureBoot || '')) r.issues.push({ l: 'fail', t: '보안 부팅(Secure Boot)이 꺼져 있어 실행 안 됨(VAN9003) — BIOS에서 켜야 함' });
     if (/없음/.test(nat.tpm || '')) r.issues.push({ l: 'fail', t: 'TPM 2.0이 없거나 꺼져 있어 실행 안 됨(VAN9001) — BIOS에서 fTPM/PTT 켜기' });
   }
@@ -1100,8 +1101,8 @@ function problems(st) {
     var lm = nat.adapter.match(/(\d+)\s*Mbps/); if (lm && +lm[1] > 0 && +lm[1] < 1000) add('link', 'warn', '랜 연결 속도 ' + lm[1] + 'Mbps', '1Gbps가 아니에요. 랜선(8가닥 모두 연결된 Cat5e 이상)과 허브 포트를 확인하세요.', '랜 ' + lm[1] + 'Mbps');
   }
   if (nat.power && !/고성능|최고/.test(nat.power)) add('power', 'warn', '전원 관리 옵션: ' + nat.power, '제어판 → 전원 옵션 → 고성능을 고르세요. 명령 프롬프트: powercfg /setactive SCHEME_MIN', '전원 ' + nat.power);
-  if (nat.os === 'win11' && /꺼짐/.test(nat.secureBoot || '')) add('sb', 'bad', '보안 부팅 꺼짐 — 발로란트 실행 불가(VAN9003)', 'BIOS(부팅 때 Del/F2) → Boot → Secure Boot 켜기. CSM이 켜져 있으면 끄고 UEFI 모드로 바꿔야 해요.', '보안 부팅 꺼짐');
-  if (nat.os === 'win11' && /없음/.test(nat.tpm || '')) add('tpm', 'bad', 'TPM 2.0 없음/꺼짐 — 발로란트 실행 불가(VAN9001)', 'BIOS에서 인텔은 PTT, AMD는 fTPM을 켜세요.', 'TPM 꺼짐');
+  if (nat.os === 'win11' && /꺼짐/.test(nat.secureBoot || '')) add('sb', 'bad', '보안 부팅 꺼짐 — 롤·발로란트 실행 불가(VAN9003)', 'BIOS(부팅 때 Del/F2) → Boot → Secure Boot 켜기. CSM이 켜져 있으면 끄고 UEFI 모드로 바꿔야 해요.', '보안 부팅 꺼짐');
+  if (nat.os === 'win11' && /없음/.test(nat.tpm || '')) add('tpm', 'bad', 'TPM 2.0 없음/꺼짐 — 롤·발로란트 실행 불가(VAN9001)', 'BIOS에서 인텔은 PTT, AMD는 fTPM을 켜세요.', 'TPM 꺼짐');
   if (nat.osBuild && nat.osBuild < 19041) add('build', 'bad', 'Windows 10 빌드 ' + nat.osBuild + ' — 롤·발로란트 실행 불가(VAN 9004)', '윈도우 업데이트로 최신 버전(22H2 이상)으로 올리세요.', '윈도우 구버전');
   if (nat.os === 'win10-32') add('os32', 'bad', '32비트 윈도우', '인기 게임은 모두 64비트 전용이에요. 64비트 윈도우를 새로 설치해야 해요.', '32비트 윈도우');
   if (nat.cpu && nat.board && /i[579]-1[234]\d{3}f?\b/i.test(nat.cpu) && !/i[579]-1[234]\d{3}kf?\b/i.test(nat.cpu) && /\b[bh][67]\d0/i.test(nat.board)) add('pl1', 'info', 'K 없는 인텔 CPU + ' + nat.board.replace(/^.*?\b([BH][67]\d0)/i, '$1') + ' 보드: 장기 전력(PL1)이 65W로 묶였을 수 있어요', 'HWiNFO의 "CPU 전력 제한 PL1"이 65W면 BIOS(ASUS: Ai Tweaker → Internal CPU Power Management → Long Duration Package Power Limit)에서 쿨러에 맞게 95~150W로 올리세요. 실전 테스트의 "CPU 클럭 저하"로도 확인할 수 있어요.', 'PL1 65W 의심');
