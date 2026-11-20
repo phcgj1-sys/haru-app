@@ -1517,7 +1517,7 @@ $('#codeSave').addEventListener('click', function () {
 $('#copyRep').addEventListener('click', function () {
   var st = S, sp = spec(), pr = problems();
   var t = ['[PC방 게임 점검] ' + (S.seat ? S.seat + '번 좌석 · ' : '') + new Date().toLocaleString('ko-KR'),
-    'CPU: ' + (sp.cpu ? sp.cpu.name : '-') + ' / 그래픽: ' + (sp.gpu ? sp.gpu.name : '-') + ' / RAM: ' + (sp.ram || sp.ramAtLeast || '-') + 'GB / 모니터: ' + (sp.hz || '-') + 'Hz',
+    'CPU: ' + (sp.cpu ? sp.cpu.name : '-') + ' / 그래픽: ' + (sp.gpu ? sp.gpu.name : '-') + ' / RAM: ' + (sp.ram ? sp.ram + 'GB' : sp.ramAtLeast ? sp.ramAtLeast + 'GB 이상' : '-') + ' / 모니터: ' + (sp.hz ? sp.hz + 'Hz' : '-'),
     '조치할 것: ' + (pr.length ? pr.map(function (p) { return p.t; }).join(' / ') : '없음'), '게임:'].concat(GAMES.map(function (g) { var j = judge(g, sp, S.opt); return ' ' + g.rank + '. ' + g.name + ' — ' + LV[j.level][1] + (j.fps != null ? ' · 약 ' + j.fps + 'fps' : ''); })).join('\n');
   (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('복사했어요'); }, function () { prompt('아래 글을 복사하세요', t); });
 });
