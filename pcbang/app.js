@@ -1104,6 +1104,8 @@ function problems(st) {
   if (nat.osBuild && nat.osBuild < 19041) add('build', 'bad', 'Windows 10 빌드 ' + nat.osBuild + ' — 롤·발로란트 실행 불가(VAN 9004)', '윈도우 업데이트로 최신 버전(22H2 이상)으로 올리세요.', '윈도우 구버전');
   if (nat.os === 'win10-32') add('os32', 'bad', '32비트 윈도우', '인기 게임은 모두 64비트 전용이에요. 64비트 윈도우를 새로 설치해야 해요.', '32비트 윈도우');
   if (nat.ramXmpOff) add('xmp', 'warn', '램이 정격 속도보다 느리게 동작 (XMP/EXPO 꺼짐 의심)', 'BIOS에서 XMP(인텔)/EXPO(AMD) 프로필을 켜면 CPU 병목 게임(롤·발로란트·서든)의 프레임이 올라요.', 'XMP 꺼짐');
+  // DDR5 기본 속도(4800 이하)인데 그래픽이 강하면 CPU 병목 게임(배그 교전·롤·발로란트)에서 램 속도가 1% 최저 프레임을 깎음
+  else if (nat.ramSpeed >= 4000 && nat.ramSpeed <= 4800 && sp.gpu && sp.gpu.score >= 20000) add('ram48', 'info', '램이 DDR5-' + nat.ramSpeed + '(기본 속도)로 동작', '그래픽이 강한 PC는 교전처럼 CPU 부담이 큰 장면에서 램 속도가 1% 최저 프레임을 깎아요. 램이 6000 지원이면 BIOS에서 XMP를 켜고, 4800 램이면 DDR5-6000 CL30~32로 바꾸는 걸 검토하세요.', 'DDR5 기본 속도');
   if (nat.rebootPending) add('reboot', 'warn', '재부팅 대기 중인 업데이트가 있음', '영업 전 재부팅하세요. 게임 중 업데이트 재시작을 막을 수 있어요.', '재부팅 필요');
   var now = Date.now();
   // 드라이버 날짜는 실제로 게임에 쓰는 주 그래픽(점수가 가장 높은 실물 그래픽)만 봄 — 안 쓰는 내장 그래픽 드라이버는 무시
