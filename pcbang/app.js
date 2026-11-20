@@ -1537,7 +1537,8 @@ function gtProblems(g) {
   if (g.gpu.tempMax >= 85) out.push({ id: 'gt-hot', lv: 'bad', t: '게임 중 그래픽 ' + g.gpu.tempMax + '°C', short: '게임 중 과열', fix: '먼지 청소, 그래픽카드·케이스 팬 확인, 서멀 재도포.' });
   if (g.gpu.clockStart && g.gpu.clockEnd && g.gpu.clockEnd < g.gpu.clockStart * 0.9 && g.gpu.tempMax >= 80) out.push({ id: 'gt-thr', lv: 'bad', t: '발열로 그래픽 클럭 저하(' + g.gpu.clockStart + '→' + g.gpu.clockEnd + 'MHz)', short: '스로틀링', fix: '냉각을 개선해야 해요. 먼지·팬·서멀 확인.' });
   if (g.ping.gw && (g.ping.gw.loss > 0 || g.ping.gw.avg > 3)) out.push({ id: 'gt-gw', lv: 'bad', t: '게임 중 게이트웨이 핑 이상 (평균 ' + g.ping.gw.avg + 'ms, 손실 ' + g.ping.gw.loss + '%)', short: '게임 중 내부망', fix: '랜선·허브 포트·랜카드를 확인하세요.' });
-  if (g.ping.ext && (g.ping.ext.loss >= 2 || g.ping.ext.spikes >= 3)) out.push({ id: 'gt-ext', lv: 'warn', t: '게임 중 외부 핑 불안정 (손실 ' + g.ping.ext.loss + '%, 튐 ' + g.ping.ext.spikes + '회)', short: '게임 중 핑 튐', fix: '매장 다른 PC의 대용량 다운로드(패치) 여부, 통신사 회선을 확인하세요.' });
+  if (g.ping.ext && g.ping.ext.loss >= 100) out.push({ id: 'gt-extnone', lv: 'warn', t: '게임 중 외부(KT DNS) 핑 응답 없음', short: '외부 핑 응답 없음', fix: '매장 방화벽이 핑(ICMP)을 막았거나 인터넷이 끊긴 상태예요. 게임이 정상이었다면 핑 차단이니 무시해도 돼요.' });
+  else if (g.ping.ext && (g.ping.ext.loss >= 2 || g.ping.ext.spikes >= 3)) out.push({ id: 'gt-ext', lv: 'warn', t: '게임 중 외부 핑 불안정 (손실 ' + g.ping.ext.loss + '%' + (g.ping.ext.spikes != null ? ', 튐 ' + g.ping.ext.spikes + '회' : '') + ')', short: '게임 중 핑 튐', fix: '매장 다른 PC의 대용량 다운로드(패치) 여부, 통신사 회선을 확인하세요.' });
   if (g.mem.max >= 90) out.push({ id: 'gt-mem', lv: 'warn', t: '게임 중 메모리 ' + g.mem.max + '%', short: '게임 중 램 부족', fix: '램 증설 또는 백그라운드 프로그램 정리.' });
   return out;
 }
@@ -1598,16 +1599,19 @@ function renderGameDetail() {
   var ps = function (lab, x, host) { return x ? '<tr><td>' + lab + (host ? '<div class="xs muted mono">' + esc(host) + '</div>' : '') + '</td><td class="num">' + fmt(x.avg, 1) + 'ms</td><td class="num">' + fmt(x.max) + 'ms</td><td class="num">' + fmt(x.jitter, 1) + 'ms</td><td class="num">' + fmt(x.loss, 1) + '%</td><td class="num">' + fmt(x.spikes) + '</td></tr>' : ''; };
   var pt = ps('게이트웨이', g.ping.gw, g.ping.gwHost) + ps('외부(KT DNS)', g.ping.ext, g.ping.extHost) + ps('게임 서버', g.ping.gs, g.ping.gsHost);
   if (pt) h += '<div class="tblwrap"><table><thead><tr><th>게임 중 핑</th><th>평균</th><th>최대</th><th>지터</th><th>손실</th><th>튐</th></tr></thead><tbody>' + pt + '</tbody></table></div>';
-  h += pr.length ? '<ol class="fixlist">' + pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : '확인') + '</span> <b>' + esc(p.t) + '</b><div class="small muted">' + esc(p.fix) + '</div></li>'; }).join('') + '</ol>' : '<div class="okbox">게임 중 문제가 없었어요.</div>';
-  h += '<div class="stack"><div class="h3">초당 FPS</div><canvas class="gtc" id="gtcFps"></canvas><div class="h3">그 초에서 가장 긴 프레임(ms) — 튀는 곳이 끊김</div><canvas class="gtc" id="gtcFt"></canvas><div class="h3">사용률 (CPU 파랑 · 바쁜 코어 보라 · 그래픽 초록 · 메모리 회색)</div><canvas class="gtc" id="gtcUse"></canvas>' + (g.tl.temp.length ? '<div class="h3">그래픽 온도</div><canvas class="gtc" id="gtcTemp"></canvas>' : '') + '<div class="h3">핑 (게이트웨이 주황 · 외부 파랑, 빨간 줄 = 손실)</div><canvas class="gtc" id="gtcPing"></canvas></div>';
+  h += pr.length ? '<ol class="fixlist">' + pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : '확인') + '</span> <b>' + esc(p.t) + '</b><div class="small muted">' + esc(p.fix) + '</div></li>'; }).join('') + '</ol>' : (!g.fps && g.cpu.avg == null && g.gpu.utilAvg == null ? '<div class="warnbox">측정값이 거의 없어 판단할 수 없어요. game-test.bat을 관리자 권한으로 다시 실행하세요.</div>' : '<div class="okbox">게임 중 문제가 없었어요.</div>');
+  // 값이 있는 그래프만 그림
+  var has = function (a) { return a.some(function (v) { return v != null; }); };
+  var showFps = has(g.tl.fps), showFt = has(g.tl.ftMax), showUse = has(g.tl.cpu) || has(g.tl.gpu) || has(g.tl.mem), showTemp = has(g.tl.temp), showPing = has(g.tl.gw) || has(g.tl.ext);
+  h += '<div class="stack">' + (showFps ? '<div class="h3">초당 FPS</div><canvas class="gtc" id="gtcFps"></canvas>' : '') + (showFt ? '<div class="h3">그 초에서 가장 긴 프레임(ms) — 튀는 곳이 끊김</div><canvas class="gtc" id="gtcFt"></canvas>' : '') + (showUse ? '<div class="h3">사용률 (CPU 파랑 · 바쁜 코어 보라 · 그래픽 초록 · 메모리 회색)</div><canvas class="gtc" id="gtcUse"></canvas>' : '') + (showTemp ? '<div class="h3">그래픽 온도</div><canvas class="gtc" id="gtcTemp"></canvas>' : '') + (showPing ? '<div class="h3">핑 (게이트웨이 주황 · 외부 파랑, 빨간 줄 = 손실)</div><canvas class="gtc" id="gtcPing"></canvas>' : '') + (!showFps && !showUse && !showPing ? '<p class="small muted">기록된 시간별 값이 없어요.</p>' : '') + '</div>';
   h += '<div class="row noprint"><button class="btn sm" type="button" id="gtToShop">매장 현황 좌석에 붙이기</button><button class="btn sm" type="button" id="gtDel">이 기록 지우기</button></div></div>';
   box.innerHTML = h;
   var C = { blue: '#3B82F6', purple: '#8B5CF6', green: cssVar('--ok'), gray: '#9CA3AF', orange: '#F59E0B', red: cssVar('--bad') };
-  if (g.tl.fps.length) drawChart($('#gtcFps'), [{ data: g.tl.fps, color: C.green }], { ref: g.hz || null, refLabel: g.hz ? '모니터 ' + g.hz + 'Hz' : '' });
-  if (g.tl.ftMax.length) drawChart($('#gtcFt'), [{ data: g.tl.ftMax, color: C.orange }], { unit: '', ref: 33.3, refLabel: '33ms(30fps)' });
-  drawChart($('#gtcUse'), [{ data: g.tl.cpu, color: C.blue }, { data: g.tl.core, color: C.purple }, { data: g.tl.gpu, color: C.green }, { data: g.tl.mem, color: C.gray }], { max: 100, unit: '%' });
-  if (g.tl.temp.length) drawChart($('#gtcTemp'), [{ data: g.tl.temp, color: C.red }], { unit: '°', ref: 85, refLabel: '85°C' });
-  drawChart($('#gtcPing'), [{ data: g.tl.gw, color: C.orange }, { data: g.tl.ext, color: C.blue }], { unit: 'ms' });
+  if (showFps) drawChart($('#gtcFps'), [{ data: g.tl.fps, color: C.green }], { ref: g.hz || null, refLabel: g.hz ? '모니터 ' + g.hz + 'Hz' : '' });
+  if (showFt) drawChart($('#gtcFt'), [{ data: g.tl.ftMax, color: C.orange }], { unit: '', ref: 33.3, refLabel: '33ms(30fps)' });
+  if (showUse) drawChart($('#gtcUse'), [{ data: g.tl.cpu, color: C.blue }, { data: g.tl.core, color: C.purple }, { data: g.tl.gpu, color: C.green }, { data: g.tl.mem, color: C.gray }], { max: 100, unit: '%' });
+  if (showTemp) drawChart($('#gtcTemp'), [{ data: g.tl.temp, color: C.red }], { unit: '°', ref: 85, refLabel: '85°C' });
+  if (showPing) drawChart($('#gtcPing'), [{ data: g.tl.gw, color: C.orange }, { data: g.tl.ext, color: C.blue }], { unit: 'ms' });
   $('#gtDel').addEventListener('click', function () { if (!confirm('이 실전 테스트 기록을 지울까요?')) return; gtests.splice(gtSel, 1); store.set(GT_KEY, gtests); gtSel = gtests.length ? 0 : null; renderGameTests(); });
   $('#gtToShop').addEventListener('click', function () {
     var seat = normSeat(g.seat), comp = g.computer ? g.computer.toUpperCase() : '';
