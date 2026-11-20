@@ -1134,6 +1134,7 @@ details.sec{background:var(--card);border:1px solid var(--line);border-radius:12
 pre{white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:12px;font:12px/1.6 Consolas,monospace;margin:0}
 .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--fg);border-radius:8px;padding:8px 14px;cursor:pointer}button.pri{background:var(--accent);color:#fff;border-color:var(--accent)}
 footer{margin-top:40px;color:var(--muted);font-size:12px}
+.sign{display:none;gap:24px;margin-top:36px}.sign div{flex:1}.sign span{font-size:12px;color:var(--muted)}.sign i{display:block;border-bottom:1px solid #000;height:36px}
 .note{margin:4px 0;font-weight:600}
 .next{margin:6px 0 4px;padding:8px 12px;background:var(--soft);border-radius:8px}.next span{color:var(--muted);font-size:13px}
 
@@ -1141,7 +1142,7 @@ footer{margin-top:40px;color:var(--muted);font-size:12px}
 .cmp.ok{border-left:5px solid var(--ok)}.cmp.bad{border-left:5px solid var(--bad)}
 
 @media (max-width:640px){.cause summary{grid-template-columns:24px 1fr 36px;}.cause .bar,.cause .cf{display:none}.cb{grid-template-columns:1fr}header{padding:16px}}
-@media print{button,.btns{display:none}details{break-inside:avoid}details:not([open])>*:not(summary){display:block}body{background:#fff}}
+@media print{.sign{display:flex}button,.btns{display:none}details{break-inside:avoid}details:not([open])>*:not(summary){display:block}body{background:#fff}}
 '@
     $js = @'
 function copySummary(){var t=document.getElementById('sumtext').innerText;
@@ -1240,6 +1241,7 @@ $(if (@(Get-Arr (Get-Prop $Data 'Blackbox')).Count) { '<details class="sec" open
 $(ConvertTo-HtmlTable (Get-Prop $Data 'DriverInstalls') @('T','Msg') @('시간','내용') '기간 내 설치 기록 없음')
 <h4>자주 충돌한 프로그램</h4>$(ConvertTo-HtmlTable (Get-Prop $Data 'AppCrashes') @('App','Count') @('프로그램','횟수'))</div></details>
 
+<div class="sign"><div><span>점검일</span><i></i></div><div><span>점검자 서명</span><i></i></div><div><span>고객 확인 서명</span><i></i></div></div>
 <footer>$(HtmlEnc $script:AppName) v$(HtmlEnc $script:AppVersion) · 이 보고서는 PC 안에서만 생성되었으며 어떤 정보도 외부로 전송되지 않았습니다.<br>
 진단은 Windows 기록에 기반한 추정입니다. 하드웨어 교체 전에 정밀 검사(VRAM·RAM·부하 테스트)로 확인하세요.</footer>
 </main><script>$js</script></body></html>
@@ -2600,7 +2602,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),

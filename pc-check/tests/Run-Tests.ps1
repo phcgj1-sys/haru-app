@@ -302,6 +302,11 @@ It '증상·고객 메모: 보고서 상단·요약에 표시, HTML 이스케이
     try { $he = New-HtmlReport -Data $d -Dx $dx; Assert ($he -match 'Note: 홍길동 / 게임 중 꺼짐') "영어에서도 메모 원문 유지"; Assert ((Get-SummaryText $d $dx) -match 'Note: 홍길동 / 게임 중 꺼짐') '요약도 원문' }
     finally { $script:UiLang = 'ko' }
 }
+It '인쇄용 점검 확인란: 화면에서는 숨기고 인쇄 시에만 표시' {
+    $h = New-HtmlReport -Data (New-Scenario @{}) -Dx (Get-Diagnosis -Data (New-Scenario @{}))
+    Assert ($h -match 'class="sign"') '확인란'; Assert ($h -match '\.sign\{display:none') '화면 숨김'; Assert ($h -match '@media print\{\.sign\{display:flex\}') '인쇄 표시'
+    Assert ($h -match '점검자 서명') '서명 칸'
+}
 It '요약 텍스트에 핵심 정보 포함' {
     $data = New-Scenario $scenarios['파워 부족: 블루스크린 없이 반복 꺼짐 + 그래픽 오류 직후'].Data
     $t = Get-SummaryText $data (Get-Diagnosis -Data $data)
