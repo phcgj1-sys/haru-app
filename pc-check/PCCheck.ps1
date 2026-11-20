@@ -516,6 +516,36 @@ function Get-Prop($o, [string]$n) {
     $p = $o.PSObject.Properties[$n]; if ($p) { return $p.Value }; return $null
 }
 
+function Get-PsuEstimate($Data) {
+    # 최대 소비전력 추정과 권장 파워 용량 (측정값 우선, 없으면 모델별 대표값). 순간 전력 급증 대비 30% 여유
+    $gpuW = 0.0; $gpuSrc = ''
+    foreach ($n in @(Get-Arr (Get-Prop $Data 'NvSmi'))) { $pl = Get-Prop $n 'PowerLimitW'; if ($null -ne $pl -and [double]$pl -gt $gpuW) { $gpuW = [double]$pl; $gpuSrc = '전력 제한값' } }
+    foreach ($b in @(Get-Arr (Get-Prop $Data 'Blackbox'))) { $m = Get-Prop $b 'MaxGpuPowerW'; if ($null -ne $m -and [double]$m -gt $gpuW) { $gpuW = [double]$m; $gpuSrc = '블랙박스 측정' } }
+    if ($gpuW -le 0) {
+        $tbl = @(@('RTX 5090', 575), @('RTX 4090', 450), @('RTX 5080', 360), @('RTX 4080', 320), @('RTX 3090', 350), @('RTX 3080', 320), @('RTX 5070 Ti', 300), @('RTX 4070 Ti', 285),
+                 @('RTX 5070', 250), @('RTX 4070', 200), @('RTX 3070', 220), @('RTX 4060 Ti', 160), @('RTX 4060', 115), @('RTX 3060', 170), @('GTX 16', 125), @('GTX 10', 150),
+                 @('RX 7900', 355), @('RX 6900', 300), @('RX 6800', 250), @('RX 7800', 263), @('RX 7700', 245), @('RX 6700', 230), @('RX 7600', 165), @('RX 6600', 132), @('Arc A7', 225), @('Arc A5', 175))
+        foreach ($g in @(Get-Arr (Get-Prop $Data 'Gpus'))) {
+            $nm = [string](Get-Prop $g 'Name')
+            foreach ($t in $tbl) { if ($nm -match [regex]::Escape($t[0])) { if ($t[1] -gt $gpuW) { $gpuW = [double]$t[1]; $gpuSrc = '모델 대표값' }; break } }
+            if ($gpuW -le 0 -and (Get-Prop $g 'Vendor') -in 'NVIDIA', 'AMD' -and $nm -notmatch 'Graphics$|Vega \d+ Graphics|Radeon\(TM\) Graphics') { $gpuW = 200.0; $gpuSrc = '일반 그래픽카드 가정' }
+        }
+    }
+    $cpu = [string](Get-Prop (Get-Prop $Data 'System') 'CPU')
+    $cpuW = 95.0
+    if ($cpu -match 'i9-1[2-4]\d{3}K|i7-1[3-4]\d{3}K') { $cpuW = 253 }
+    elseif ($cpu -match 'i[579]-1[2-4]\d{3}K|Ryzen 9 [579]9\d{2}X') { $cpuW = 180 }
+    elseif ($cpu -match 'Ryzen 9') { $cpuW = 142 }
+    elseif ($cpu -match 'Ryzen 7 \d{4}X3D') { $cpuW = 120 }
+    elseif ($cpu -match 'Ryzen 7|i7-') { $cpuW = 125 }
+    elseif ($cpu -match 'Ryzen 5|i5-') { $cpuW = 95 }
+    elseif ($cpu -match 'i3-|Ryzen 3|Pentium|Celeron|Athlon') { $cpuW = 65 }
+    $other = 75.0
+    $peak = $gpuW + $cpuW + $other
+    $rec = [int]([math]::Ceiling($peak * 1.3 / 50.0) * 50)
+    return [pscustomobject]@{ GpuW = [int]$gpuW; GpuSource = $gpuSrc; CpuW = [int]$cpuW; OtherW = [int]$other; PeakW = [int]$peak; RecommendW = $rec }
+}
+
 function Get-Diagnosis {
     param([Parameter(Mandatory)]$Data)
     $score = [ordered]@{}; foreach ($k in $script:Causes.Keys) { $score[$k] = 0.0 }
@@ -813,6 +843,14 @@ function Get-Diagnosis {
     $errs = @(Get-Arr (Get-Prop $Data 'Errors'))
     if (-not (Get-Prop $meta 'IsAdmin')) { & $find 'info' 'META' '관리자 권한 없이 실행됨' '일부 기록(덤프 파일 등)을 읽지 못했을 수 있습니다. 원클릭검사.bat 으로 실행하세요.' 0 }
     if ($errs.Count) { & $find 'info' 'META' "일부 항목 수집 실패 $($errs.Count) 건" (($errs | ForEach-Object { "$(Get-Prop $_ 'Step'): $(Get-Prop $_ 'Msg')" }) -join ' / ') 0 }
+
+    # ---- 권장 파워 용량 (그래픽카드가 있을 때) — 파워가 의심되면 경고로, 아니면 참고로
+    $psuE = Get-PsuEstimate $Data
+    if ($psuE.GpuW -gt 0) {
+        $txt = "최대 소비전력 약 $($psuE.PeakW)W (그래픽카드 $($psuE.GpuW)W·$($psuE.GpuSource) + CPU $($psuE.CpuW)W + 기타 $($psuE.OtherW)W). 순간 전력 급증을 고려해 정격 $($psuE.RecommendW)W 이상, 80 PLUS 인증 제품을 권장합니다. 파워 라벨의 정격 출력과 비교해 보세요."
+        $psuSuspect = [double]$score['PSU'] -ge 30
+        & $find $(if ($psuSuspect) { 'warn' } else { 'info' }) 'PSU' "권장 파워 용량: $($psuE.RecommendW)W 이상" $txt 0
+    }
 
     # ---- 결과 정리
     $ranked = @()
@@ -2477,7 +2515,10 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('블랙박스 기록 그래프', 'Black box record chart'), @('기록 끊김', 'recording cut off'),
+    @('가장 최근 기록 그래프', 'Latest record chart'),
+    @('RE:권장 파워 용량: (\d+)W 이상', 'Recommended PSU: $1 W or more'),
+    @('RE:최대 소비전력 약 (\d+)W \(그래픽카드 (\d+)W·(.+?) \+ CPU (\d+)W \+ 기타 (\d+)W\)\. 순간 전력 급증을 고려해 정격 (\d+)W 이상, 80 PLUS 인증 제품을 권장합니다\. 파워 라벨의 정격 출력과 비교해 보세요\.', 'Estimated peak draw about $1 W (graphics card $2 W · $3 + CPU $4 W + other $5 W). Allowing for power spikes, a rated $6 W or higher 80 PLUS certified PSU is recommended. Compare with the rated output on your PSU label.'),
+    @('전력 제한값', 'power limit'), @('블랙박스 측정', 'black box measurement'), @('모델 대표값', 'typical for model'), @('일반 그래픽카드 가정', 'assumed typical card'), @('블랙박스 기록 그래프', 'Black box record chart'), @('기록 끊김', 'recording cut off'),
     @('GPU 온도 (°C)', 'GPU temperature (°C)'), @('GPU 전력 (W)', 'GPU power (W)'), @('CPU 사용률 (%)', 'CPU usage (%)'),
     @('GPU 부하 도구를 준비하지 못해 GPU 단계는 시험되지 않습니다 (인터넷 연결 확인).', 'Could not prepare the GPU load tool, so the GPU stages will not be tested (check the internet connection).'),
     @('RE: — ([\d\- :]+) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다\.', ' — passed every stage of the detailed test at $1, so treated as resolved.'),

@@ -186,6 +186,20 @@ It '단일 항목 목록 (5.1 배열 풀림 회귀 방지)' {
     Assert (@($dx.Findings) | Where-Object { $_.Title -match '설치 직후' }) '드라이버 설치 직후 판정'
 }
 
+It '권장 파워 용량: 측정값 우선, 모델 대표값, 파워 의심 시 경고' {
+    $d = New-Scenario @{}; $d.System.CPU = 'Intel(R) Core(TM) i9-14900K'; $d.Gpus = @([ordered]@{ Name = 'NVIDIA GeForce RTX 4090'; Vendor = 'NVIDIA' })
+    $e = Get-PsuEstimate $d; Assert-Eq $e.GpuW 450 'RTX 4090 대표값'; Assert-Eq $e.CpuW 253 'i9 K'; Assert-Eq $e.RecommendW 1050 '(450+253+75)×1.3=1011 → 1050'
+    $d.NvSmi = @([ordered]@{ PowerLimitW = 600 }); Assert-Eq (Get-PsuEstimate $d).GpuW 600 '측정값 우선'
+    $d2 = New-Scenario @{}; $d2.Gpus = @([ordered]@{ Name = 'Intel(R) UHD Graphics 770'; Vendor = 'Intel' })
+    Assert-Eq (Get-PsuEstimate $d2).GpuW 0 '내장 그래픽은 계산 안 함'
+    Assert (-not (@((Get-Diagnosis -Data $d2).Findings) | Where-Object { $_.Title -match '권장 파워' })) '내장 그래픽이면 표시 없음'
+    $f = @((Get-Diagnosis -Data (New-Scenario @{})).Findings | Where-Object { $_.Title -match '권장 파워' })[0]
+    Assert-Eq $f.Level 'info' '평소엔 참고'
+    $f2 = @((Get-Diagnosis -Data (New-Scenario $scenarios['파워 부족: 블루스크린 없이 반복 꺼짐 + 그래픽 오류 직후'].Data)).Findings | Where-Object { $_.Title -match '권장 파워' })[0]
+    Assert-Eq $f2.Level 'warn' '파워 의심이면 경고'
+    $script:UiLang = 'en'; try { Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') "영어: $(Tr $f.Detail)" } finally { $script:UiLang = 'ko' }
+}
+
 Write-Host "`n[유틸]" -ForegroundColor Cyan
 It '그래픽 드라이버 설치 기록 판별 (칩셋·오디오·SATA 제외)' {
     foreach ($y in @(
