@@ -1080,16 +1080,17 @@ function problems(st) {
   if (det.renderer && softwareRenderer(det.renderer)) add('swr', nat.gpus && nat.gpus.length ? 'warn' : 'bad', '브라우저 그래픽 가속 꺼짐/드라이버 없음', '그래픽카드 제조사(NVIDIA·AMD·Intel) 최신 드라이버를 설치하고, 브라우저 설정 → 시스템 → "가능한 경우 그래픽 가속 사용"을 켜세요.', '그래픽 가속 꺼짐');
   if (!sp.gpu && (det.renderer || (nat.gpus && nat.gpus.length))) add('gpuunk', 'info', '그래픽카드 모델을 표에서 못 찾음', '내 사양 탭에서 그래픽카드를 직접 고르면 판정이 정확해져요.', '그래픽 미확인');
   // 모니터
-  var maxHz = nat.monitorMaxHz || null;
-  if (sp.hz && sp.hz <= 61 && (dev.hzInfo || nat.hz)) add('hz60', maxHz && maxHz > 61 ? 'bad' : 'warn', '모니터가 ' + sp.hz + 'Hz로 동작' + (maxHz > 61 ? ' (모니터는 ' + maxHz + 'Hz 지원)' : ''), '바탕화면 우클릭 → 디스플레이 설정 → 고급 디스플레이 → 새로 고침 빈도를 최대로. 안 보이면 케이블을 DP(또는 HDMI 2.0 이상)로 바꾸고, 그래픽카드 단자에 꽂혔는지(메인보드 단자 아님) 확인하세요.', '60Hz 동작');
+  var maxHz = monMaxHz(nat);
+  if (sp.hz && sp.hz <= 61 && (dev.hzInfo || nat.hz) && maxHz && maxHz <= 61) add('hz60', 'info', '60Hz 모니터 (원래 60Hz) — 경쟁 게임엔 144Hz 이상 권장', '고장은 아니에요. 배그·발로란트·오버워치 같은 FPS 게임을 주로 하는 좌석이면 144Hz 이상 모니터로 바꾸면 체감이 크게 좋아져요.', '60Hz 모니터');
+  else if (sp.hz && sp.hz <= 61 && (dev.hzInfo || nat.hz)) add('hz60', maxHz && maxHz > 61 ? 'bad' : 'warn', '모니터가 ' + sp.hz + 'Hz로 동작' + (maxHz > 61 ? ' (모니터는 ' + maxHz + 'Hz 지원)' : ''), '바탕화면 우클릭 → 디스플레이 설정 → 고급 디스플레이 → 새로 고침 빈도를 최대로. 안 보이면 케이블을 DP(또는 HDMI 2.0 이상)로 바꾸고, 그래픽카드 단자에 꽂혔는지(메인보드 단자 아님) 확인하세요.', '60Hz 동작');
   // 마우스·키보드·마이크
   if (dev.chatter) add('mchat', 'bad', '마우스 더블클릭(채터링) ' + dev.chatter + '회', '마우스 스위치 고장이에요. 마우스를 교체하거나 스위치를 교체하세요. 임시로는 마우스 소프트웨어에서 디바운스 시간을 늘리세요.', '마우스 채터링');
   if (dev.kbChat) add('kchat', 'bad', '키보드 채터링 의심 ' + dev.kbChat + '회', '키를 한 번 눌렀는데 두 번 입력돼요. 해당 키캡을 빼고 청소하거나 스위치/키보드를 교체하세요.', '키보드 채터링');
   if (dev.pollMax && dev.pollMax < 200) add('poll', 'warn', '마우스 폴링레이트 낮음 (최고 ' + dev.pollMax + 'Hz)', '게이밍 마우스라면 마우스 소프트웨어에서 1000Hz로 설정하세요. 사무용 마우스(125Hz)는 FPS 게임에 불리해요.', '마우스 폴링 낮음');
-  chkState(dev).forEach(function (x) {
+  chkState(dev, nat).forEach(function (x) {
     // 자동 판정만으로 불량인 항목(주사율·폴링·버튼·키·마이크)은 아래 전용 항목에서 다룸
     if (x.st !== 'bad' || (!(dev.chk || {})[x.c.id] && ['hz', 'poll', 'mbtn', 'keys', 'mic'].indexOf(x.c.id) >= 0)) return;
-    var fixes = { screen: '불량 화소·빛샘이 눈에 띄면 모니터 A/S(무결점 보증 기간 확인) 또는 교체하세요.', audL: '단자를 끝까지 꽂고, 다른 헤드셋으로 바꿔 보세요. 같으면 PC 사운드 단자·드라이버, 다르면 헤드셋 고장이에요.', audR: '단자를 끝까지 꽂고, 다른 헤드셋으로 바꿔 보세요. 같으면 PC 사운드 단자·드라이버, 다르면 헤드셋 고장이에요.', mic: '마이크 단자·음소거 스위치·윈도우 입력 장치를 확인하세요.', mbtn: '버튼 스위치 고장이에요. 마우스를 교체하세요.', wheel: '휠 인코더 고장이에요. 청소해 보고 안 되면 교체하세요.', keys: '안 눌리는 키는 키캡을 빼고 청소하고, 그래도 안 되면 키보드를 교체하세요.' };
+    var fixes = { hz: '디스플레이 설정 → 고급 디스플레이에서 새로 고침 빈도를 최대로 하고, 안 되면 DP 케이블·그래픽카드 단자 연결을 확인하세요.', screen: '불량 화소·빛샘이 눈에 띄면 모니터 A/S(무결점 보증 기간 확인) 또는 교체하세요.', audL: '단자를 끝까지 꽂고, 다른 헤드셋으로 바꿔 보세요. 같으면 PC 사운드 단자·드라이버, 다르면 헤드셋 고장이에요.', audR: '단자를 끝까지 꽂고, 다른 헤드셋으로 바꿔 보세요. 같으면 PC 사운드 단자·드라이버, 다르면 헤드셋 고장이에요.', mic: '마이크 단자·음소거 스위치·윈도우 입력 장치를 확인하세요.', mbtn: '버튼 스위치 고장이에요. 마우스를 교체하세요.', wheel: '휠 인코더 고장이에요. 청소해 보고 안 되면 교체하세요.', keys: '안 눌리는 키는 키캡을 빼고 청소하고, 그래도 안 되면 키보드를 교체하세요.' };
     add('chk-' + x.c.id, 'bad', x.c.n + ' 불량', fixes[x.c.id] || '', x.c.n + ' 불량');
   });
   if (dev.note) add('note', 'info', '메모: ' + dev.note, '', '메모');
@@ -1159,7 +1160,7 @@ function renderSummary() {
     '<div class="tblwrap"><table><thead><tr><th>게임</th><th>판정</th><th>예상 fps (' + S.opt.res + 'p · ' + ({ low: '낮음', mid: '중간', high: '높음' })[S.opt.preset] + ')</th></tr></thead><tbody>' +
     games.map(function (x) { var lv = LV[x.j.level]; var fl = x.j.fps != null ? fpsLabel(x.j.fps, tgt, x.g.fps.cap, x.g.fightFactor) : null; return '<tr><td>' + x.g.rank + '. ' + esc(x.g.name) + '</td><td><span class="pill ' + lv[0] + '">' + lv[1] + '</span></td><td class="num">' + (x.j.fps != null ? (x.j.fps >= (x.g.fps.cap || 1e9) ? x.g.fps.cap + '+' : '약 ' + fmt(x.j.fps)) + ' <span class="pill ' + fl[0] + '">' + (fl[0] === 'ok' ? '쾌적' : fl[0] === 'warn' ? '보통' : '버벅임') + '</span>' : '-') + '</td></tr>'; }).join('') +
     '</tbody></table></div>' +
-    (function () { var cl = chkState(S.dev), ok = cl.filter(function (x) { return x.st === 'ok'; }).length; return '<div class="note"><b>다음 단계: 장비 체크리스트 ' + ok + '/' + cl.length + '</b> — 모니터 화면·헤드셋 좌우·마우스·키보드는 <a href="#dev" data-goto="dev">장비 테스트</a>에서 눌러 확인하세요. 게이트웨이·외부 핑과 보안 부팅·TPM은 윈도우 점검 프로그램이 필요해요.</div>'; })() + '</div>';
+    (function () { var cl = chkState(S.dev, S.native), ok = cl.filter(function (x) { return x.st === 'ok'; }).length; return '<div class="note"><b>다음 단계: 장비 체크리스트 ' + ok + '/' + cl.length + '</b> — 모니터 화면·헤드셋 좌우·마우스·키보드는 <a href="#dev" data-goto="dev">장비 테스트</a>에서 눌러 확인하세요. 게이트웨이·외부 핑과 보안 부팅·TPM은 윈도우 점검 프로그램이 필요해요.</div>'; })() + '</div>';
   $('#summary').innerHTML = html;
   $('#sumSave').addEventListener('click', function () { $('#shopAddThis').click(); });
 }
@@ -1182,7 +1183,15 @@ var KEY_NAME = function (c) { return c.replace(/^Key|^Digit/, '').replace('Shift
 // 항목: auto(st)는 'ok'|'bad'|null(아직 모름) 과 설명을 돌려줌. manual 항목은 사람이 누름.
 var CHK = [
   { id: 'screen', n: '모니터 화면', d: '불량 화소·얼룩·빛샘', manual: true, tool: 'color' },
-  { id: 'hz', n: '모니터 주사율', auto: function (d) { return d.hz ? [d.hz > 61 ? 'ok' : 'bad', d.hz + 'Hz'] : [null, '주사율 측정 필요']; } },
+  // 주사율: 웹 측정값이 없으면 점검 프로그램 값. 60Hz여도 모니터가 원래 60Hz면 고장이 아님(최대 Hz로 구분), 모르면 직접 확인
+  { id: 'hz', n: '모니터 주사율', manual: true, auto: function (d, nat) {
+    nat = nat || {}; var hz = d.hz || nat.hz || null, mx = monMaxHz(nat), src = d.hz ? '' : ' (점검 프로그램)';
+    if (!hz) return [null, '주사율 측정 필요'];
+    if (hz > 61) return ['ok', hz + 'Hz' + src + (mx && mx > hz + 5 ? ' · 최대 ' + mx + 'Hz 가능' : '')];
+    if (mx && mx > 61) return ['bad', hz + 'Hz로 동작 (모니터는 ' + mx + 'Hz 지원)'];
+    if (mx) return ['ok', hz + 'Hz 모니터 (원래 60Hz)'];
+    return [null, hz + 'Hz — 모니터가 원래 60Hz면 정상, 직접 확인'];
+  } },
   { id: 'audL', n: '헤드셋 왼쪽 소리', manual: true, tool: 'L' },
   { id: 'audR', n: '헤드셋 오른쪽 소리', manual: true, tool: 'R' },
   { id: 'mic', n: '마이크', manual: true, auto: function (d) { return d.mic === 'ok' ? ['ok', '소리 감지됨'] : d.mic === 'none' ? ['bad', '연결 안 됨/권한 없음'] : d.mic === 'low' ? [null, '소리가 작음: 말해 보세요'] : [null, '마이크 켜기로 확인']; } },
@@ -1191,17 +1200,18 @@ var CHK = [
   { id: 'poll', n: '마우스 폴링레이트', auto: function (d) { return d.pollMax ? [d.pollMax >= 200 ? 'ok' : 'bad', '최고 ' + d.pollMax + 'Hz'] : [null, '마우스 영역에서 빠르게 움직이기']; } },
   { id: 'keys', n: '게임 필수 키 ' + ESS_KEYS.length + '개', manual: true, auto: function (d) { if (d.kbChat) return ['bad', '채터링 의심 ' + d.kbChat + '회']; var m = d.kbMissing; if (!m) return [null, '키보드 그림을 누르고 키를 눌러 보세요']; return m.length ? [null, '남은 키: ' + m.slice(0, 8).map(KEY_NAME).join(' ') + (m.length > 8 ? ' 외 ' + (m.length - 8) + '개' : '')] : ['ok', '모두 입력됨']; } }
 ];
-function chkState(d) {
+function monMaxHz(nat) { if (!nat) return null; if (nat.monitorMaxHz) return nat.monitorMaxHz; var p = (nat.displays || []).filter(function (x) { return x.primary; })[0] || (nat.displays || [])[0]; return (p && p.maxHz) || null; }
+function chkState(d, nat) {
   var chk = d.chk || {};
   return CHK.map(function (c) {
-    var a = c.auto ? c.auto(d) : [null, c.d || ''];
+    var a = c.auto ? c.auto(d, nat) : [null, c.d || ''];
     var st = chk[c.id] || a[0];
     return { c: c, st: st, desc: chk[c.id] ? (chk[c.id] === 'ok' ? '직접 확인: 정상' : '직접 확인: 불량') + (a[1] && c.auto ? ' · ' + a[1] : '') : a[1] };
   });
 }
 var lastChkHtml = '';
 function renderChk() {
-  var d = S.dev, list = chkState(d);
+  var d = S.dev, list = chkState(d, S.native);
   var html = list.map(function (x) {
     var c = x.c, man = (d.chk || {})[c.id];
     var tool = c.tool === 'color' ? '<button class="btn sm" type="button" data-color-test>화면 색 검사</button>' : c.tool ? '<button class="btn sm" type="button" data-tone="' + (c.tool === 'L' ? '-1' : '1') + '">소리 내기</button>' : '';
@@ -1766,5 +1776,5 @@ var h = (location.hash || '').slice(1);
 if (h && $('[data-panel="' + h + '"]')) showTab(h);
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('../sw.js').catch(function () {});
 // 테스트·디버그용
-window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, spec: spec, decodeNative: decodeNative, S: S };
+window.__pcbang = { matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
 })();
