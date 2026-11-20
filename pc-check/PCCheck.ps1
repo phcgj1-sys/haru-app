@@ -1986,6 +1986,18 @@ $script:ExternalTools = @(
     @{ Key = 'occt';  Label = '파워·GPU 부하 테스트';    Desc = 'OCCT 공식 사이트'; Help = "'Power' 테스트 10~20분 중 꺼지면 파워 문제, 'VRAM' 테스트에서 오류면 그래픽카드 문제입니다."; Run = { Start-Process 'https://www.ocbase.com/download' }; Fallback = $null }
 )
 
+function Get-RecommendedTool($Dx) {
+    # 1순위 원인(점수 30 이상)에 맞는 다음 정밀 검사. 원인이 없지만 노하드면 블랙박스
+    $top = @($Dx.Causes) | Select-Object -First 1
+    if ($top -and $top.Score -ge 30) {
+        switch ($top.Key) {
+            'GPU_HW' { return 'vram' } 'GPU_DRIVER' { return 'bsv' } 'RAM' { return 'ram' }
+            'PSU' { return 'blackbox' } 'THERMAL' { return 'blackbox' } 'CPU_OC' { return 'blackbox' } 'DRIVER' { return 'bsv' } 'DISK' { return '' }
+        }
+    }
+    if (@($Dx.Findings) | Where-Object { $_.Title -match '노하드' }) { return 'blackbox' }
+    return ''
+}
 function Invoke-Tool([string]$Key) {
     $t = $script:ExternalTools | Where-Object { $_.Key -eq $Key } | Select-Object -First 1
     try { & $t.Run; return [pscustomobject]@{ Ok = $true; Help = $t.Help; Error = $null } }
@@ -2154,6 +2166,12 @@ function Show-Gui {
             $list.ShowItemToolTips = $true
             $report.Enabled = $true; $folder.Enabled = $true
             $status.Text = (Tr '완료 — 보고서: ') + $state.Result.Html
+            # 다음에 할 정밀 검사 버튼 강조
+            $recKey = Get-RecommendedTool $dx
+            foreach ($tb in $toolBtns) {
+                if ($recKey -and $tb.Tag -eq $recKey) { $tb.BackColor = [Drawing.Color]::FromArgb(255, 236, 179); $tb.Font = $bold; $tip.SetToolTip($tb, (Tr '추천: 이 검사로 원인을 확인하세요')) }
+                else { $tb.UseVisualStyleBackColor = $true; $tb.Font = $font }
+            }
             if (-not $state.Headless) { Start-Process $state.Result.Html }
         } catch {
             Write-PCLog "gui error: $($_.Exception.Message)"
@@ -2582,7 +2600,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),

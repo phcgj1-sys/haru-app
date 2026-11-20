@@ -211,6 +211,16 @@ It '권장 파워 용량: 측정값 우선, 모델 대표값, 파워 의심 시 
     $script:UiLang = 'en'; try { Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') "영어: $(Tr $f.Detail)" } finally { $script:UiLang = 'ko' }
 }
 
+It '다음 정밀 검사 추천 (원인별 도구, 노하드면 블랙박스)' {
+    Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data (New-Scenario $scenarios['VRAM 불량: Xid 48/63 + TDR 블루스크린'].Data))) 'vram' 'VRAM'
+    Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data (New-Scenario $scenarios['RAM 불량: 메모리 진단 실패 + 다양한 블루스크린'].Data))) 'ram' 'RAM'
+    Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data (New-Scenario $scenarios['파워 부족: 블루스크린 없이 반복 꺼짐 + 그래픽 오류 직후'].Data))) 'blackbox' '파워'
+    Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data (New-Scenario @{}))) '' '정상 PC 는 추천 없음'
+    $dl = New-Scenario @{ Disks = @([ordered]@{ Name = 'iSCSI'; Bus = 'iSCSI'; Health = 'Healthy' }) }
+    Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data $dl)) 'blackbox' '노하드'
+    foreach ($k in 'vram', 'ram', 'blackbox', 'bsv') { Assert (@($script:ExternalTools | Where-Object { $_.Key -eq $k }).Count -eq 1) "도구 존재: $k" }
+}
+
 Write-Host "`n[유틸]" -ForegroundColor Cyan
 It '그래픽 드라이버 설치 기록 판별 (칩셋·오디오·SATA 제외)' {
     foreach ($y in @(
