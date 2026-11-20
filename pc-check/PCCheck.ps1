@@ -612,7 +612,9 @@ function Get-Diagnosis {
         & $add 'PSU' ([math]::Min(45.0, 14 * $eff)) "블루스크린 없이 꺼짐 $plCount 회"
         & $add 'THERMAL' ([math]::Min(18.0, 5 * $eff)) '블루스크린 없이 꺼짐 (과열 보호 차단 가능)'
         & $add 'GPU_HW' ([math]::Min(12.0, 3 * $eff)) ''
-        $lv = if ($plCount -ge 3) { 'bad' } else { 'warn' }
+        # 전원 버튼 강제 종료(멈춤 후)는 '전원이 끊긴' 꺼짐보다 가볍게 반영 — 버튼 종료만 여러 번이면 '심각'으로 올리지 않음
+        $plReal = $plCount - $plButton
+        $lv = if ($plReal -ge 3) { 'bad' } else { 'warn' }
         $d = "블루스크린 기록 없이 전원이 끊긴 것처럼 꺼진 기록입니다. 파워 부족·노후, 과열 보호, 전원 케이블/멀티탭 접촉 불량에서 전형적으로 나타납니다."
         if ($plButton) { $d += " (이 중 $plButton 회는 전원 버튼을 길게 눌러 끈 흔적이 있습니다 — 멈춤 후 강제 종료였을 수 있습니다.)" }
         if ($plSleep) {
@@ -620,7 +622,7 @@ function Get-Diagnosis {
             & $add 'DRIVER' ([math]::Min(20, 8 * $plSleep)) "절전 진입/복귀 중 꺼짐 $plSleep 회"
         }
 
-        & $find $lv 'PSU' "갑자기 꺼짐 $plCount 회 (블루스크린 없음)" $d ([math]::Min(35, 10 * $plCount))
+        & $find $lv 'PSU' "갑자기 꺼짐 $plCount 회 (블루스크린 없음)" $d ([math]::Min(35, 10 * $plReal + 4 * $plButton))
     }
 
     # ---- 3) 블루스크린

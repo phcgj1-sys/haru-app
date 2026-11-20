@@ -143,6 +143,14 @@ It '전원 버튼 강제 종료는 파워 점수를 낮춤' {
     $pa = (@($a.Causes) | Where-Object Key -eq 'PSU').Score; $pb = (@($b.Causes) | Where-Object Key -eq 'PSU').Score
     Assert ($pa -gt [int]$pb) "버튼 없음 $pa > 버튼 $pb"
 }
+It '전원 버튼 강제 종료만 여러 번이면 심각(bad)으로 올리지 않고 감점도 작게' {
+    $a = Get-Diagnosis -Data (New-Scenario @{ Shutdowns = @(1..3 | ForEach-Object { [ordered]@{ T = (T $_); Code = ''; PowerButton = $false } }) })
+    $b = Get-Diagnosis -Data (New-Scenario @{ Shutdowns = @(1..3 | ForEach-Object { [ordered]@{ T = (T $_); Code = ''; PowerButton = $true } }) })
+    $fa = @($a.Findings) | Where-Object { $_.Title -match '갑자기 꺼짐' } | Select-Object -First 1
+    $fb = @($b.Findings) | Where-Object { $_.Title -match '갑자기 꺼짐' } | Select-Object -First 1
+    Assert-Eq $fa.Level 'bad' '진짜 전원 차단 3회는 심각'; Assert-Eq $fb.Level 'warn' '버튼 종료 3회는 주의'
+    Assert ([int]$fb.Penalty -lt [int]$fa.Penalty) "감점 $($fb.Penalty) < $($fa.Penalty)"; Assert ($b.Health -gt $a.Health) '점수 덜 깎임'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
