@@ -751,14 +751,20 @@ function renderHz() {
   var st;
   function reset(keepSaved) {
     if (!keepSaved) { delete S.dev.chatter; delete S.dev.pollMax; delete S.dev.pollAvg; delete S.dev.mBtns; delete S.dev.wheel; save(); }
-    st = { cnt: [0, 0, 0, 0, 0], chat: [0, 0, 0, 0, 0], last: [0, 0, 0, 0, 0], up: [0, 0, 0, 0, 0], evts: [], max: 0, samples: [], clicks: [] };
-    $('#mBtns').innerHTML = BTN.map(function (b) { return '<div id="mb' + b[1] + '">' + b[0] + '<b>0</b><span class="xs">채터링 0</span></div>'; }).join('') ;
+    // 새로 고침해도 저장된 측정값(버튼 횟수·채터링·폴링레이트)에서 이어서 셈 → 다음 클릭에 기록이 0으로 덮이지 않음
+    var sv = keepSaved ? S.dev : {};
+    var cnt = Array.isArray(sv.mBtns) ? [0, 1, 2, 3, 4].map(function (i) { return +sv.mBtns[i] || 0; }) : [0, 0, 0, 0, 0];
+    st = { cnt: cnt, chat: [0, 0, 0, 0, 0], chatBase: +sv.chatter || 0, last: [0, 0, 0, 0, 0], up: [0, 0, 0, 0, 0], evts: [], max: +sv.pollMax || 0, samples: sv.pollAvg ? [+sv.pollAvg] : [], clicks: [] };
+    $('#mBtns').innerHTML = BTN.map(function (b) { return '<div id="mb' + b[1] + '"' + (cnt[b[1]] ? ' class="on"' : '') + '>' + b[0] + '<b>' + cnt[b[1]] + '</b><span class="xs">채터링 0</span></div>'; }).join('') ;
     ['#mHz', '#mHzMax', '#mHzAvg', '#mCps'].forEach(function (i) { $(i).textContent = '-'; });
+    if (st.max) $('#mHzMax').textContent = st.max;
+    if (sv.pollAvg) $('#mHzAvg').textContent = sv.pollAvg;
     $('#mouseVerdict').innerHTML = '';
+    if (st.max || st.chatBase) verdict();
   }
+  var useRaw = 'onpointerrawupdate' in window;
   reset(true);
   $('#mouseReset').addEventListener('click', function () { reset(false); });
-  var useRaw = 'onpointerrawupdate' in window;
   function onMove(e) {
     if (e.pointerType && e.pointerType !== 'mouse') return;
     var now = performance.now();
@@ -794,8 +800,8 @@ function renderHz() {
       h.push('<span class="pill ' + cls + '">폴링레이트: ' + txt + '</span>');
       if (!useRaw) h.push('<span class="xs muted">이 브라우저는 정밀 측정(pointerrawupdate)을 지원하지 않아 실제보다 낮게 나올 수 있어요. 크롬·엣지를 쓰세요.</span>');
     }
-    var chat = st.chat.reduce(function (a, b) { return a + b; }, 0);
-    if (chat) h.push('<span class="pill bad">더블클릭(채터링) 의심 ' + chat + '회 — 스위치 교체 필요</span>');
+    var chat = st.chatBase + st.chat.reduce(function (a, b) { return a + b; }, 0);
+    if (chat) h.push('<span class="pill bad">더블클릭(채터링) 의심 ' + chat + '회 — 스위치 교체 필요' + (st.chatBase ? ' (이전 측정 포함)' : '') + '</span>');
     $('#mouseVerdict').innerHTML = '<div class="row">' + h.join('') + '</div>';
     S.dev.chatter = chat; save();
   }

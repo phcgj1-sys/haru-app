@@ -153,6 +153,20 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   ok(dl.suggestedFilename() === 'seat-23-web.txt', '결과 파일 저장: seat-23-web.txt (점검 프로그램 파일을 덮어쓰지 않음)');
   await ctx2.close();
 
+  // 8. 마우스 테스트: 새로 고침 후 저장값 표시, 다음 클릭에 채터링 기록이 0으로 덮이지 않음, 초기화는 지움
+  const p4 = await (await browser.newContext()).newPage(); p4.on('pageerror', e => errs.push(e.message));
+  await p4.goto(URL); await p4.waitForTimeout(300);
+  // 이전에 측정한 결과가 저장돼 있는 상태 (좌석 입력 change 가 save() 를 부름)
+  await p4.evaluate(() => { const S = window.__pcbang.S; S.dev.chatter = 2; S.dev.mBtns = [5, 1, 3, 0, 0]; S.dev.pollMax = 998; S.dev.pollAvg = 990; document.querySelector('#seatIn').dispatchEvent(new Event('change')); });
+  await p4.reload(); await p4.waitForTimeout(300); await p4.click('[data-tab="dev"]');
+  const mv1 = await p4.innerText('#mouseVerdict');
+  await p4.click('#mousePad', { button: 'right' }); await p4.waitForTimeout(200);
+  const md = await p4.evaluate(() => ({ c: window.__pcbang.S.dev.chatter, b: window.__pcbang.S.dev.mBtns }));
+  ok(/채터링\) 의심 2회/.test(mv1) && md.c === 2 && md.b[0] === 5 && md.b[2] === 4, '마우스: 새로 고침 후 이전 기록 표시·이어서 셈 (채터링 ' + md.c + ', 버튼 ' + md.b + ')');
+  await p4.click('#mouseReset'); const md2 = await p4.evaluate(() => window.__pcbang.S.dev.chatter);
+  ok(!md2 && (await p4.innerText('#mouseVerdict')).trim() === '', '마우스: 초기화하면 기록 지움');
+  await p4.context().close();
+
   ok(errs.length === 0, '페이지 오류 없음' + (errs.length ? ': ' + errs.join(' / ') : ''));
   await browser.close();
   console.log(fails ? `\n${fails}개 실패` : '\n모두 통과');
