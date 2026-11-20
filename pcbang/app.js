@@ -1687,6 +1687,8 @@ function gtPrev(g) {
   return gtests.filter(function (x) { return x !== g && who(x) === who(g) && (gameIdOf(x.app) || String(x.app).toLowerCase()) === gid && String(x.time) < String(g.time); })
     .sort(function (a, b) { return String(b.time).localeCompare(String(a.time)); })[0] || null;
 }
+// FPS·CPU·그래픽 값이 하나도 없으면 '정상'이 아니라 판단 불가(목록·상세 같은 기준)
+function gtNoData(g) { return !g.fps && g.cpu.avg == null && g.gpu.utilAvg == null; }
 function gtProblems(g) {
   var out = [];
   var e = gtExpect(g);
@@ -1735,7 +1737,7 @@ function renderGameTests() {
   $('#gtList').innerHTML = gtests.map(function (g, i) {
     var gm = gtExpect(g), name = gm ? gm.game.name : (g.app || '게임');
     var pr = gtProblems(g), bad = pr.filter(function (p) { return p.lv === 'bad'; }).length;
-    return '<button class="item" type="button" data-gt="' + i + '"' + (gtSel === i ? ' aria-current="true"' : '') + '><span class="body"><span class="t">' + esc(g.seat ? g.seat + '번 · ' : (g.computer ? g.computer + ' · ' : '')) + esc(name) + '</span><span class="s">' + esc(g.time) + ' · ' + (g.fps ? '평균 ' + fmt(g.fps.avg) + 'fps · 1% 최저 ' + fmt(g.fps.low1) + 'fps' : 'FPS 없음') + '</span></span>' + (bad ? '<span class="pill bad">고칠 것 ' + bad + '</span>' : pr.length ? '<span class="pill warn">확인 ' + pr.length + '</span>' : '<span class="pill ok">정상</span>') + '</button>';
+    return '<button class="item" type="button" data-gt="' + i + '"' + (gtSel === i ? ' aria-current="true"' : '') + '><span class="body"><span class="t">' + esc(g.seat ? g.seat + '번 · ' : (g.computer ? g.computer + ' · ' : '')) + esc(name) + '</span><span class="s">' + esc(g.time) + ' · ' + (g.fps ? '평균 ' + fmt(g.fps.avg) + 'fps · 1% 최저 ' + fmt(g.fps.low1) + 'fps' : 'FPS 없음') + '</span></span>' + (bad ? '<span class="pill bad">고칠 것 ' + bad + '</span>' : pr.length ? '<span class="pill warn">확인 ' + pr.length + '</span>' : gtNoData(g) ? '<span class="pill">판단 불가</span>' : '<span class="pill ok">정상</span>') + '</button>';
   }).join('');
   if (gtSel == null && gtests.length) gtSel = 0;
   renderGameDetail();
@@ -1761,7 +1763,7 @@ function renderGameDetail() {
   var ps = function (lab, x, host) { return x ? '<tr><td>' + lab + (host ? '<div class="xs muted mono">' + esc(host) + '</div>' : '') + '</td><td class="num">' + fmt(x.avg, 1) + 'ms</td><td class="num">' + fmt(x.max) + 'ms</td><td class="num">' + fmt(x.jitter, 1) + 'ms</td><td class="num">' + fmt(x.loss, 1) + '%</td><td class="num">' + fmt(x.spikes) + '</td></tr>' : ''; };
   var pt = ps('게이트웨이', g.ping.gw, g.ping.gwHost) + ps('외부(KT DNS)', g.ping.ext, g.ping.extHost) + ps('게임 서버', g.ping.gs, g.ping.gsHost);
   if (pt) h += '<div class="tblwrap"><table><thead><tr><th>게임 중 핑</th><th>평균</th><th>최대</th><th>지터</th><th>손실</th><th>튐</th></tr></thead><tbody>' + pt + '</tbody></table></div>';
-  h += pr.length ? '<ol class="fixlist">' + pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : '확인') + '</span> <b>' + esc(p.t) + '</b><div class="small muted">' + esc(p.fix) + '</div></li>'; }).join('') + '</ol>' : (!g.fps && g.cpu.avg == null && g.gpu.utilAvg == null ? '<div class="warnbox">측정값이 거의 없어 판단할 수 없어요. game-test.bat을 관리자 권한으로 다시 실행하세요.</div>' : '<div class="okbox">게임 중 문제가 없었어요.</div>');
+  h += pr.length ? '<ol class="fixlist">' + pr.map(function (p) { return '<li><span class="pill ' + p.lv + '">' + (p.lv === 'bad' ? '고칠 것' : '확인') + '</span> <b>' + esc(p.t) + '</b><div class="small muted">' + esc(p.fix) + '</div></li>'; }).join('') + '</ol>' : (gtNoData(g) ? '<div class="warnbox">측정값이 거의 없어 판단할 수 없어요. game-test.bat을 관리자 권한으로 다시 실행하세요.</div>' : '<div class="okbox">게임 중 문제가 없었어요.</div>');
   // 값이 있는 그래프만 그림
   var has = function (a) { return a.some(function (v) { return v != null; }); };
   var showClk = has(g.tl.clk || []), showFps = has(g.tl.fps), showFt = has(g.tl.ftMax), showUse = has(g.tl.cpu) || has(g.tl.gpu) || has(g.tl.mem), showTemp = has(g.tl.temp), showPing = has(g.tl.gw) || has(g.tl.ext);

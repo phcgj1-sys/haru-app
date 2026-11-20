@@ -133,6 +133,11 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   ok(/CPU 클럭 저하 \(5,300→3,600MHz\)/.test(d2) && await page.$('#gtcClk') !== null, '실전 테스트: CPU 클럭 저하 판정·클럭 그래프');
   ok(/같은 부품 예상\(1440p, 측정 화면 2560×1440\)/.test(d2), '실전 테스트: 측정 해상도 기준 예상치');
 
+  // 빈 실전 결과는 목록에서 '정상'이 아니라 '판단 불가'
+  await page.evaluate(c => { document.querySelector('#gtPaste').value = c; document.querySelector('#gtImport').click(); }, 'PCBANGG1:' + b64({ v: 1, kind: 'game', time: '2026-11-20 14:05' }));
+  await page.waitForTimeout(200);
+  ok(/판단 불가/.test(await page.innerText('#gtList')), '실전 테스트: 측정값 없는 결과는 판단 불가로 표시');
+
   // 6. 모바일 폭 가로 넘침
   await page.setViewportSize({ width: 390, height: 844 });
   for (const t of ['home', 'game', 'games', 'log', 'dev', 'fix']) { await page.click(`[data-tab="${t}"]`); await page.waitForTimeout(100); }
