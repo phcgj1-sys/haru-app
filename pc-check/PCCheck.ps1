@@ -1576,6 +1576,11 @@ function Stop-CpuStress($Job) {
     try { $Job.Pool.Dispose() } catch {}
 }
 
+function Test-OverheatGuard([hashtable]$State, $GpuTempC, [double]$LimitC = 95, [int]$Count = 3) {
+    # 과열 보호: GPU 온도가 한계 이상으로 연속 Count 회(약 Count 초) 이어지면 $true (부하를 멈춰야 함)
+    if ($null -ne $GpuTempC -and "$GpuTempC" -ne '' -and [double]$GpuTempC -ge $LimitC) { $State.Hot = 1 + [int]$State.Hot } else { $State.Hot = 0 }
+    return ([int]$State.Hot -ge $Count)
+}
 function Start-GpuLoad([string]$LogPath) {
     # memtest_vulkan (Windows 에서는 입력 없이 바로 시작). 출력은 파일로 받아 오류를 기록에 반영
     $p = Install-MemtestVulkan
@@ -1715,6 +1720,9 @@ function Read-BlackboxAnalysis([string]$Path) {
         if ($evText) { $res.Detail += " 직전 오류: $evText." }
         $res.Detail += $noteText
         if ($res.RamErrors -gt 0) { $res.Cause = 'RAM' }
+    } elseif ($events.ContainsKey('OVERHEAT_STOP')) {
+        $res.Level = 'bad'; $res.Cause = 'THERMAL'; $res.Title = '블랙박스: 과열 보호로 테스트 중지 (과열 의심)'
+        $res.Detail = "테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 (최고 $(if ($null -ne $res.MaxGpuTempC) { "$($res.MaxGpuTempC) °C" } else { '-' })). 팬·먼지·써멀을 점검한 뒤 다시 시험하세요.$noteText"
     } elseif ($res.GpuTestErrors -gt 0 -or $events.ContainsKey('GPULOST')) {
         $res.Level = 'bad'; $res.Cause = 'GPU_HW'; $res.Title = "블랙박스: VRAM 검사에서 오류 $($res.GpuTestErrors) 건"
         $res.Detail = "그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.$noteText"
@@ -1780,7 +1788,7 @@ function Show-BlackboxDialog {
     $stopB = & $mk Windows.Forms.Button '중지' 196 416 170 44
     $anaB = & $mk Windows.Forms.Button '기록 파일 분석' 376 416 168 44
     $stopB.Enabled = $false
-    $st = @{ Box = $null; Cpu = $null; Gpu = $null; Ram = $false; Start = $null; Auto = $false; GpuFailed = $false }
+    $st = @{ Box = $null; Cpu = $null; Gpu = $null; Ram = $false; Start = $null; Auto = $false; GpuFailed = $false; Hot = 0 }
     $t = New-Object Windows.Forms.Timer; $t.Interval = 1000
     $setLoad = {
         param([bool]$cpu, [bool]$gpu, [bool]$ram)
@@ -1813,6 +1821,14 @@ function Show-BlackboxDialog {
             if (-not $st.Box) { return }
             $sy = $st.Box.Sync; $l = $sy.Last
             $el = ((Get-Date) - $st.Start).TotalSeconds
+            if ($l -and (Test-OverheatGuard $st $l.GpuTempC)) {
+                # 하드웨어 보호: 부하를 즉시 멈추고 기록에 남김
+                $sy.Pending = 'OVERHEAT_STOP'; Start-Sleep -Milliseconds 1500
+                $p = $sy.Path; & $stopAll
+                $live.Text = (Tr "과열 보호: 그래픽카드 $($l.GpuTempC) °C 가 이어져 테스트를 멈췄습니다. 쿨링을 점검하세요.") + "`n" + $p
+                [void][Windows.Forms.MessageBox]::Show($f, (Tr "과열 보호: 그래픽카드 $($l.GpuTempC) °C 가 이어져 테스트를 멈췄습니다. 쿨링을 점검하세요."), (Tr $script:AppName), 'OK', 'Warning')
+                return
+            }
             $head = ''
             if ($st.Auto) {
                 $g = Get-StageAt $script:StagePlan $el
@@ -1833,7 +1849,7 @@ function Show-BlackboxDialog {
     $browse.Add_Click({ $d = New-Object Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog($f) -eq 'OK') { $dirBox.Text = Join-Path $d.SelectedPath 'PCCheck_blackbox' } })
     $startB.Add_Click({
         try {
-            $st.Auto = $autoR.Checked; $st.GpuFailed = $false
+            $st.Auto = $autoR.Checked; $st.GpuFailed = $false; $st.Hot = 0
             if ($st.Auto -or $gpuChk.Checked) {
                 # GPU 부하 도구를 미리 준비 (노하드는 재부팅마다 지워지므로 매번 받음). 실패하면 바로 알림
                 $live.Text = Tr 'GPU 부하 도구 준비 중...'; [Windows.Forms.Application]::DoEvents()
@@ -2563,6 +2579,9 @@ $script:EnPairs = @(
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
     @('가장 최근 기록 그래프', 'Latest record chart'),
+    @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
+    @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
+    @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
     @('노하드(네트워크 부팅) PC 로 보임', 'Looks like a diskless (network-boot) PC'),
     @('재부팅하면 Windows 기록이 사라지는 환경입니다. 아래 블랙박스 기록을 기준으로 판단하세요.', 'Windows records are lost on reboot here. Judge by the black box records below.'),
     @('재부팅하면 Windows 기록이 사라져, 기록이 깨끗해도 문제가 없다는 뜻이 아닙니다. USB 를 꽂고 정밀 검사 → 블랙박스 기록(단계별 자동 테스트)을 실행하세요.', 'Windows records are lost on reboot, so clean records do not mean there is no problem. Plug in a USB drive and run Detailed tests → Black box recorder (automatic staged test).'), @('메모:', 'Note:'), @('메모', 'Note'), @('단계별 최고값', 'Peak values by stage'), @('여기서 꺼짐', 'shut off here'), @('통과', 'passed'), @('GPU 온도', 'GPU temp'), @('GPU 전력', 'GPU power'), @('CPU 사용률', 'CPU usage'), @('결과', 'Result'), @('단계', 'Stage'),

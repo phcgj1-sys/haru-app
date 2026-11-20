@@ -500,6 +500,15 @@ It '블랙박스 단계별 최고값 표: 꺼진 단계 표시' {
     Assert-Eq (Get-BlackboxStageTable ([ordered]@{ Stages = @() })) '' '단계 없으면 빈 값'
     $script:UiLang = 'en'; try { Assert ((Tr $t) -notmatch '[가-힣]') "영어: $(Tr $t)" } finally { $script:UiLang = 'ko' }
 }
+It '과열 보호: 95°C 이상 3회 연속이면 중지, 중간에 내려가면 초기화, 판정은 과열' {
+    $st = @{ Hot = 0 }
+    Assert (-not (Test-OverheatGuard $st 96)) '1회'; Assert (-not (Test-OverheatGuard $st 97)) '2회'; Assert (Test-OverheatGuard $st 95) '3회 → 중지'
+    $st2 = @{ Hot = 0 }; [void](Test-OverheatGuard $st2 96); [void](Test-OverheatGuard $st2 80); [void](Test-OverheatGuard $st2 96)
+    Assert (-not (Test-OverheatGuard $st2 $null)) '온도 없음/하강 시 초기화'
+    $a = Read-BlackboxAnalysis (New-Bb2File 'oh.csv' ((Rep 3 @('gpu', 5, 100, 96, 99, 250, 'HWTHERM', 0, '')) + @(,@('gpu', 5, 100, 97, 99, 250, '', 0, 'OVERHEAT_STOP'))) -Stop)
+    Assert-Eq $a.Level 'bad' '위험'; Assert-Eq $a.Cause 'THERMAL' '과열'; Assert ($a.Title -match '과열 보호') '제목'
+    $script:UiLang = 'en'; try { Assert ((Tr "$($a.Title) $($a.Detail)") -notmatch '[가-힣]') "영어: $(Tr $a.Detail)" } finally { $script:UiLang = 'ko' }
+}
 It 'NVIDIA 감속 원인 해석' {
     Assert-Eq (ConvertFrom-NvThrottle '0x0000000000000004') 'PWRCAP' '전력 제한'
     Assert-Eq (ConvertFrom-NvThrottle '0x88') 'HWSLOW+PBRAKE' '하드웨어'
