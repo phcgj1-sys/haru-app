@@ -59,7 +59,7 @@ PC 가 꺼지면 USB 를 꽂은 채 다시 켜서 **검사** → 기록을 자�
 라이선스·판매 시 주의: [THIRD-PARTY.md](THIRD-PARTY.md)
 
 ## 원격 상담 (기술자용)
-보고서 옆의 `.json` 파일을 받으면 어느 PC 에서든 같은 보고서를 다시 만들 수 있습니다.
+보고서 옆에는 메신저로 바로 보낼 수 있는 짧은 요약 `.txt` 도 함께 저장됩니다. `.json` 파일을 받으면 어느 PC 에서든 같은 보고서를 다시 만들 수 있습니다.
 ```powershell
 powershell -ExecutionPolicy Bypass -File PCCheck.ps1 -FromJson "PC진단_20261114_120000.json"
 ```

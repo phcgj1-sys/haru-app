@@ -267,7 +267,8 @@ It 'HTML/JSON 저장, 특수문자 이스케이프, 타임라인' {
     $data.System.CPU = '<script>alert(1)</script> & CPU'
     $dx = Get-Diagnosis -Data $data
     $r = Save-Results -Data $data -Dx $dx -Dir $OutDir
-    Assert (Test-Path $r.Html) 'html 존재'; Assert (Test-Path $r.Json) 'json 존재'
+    Assert (Test-Path $r.Html) 'html 존재'; Assert (Test-Path $r.Json) 'json 존재'; Assert (Test-Path $r.Txt) 'txt 요약 존재'
+    $tx = [IO.File]::ReadAllText($r.Txt); Assert ($tx -match '상태 점수') 'txt 내용'; Assert ($tx -match '지금 할 일') '다음 행동'
     $h = [IO.File]::ReadAllText($r.Html)
     Assert ($h -notmatch '<script>alert') '스크립트 주입 차단'
     Assert ($h -match '&lt;script&gt;') '이스케이프됨'

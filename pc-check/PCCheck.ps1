@@ -1046,6 +1046,8 @@ function Get-SummaryText($Data, $Dx) {
     [void]$L.Add("OS: $(Get-Prop $s 'OS') (빌드 $(Get-Prop $s 'Build')) · 보드: $(Get-Prop $s 'Board') BIOS $(Get-Prop $s 'BIOS')")
     $c = $Dx.Counts
     [void]$L.Add("기록: 갑자기꺼짐 $($c.PowerLoss) · 블루스크린 $($c.Bsod) · 그래픽오류 $($c.Gpu) · WHEA $($c.Whea) · 디스크 $($c.Disk)")
+    $top = @($Dx.Causes) | Select-Object -First 1
+    if ($top -and $top.Score -ge 30) { [void]$L.Add("지금 할 일: $(@($top.Steps)[0])") }
     if ($Dx.CrashCodes.Count) { [void]$L.Add("블루스크린 코드: $((($Dx.CrashCodes.Keys | ForEach-Object { "$_ x$($Dx.CrashCodes[$_])" }) -join ', '))") }
     if (@($Dx.Causes).Count) {
         [void]$L.Add('의심 원인:')
@@ -1297,8 +1299,10 @@ function Save-Results {
     $utf8 = New-Object System.Text.UTF8Encoding($true)
     [IO.File]::WriteAllText("$base.html", $html, $utf8)
     [IO.File]::WriteAllText("$base.json", (ConvertTo-Json -InputObject $Data -Depth 6), $utf8)
+    # 메신저로 바로 보낼 수 있는 짧은 요약 (원인 Top 3 · 지금 할 일)
+    [IO.File]::WriteAllText("$base.txt", (Get-SummaryText $Data $Dx), $utf8)
     if ($Track) { Add-History $Data $Dx }
-    return [pscustomobject]@{ Html = "$base.html"; Json = "$base.json" }
+    return [pscustomobject]@{ Html = "$base.html"; Json = "$base.json"; Txt = "$base.txt" }
 }
 
 # =====================================================================
