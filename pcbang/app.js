@@ -140,6 +140,7 @@ function matchGpu(raw) {
   return { name: best.name + (mobile && !isIgpuName ? ' (노트북)' : ''), score: Math.round(best.score * (mobile && !isIgpuName ? 0.72 : 1)), vram: best.vram, base: best };
 }
 // AMD APU·라이젠 내장 그래픽(이름이 'Radeon Graphics'로만 보일 때) — PassMark 근사치
+function isIgpu(name) { return /^intel (hd|uhd|iris)|intel arc \(내장|내장|^radeon (vega|\d{3}m)|radeon \d{3}m|radeon 2cu/i.test(String(name || '')); }
 function igpuFromCpu(cpu) {
   var c = String(cpu).toLowerCase(), m;
   var g = function (n, sc) { return { name: n, score: sc, vram: null }; };
@@ -264,7 +265,8 @@ function spec(st) {
   var gm = null;
   if (st.manual.gpu) { gm = matchGpu(st.manual.gpu); o.src.gpu = '직접 입력'; }
   if (!gm && nat.gpus && nat.gpus.length) {
-    var cands = nat.gpus.map(function (g) { var m = matchGpu(g.name); if (m && g.vram) m.vramReal = g.vram; return m; }).filter(Boolean).sort(function (a, b) { return b.score - a.score; });
+    // 윈도우는 RTX 3060 8GB/12GB 를 같은 이름으로 보여 주므로 VRAM 을 붙여 변형을 고름(그런 변형이 표에 있을 때만 바뀜)
+    var cands = nat.gpus.map(function (g) { var m = matchGpu(g.name + (g.vram >= 1 ? ' ' + Math.round(g.vram) + 'GB' : '')) || matchGpu(g.name); if (m && g.vram) m.vramReal = g.vram; return m; }).filter(Boolean).sort(function (a, b) { return b.score - a.score; });
     if (cands.length) { gm = cands[0]; o.src.gpu = '점검 프로그램'; }
   }
   if (!gm && st.det.renderer) { gm = matchGpu(st.det.renderer); if (gm) o.src.gpu = '자동 감지'; }
@@ -276,7 +278,9 @@ function spec(st) {
   }
   o.gpu = gm;
   o.gpuRaw = st.manual.gpu || (nat.gpus && nat.gpus[0] && nat.gpus[0].name) || st.det.renderer || '';
-  o.vram = gm && (gm.vramReal || gm.vram) || null;
+  // 내장 그래픽은 시스템 메모리를 나눠 쓰므로 보고된 전용 메모리(0.1~0.5GB)로 VRAM 판정을 하지 않음
+  o.igpu = !!gm && isIgpu(gm.name);
+  o.vram = o.igpu ? null : (gm && (gm.vramReal || gm.vram) || null);
   // CPU
   var cm = null;
   if (st.manual.cpu) { cm = matchCpu(st.manual.cpu); o.src.cpu = '직접 입력'; }

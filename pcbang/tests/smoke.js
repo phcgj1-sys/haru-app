@@ -51,6 +51,14 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     const P = window.__pcbang, sp = (cpu, gpu) => { const o = P.spec({ manual: {}, det: {}, bench: {}, dev: {}, native: { cpu, gpus: [{ name: gpu }] } }); return o.gpu ? o.gpu.name : null; };
     return [sp('AMD Ryzen 5 5600G with Radeon Graphics', 'AMD Radeon(TM) Graphics'), sp('Intel(R) Core(TM) i5-12400', 'Intel(R) UHD Graphics'), sp('Intel(R) Core(TM) i5-12400F', 'Intel(R) UHD Graphics'), sp('AMD Ryzen 5 5600X', 'AMD Radeon(TM) Graphics'), sp('Intel(R) Core(TM) i5-12400', 'NVIDIA GeForce RTX 3060')];
   });
+  // 1-4. 점검 프로그램 VRAM: 내장 그래픽은 VRAM 판정 안 함, 같은 이름의 VRAM 변형 구분
+  const vr = await page.evaluate(() => {
+    const P = window.__pcbang, opt = { res: '1080', preset: 'mid', target: 'auto' };
+    const sp = (gpu, vram) => P.spec({ manual: {}, det: {}, bench: {}, dev: {}, native: { cpu: 'Intel(R) Core(TM) i7-8700', ramGB: 16, os: 'win10', gpus: [{ name: gpu, vram }] } });
+    const u = sp('Intel(R) UHD Graphics 630', 0.1);
+    return [P.judge(window.GAMES[0], u, opt).level, sp('NVIDIA GeForce RTX 3060', 8).gpu.name, sp('NVIDIA GeForce RTX 3060', 12).gpu.name, sp('NVIDIA GeForce RTX 3060 Ti', 8).gpu.name];
+  });
+  ok(JSON.stringify(vr) === JSON.stringify(['rec', 'RTX 3060 8GB', 'RTX 3060', 'RTX 3060 Ti']), 'VRAM: UHD 630 롤 권장(작은 전용 메모리로 오판 안 함), 3060 8GB/12GB·3060 Ti 구분 ' + JSON.stringify(vr));
   ok(/Vega 7/.test(ig[0]) && /UHD 730/.test(ig[1]) && ig[2] === null && ig[3] === null && ig[4] === 'RTX 3060', '내장 그래픽 추정: 5600G·i5-12400 추정, F·X 모델은 안 함, 외장 우선 ' + JSON.stringify(ig));
 
   // 2. 게임 판정
