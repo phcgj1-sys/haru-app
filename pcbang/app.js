@@ -243,9 +243,12 @@ async function detect() {
       var hv = await navigator.userAgentData.getHighEntropyValues(['platformVersion', 'architecture', 'bitness']);
       d.bitness = hv.bitness; d.arch = hv.architecture;
       if (navigator.userAgentData.platform === 'Windows') {
-        var major = parseInt((hv.platformVersion || '0').split('.')[0], 10);
-        d.win = major >= 13 ? 'win11' : major > 0 ? 'win10' : 'win7';
-        d.osName = d.win === 'win11' ? 'Windows 11' : d.win === 'win10' ? 'Windows 10' : 'Windows 7/8.1';
+        // UA-CH platformVersion: 13 이상 = Win11, 1~12 = Win10(1903 이후), '0.0.0' = Win10 1809 이하, 0.1~0.3 = Win7/8/8.1
+        var pv = String(hv.platformVersion || ''), parts = pv.split('.'), major = parseInt(parts[0], 10), minor = parseInt(parts[1] || '0', 10);
+        if (!pv || isNaN(major)) d.win = null;
+        else d.win = major >= 13 ? 'win11' : major > 0 ? 'win10' : (minor >= 1 ? 'win7' : 'win10');
+        d.winOld = d.win === 'win10' && major === 0; // 1809 이하 → 롤·발로란트(빌드 19041 필요) 불가
+        if (d.win) d.osName = d.win === 'win11' ? 'Windows 11' : d.win === 'win10' ? (major === 0 ? 'Windows 10 (1809 이하)' : 'Windows 10') : 'Windows 7/8.1';
       }
     } else if (d.os === 'win') d.osName = 'Windows 10 또는 11';
   } catch (e) {}
@@ -297,6 +300,7 @@ function spec(st) {
   if (!o.ram && st.det.memGB) { o.ramAtLeast = st.det.memGB; }
   // OS
   o.os = st.manual.os || nat.os || st.det.win || null;
+  o.winOld = !nat.osBuild && !st.manual.os && !!st.det.winOld;
   o.threads = (nat.threads) || st.det.threads || (cm && cm.threads) || null;
   // 주사율: 점검 프로그램 값과 브라우저 측정값 중 더 최근 것(설정을 고친 뒤 다시 잰 값이 이기도록)
   var natAt = Date.parse(String(nat.time || '').replace(' ', 'T')) || 0, devAt = st.dev.hzInfo && st.dev.hzInfo.at || 0;
@@ -348,6 +352,7 @@ function judge(game, sp, opt) {
     if (/꺼짐/.test(nat.secureBoot || '')) r.issues.push({ l: 'fail', t: '보안 부팅(Secure Boot)이 꺼져 있어 실행 안 됨(VAN9003) — BIOS에서 켜야 함' });
     if (/없음/.test(nat.tpm || '')) r.issues.push({ l: 'fail', t: 'TPM 2.0이 없거나 꺼져 있어 실행 안 됨(VAN9001) — BIOS에서 fTPM/PTT 켜기' });
   }
+  if ((game.id === 'lol' || game.id === 'val') && sp.winOld) r.issues.push({ l: 'fail', spec: true, t: 'Windows 10 1809 이하로 보여요 — 빌드 19041 이상으로 업데이트 필요(VAN 9004). 정확한 빌드는 점검 프로그램으로 확인' });
   if ((game.id === 'lol' || game.id === 'val') && nat.osBuild && nat.osBuild < 19041) r.issues.push({ l: 'fail', t: 'Windows 10 빌드 ' + nat.osBuild + ' — 19041 이상으로 업데이트 필요(VAN 9004)' });
   (game.checks || []).forEach(function (c) { r.issues.push({ l: 'info', t: c }); });
   var ls = r.comps.map(function (c) { return c.l; });
