@@ -44,7 +44,7 @@ applyTheme();
 
 /* ---------------- 탭 ---------------- */
 function showTab(name) {
-  $$('.tabs button').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.tab === name ? 'true' : 'false'); });
+  $$('.tabs button').forEach(function (b) { var on = b.dataset.tab === name; b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1; });
   $$('[data-panel]').forEach(function (p) { p.hidden = p.dataset.panel !== name; });
   if (name === 'home') renderSummary();
   if (name === 'games') renderGames();
@@ -57,6 +57,18 @@ function showTab(name) {
   window.scrollTo(0, 0);
 }
 $$('.tabs button').forEach(function (b) { b.addEventListener('click', function () { showTab(b.dataset.tab); }); });
+// 탭 접근성(WAI-ARIA 탭 패턴): 탭과 내용 연결, 왼쪽·오른쪽 화살표와 Home·End 로 이동
+$$('.tabs button').forEach(function (b) {
+  b.id = 'tab-' + b.dataset.tab; b.setAttribute('aria-controls', 'panel-' + b.dataset.tab);
+  var pn = $('[data-panel="' + b.dataset.tab + '"]'); if (pn) { pn.id = 'panel-' + b.dataset.tab; pn.setAttribute('role', 'tabpanel'); pn.setAttribute('aria-labelledby', b.id); }
+});
+$('.tabs').addEventListener('keydown', function (e) {
+  var tabs = $$('.tabs button'), i = tabs.indexOf(document.activeElement); if (i < 0) return;
+  var n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : null;
+  if (n === null) return;
+  e.preventDefault(); n = (n + tabs.length) % tabs.length;
+  showTab(tabs[n].dataset.tab); tabs[n].focus();
+});
 document.addEventListener('click', function (e) { var g = e.target.closest && e.target.closest('[data-goto]'); if (g) { e.preventDefault(); showTab(g.dataset.goto); } });
 
 /* ---------------- 부품 표 ---------------- */
