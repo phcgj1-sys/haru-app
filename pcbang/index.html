@@ -163,6 +163,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .ptable{border-collapse:collapse;width:100%;font-size:12px}.ptable th,.ptable td{border:1px solid #999;padding:4px 6px}
 @media print{body.printing .app,body.printing .toast,body.printing dialog{display:none!important}body.printing #printArea{display:block!important;color:#000}body.printing #printArea .pill{border:1px solid #999}}
 @media print{.tabs,.top .btn,.noprint{display:none!important}body{background:#fff}}
+/* 인쇄는 화면 테마와 상관없이 항상 밝은 색(흰 종이에 어두운 배지·연한 글자가 찍히지 않게) */
+@media print{:root,:root[data-theme="dark"]{--bg:#fff;--surface:#fff;--fg:#111;--muted:#555;--line:#ccc;--soft:#f2f2f2;--accent:#2453D6;--accent-ink:#fff;--accent-soft:#E3EAFB;--ok:#127A42;--ok-soft:#DFF3E7;--warn:#8A5A00;--warn-soft:#FFF1D1;--bad:#B42B23;--bad-soft:#FBE4E2;color-scheme:light}}
 </style>
 </head>
 <body>
