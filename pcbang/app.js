@@ -132,7 +132,7 @@ function matchGpu(raw) {
     if (alt) best = alt;
   }
   var mobile = /laptop|mobile|max-q|\bmx\d|notebook/.test(lower) || /\d{3,4}m\b/.test(lower.replace(/radeon \d{3}m/, ''));
-  var isIgpuName = /^(radeon)?\d{3}m$/.test(best.keys[0]);
+  var isIgpuName = /^(radeon)?\d{3}m$/.test(best.keys[0]) || /laptop|내장/i.test(best.name);
   return { name: best.name + (mobile && !isIgpuName ? ' (노트북)' : ''), score: Math.round(best.score * (mobile && !isIgpuName ? 0.72 : 1)), vram: best.vram, base: best };
 }
 function ckey(s) {
