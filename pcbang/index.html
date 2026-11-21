@@ -218,7 +218,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
         <a class="btn" href="pc-check.ps1" download>pc-check.ps1 받기</a>
         <button class="btn" type="button" data-goto="spec">결과 붙여넣기</button>
       </div>
-      <p class="xs muted">두 파일을 같은 폴더에 받고 <b>pc-check.bat</b>을 더블클릭하세요. 설치나 관리자 권한은 필요 없고, 이 PC 정보는 어디로도 보내지 않아요(핑 대상에게 보내는 짧은 신호만 나가요). 윈도우가 "PC 보호" 창을 띄우면 '추가 정보 → 실행'을 누르세요.</p>
+      <p class="xs muted">두 파일을 같은 폴더에 받고 <b>pc-check.bat</b>을 더블클릭하세요. 설치나 관리자 권한은 필요 없고, 이 PC 정보는 어디로도 보내지 않아요(핑 대상에게 보내는 짧은 신호만 나가요). 받을 때 브라우저가 "위험할 수 있는 파일"·"일반적으로 다운로드되지 않음"이라고 막으면 다운로드 목록에서 <b>… → 유지(계속)</b>를 누르세요(.bat·.ps1 파일은 늘 이렇게 물어요). 윈도우가 "PC 보호" 창을 띄우면 '추가 정보 → 실행'을 누르세요.</p>
     </div>
   </section>
 
@@ -233,6 +233,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
         <li>끝나면 "삑삑" 소리가 나고 결과가 요약돼요. 결과 코드가 클립보드에 복사되고 바탕화면에 <span class="mono">game-…txt</span> 파일로도 저장돼요. 아래에 붙여넣거나 파일을 넣으세요.</li>
       </ol>
       <div class="row"><a class="btn" href="game-test.bat" download>game-test.bat 받기</a><a class="btn" href="game-test.ps1" download>game-test.ps1 받기</a></div>
+      <p class="xs muted">브라우저가 다운로드를 막으면("위험할 수 있는 파일") 다운로드 목록에서 <b>… → 유지(계속)</b>를 누르세요. 두 파일 모두 받아야 해요.</p>
       <p class="xs muted">FPS는 인텔이 공개한 측정 도구 PresentMon으로 재요. 처음 실행할 때 GitHub에서 자동으로 받아요. 인터넷이 막혀 있으면 <span class="mono">PresentMon-버전-x64.exe</span>를 직접 받아 같은 폴더에 넣으세요. PresentMon은 게임에 끼어들지 않고 윈도우가 기록하는 화면 출력 정보만 읽어요. 그래도 PC방 보안 프로그램이나 정책이 실행을 막으면 FPS 없이 나머지만 기록돼요.</p>
       <div class="drop noprint"><div><b>실전 테스트 결과(.txt) 넣기</b><br><span class="small muted">여러 개를 한 번에 골라도 돼요</span></div><label class="btn sm">파일 고르기<input type="file" id="gtFile" accept=".txt,text/plain" multiple hidden></label></div>
       <details><summary>결과 코드 직접 붙여넣기</summary><textarea id="gtPaste" aria-label="실전 테스트 결과 코드 붙여넣기" placeholder="PCBANGG1:..."></textarea><div class="row" style="margin-top:6px"><button class="btn primary sm" id="gtImport" type="button">불러오기</button></div></details>
