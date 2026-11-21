@@ -1423,8 +1423,13 @@ function addToShop(items, fileSeat) {
     var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : 'x:' + fp.slice(0, 120);
     var e = Object.prototype.hasOwnProperty.call(shop, key) ? shop[key] : { key: key, seat: seat, computer: '', at: 0 };
     if (n) {
-      if (e.native && e.native.time !== n.data.time) { var ch = diffNative(e.native, n.data); if (ch.length) { e.history = (e.history || []).concat([{ at: n.data.time || '', from: e.native.time || '', ch: ch }]).slice(-10); } }
-      e.native = n.data; e.computer = comp || e.computer;
+      // 측정 시각으로 비교: 더 오래된 결과를 나중에 넣어도 최신 결과를 덮지 않고, 이력 방향(이전 → 이후)이 뒤집히지 않게
+      var tNew = natTime(n.data), tCur = e.native ? natTime(e.native) : 0;
+      var addHist = function (from, to) { var ch = diffNative(from, to); if (!ch.length) return; var hh = (e.history || []).filter(function (x) { return !(x.from === (from.time || '') && x.at === (to.time || '')); }); hh.push({ at: to.time || '', from: from.time || '', ch: ch }); hh.sort(function (x, y) { return (Date.parse(String(x.at).replace(' ', 'T')) || 0) - (Date.parse(String(y.at).replace(' ', 'T')) || 0); }); e.history = hh.slice(-10); };
+      if (!e.native || !(tNew && tCur && tNew < tCur)) {
+        if (e.native && e.native.time !== n.data.time) addHist(e.native, n.data);
+        e.native = n.data; e.computer = comp || e.computer;
+      } else if (e.native.time !== n.data.time && !(e.history || []).length) addHist(n.data, e.native); // 오래된 결과: 저장은 안 하고, 이력이 비어 있을 때만 '그때 → 지금' 변화 기록
     }
     if (w) e.web = w.data;
     e.seat = e.seat || seat;
@@ -1435,6 +1440,7 @@ function addToShop(items, fileSeat) {
   saveShop();
   return { added: Object.keys(keys).length, errors: errors };
 }
+function natTime(n) { return Date.parse(String((n && n.time) || '').replace(' ', 'T')) || 0; }
 // 같은 좌석의 이전 점검과 비교해 바뀐 것 (드라이버·윈도우·주사율·전원·램·부품)
 function diffNative(a, b) {
   var out = [];

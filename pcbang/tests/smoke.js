@@ -265,6 +265,19 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(/60에 묶여/.test(d71) && !/묶여/.test(d72), '실전 테스트: 60fps 상한은 안내·서든 200 은 안내 없음');
   }
 
+  // 매장 현황: 오래된 점검 결과를 나중에 넣어도 최신 결과 유지, 이력 방향·중복
+  {
+    const p9 = await (await browser.newContext()).newPage(); p9.on('pageerror', e => errs.push(e.message));
+    await p9.goto(URL); await p9.waitForTimeout(200);
+    const nat = (time, drv) => 'PCBANG1:' + b64({ v: 2, time, seat: 61, computer: 'PC-061', cpu: 'Intel(R) Core(TM) i5-12400F', gpus: [{ name: 'NVIDIA GeForce RTX 4060', vram: 8, driver: drv }], ramGB: 16, os: 'win11' });
+    const imp = async t => { await p9.evaluate(t => { document.querySelector('#shopPaste').value = t; document.querySelector('#shopImportBtn').click(); }, t); await p9.waitForTimeout(150); };
+    const A = nat('2026-11-20 10:00', '566.03'), B = nat('2026-11-21 09:00', '572.16');
+    await imp(B); await imp(A); await imp(B); await imp(A);
+    const e = await p9.evaluate(() => JSON.parse(localStorage.getItem('pcbang_store_v1'))['seat:61']);
+    ok(e.native.gpus[0].driver === '572.16' && e.history.length === 1 && e.history[0].from === '2026-11-20 10:00', '매장 현황: 오래된 결과가 최신을 덮지 않음·이력 1개 방향 맞음 (' + e.native.gpus[0].driver + ', 이력 ' + e.history.length + ')');
+    await p9.context().close();
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
