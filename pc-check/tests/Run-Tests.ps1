@@ -243,6 +243,11 @@ It '다음 정밀 검사 추천: 보고서·요약에 표시 (원인 없으면 �
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $e = New-HtmlReport -Data $d -Dx $dx; Assert ($e -match 'Recommended next test: ') '영어'; Assert ($e -notmatch '다음 정밀') '한글 없음' } finally { $script:UiLang = $lg }
 }
+It '문서: README 자주 묻는 질문 (외부 전송·100점인데 꺼짐·관리자 권한·경고·결과 보내기·수리 확인)' {
+    $readme = Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot '..\README.md')
+    Assert ($readme -match '## 자주 묻는 질문') '섹션'
+    foreach ($k in '인터넷으로 내 정보가 나가나요', '100점인데', '관리자 권한', '경고를 띄워요', '보내려면', '효과를 확인') { Assert ($readme -match [regex]::Escape($k)) "질문: $k" }
+}
 It '문서: 사용자용 명령줄 옵션은 모두 README 에 설명됨' {
     $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
     $block = [regex]::Match($src, '(?s)\bparam\((.*?)\n\)').Groups[1].Value
