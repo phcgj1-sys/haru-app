@@ -1975,13 +1975,24 @@ function Get-WindowTitle([string]$Shop) {
     if ($Shop) { $t += " — $Shop" }
     return $t
 }
+function Read-TextAnyEncoding([string]$Path) {
+    # 메모장에서 'ANSI'(한국어 Windows 는 CP949)로 저장한 파일도 깨지지 않게: UTF-8 로 올바르면 UTF-8, 아니면 Windows 기본 코드 페이지
+    $bytes = [IO.File]::ReadAllBytes($Path)
+    $start = 0; if ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF) { $start = 3 }
+    if ($bytes.Length -ge 2 -and (($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xFE) -or ($bytes[0] -eq 0xFE -and $bytes[1] -eq 0xFF))) { return [IO.File]::ReadAllText($Path) }   # UTF-16 (BOM 으로 자동 판별)
+    try { return (New-Object Text.UTF8Encoding($false, $true)).GetString($bytes, $start, $bytes.Length - $start) }
+    catch {
+        $cp = 949; try { $cp = [Globalization.CultureInfo]::CurrentCulture.TextInfo.ANSICodePage; if ($cp -le 0 -or $cp -eq 65001) { $cp = 949 } } catch {}
+        try { return [Text.Encoding]::GetEncoding($cp).GetString($bytes) } catch { return [Text.Encoding]::GetEncoding(949).GetString($bytes) }
+    }
+}
 function Get-ShopText([string]$Shop, [string]$Dir) {
     # 매장(점검자) 이름·연락처: -Shop 값, 없으면 프로그램 옆 shop.txt 첫 줄 (보고서·요약에 표시, 최대 100자)
     $t = $Shop
     if (-not $t) {
         if (-not $Dir) { $Dir = $(if ($PSScriptRoot) { $PSScriptRoot } else { [AppDomain]::CurrentDomain.BaseDirectory }) }
         $f = Join-Path $Dir 'shop.txt'
-        if (Test-Path -LiteralPath $f) { try { $t = @(Get-Content -LiteralPath $f -Encoding UTF8 | Where-Object { $_.Trim() })[0] } catch {} }
+        if (Test-Path -LiteralPath $f) { try { $t = @((Read-TextAnyEncoding $f) -split '\r?\n' | Where-Object { $_.Trim() })[0] } catch {} }
     }
     $t = ([string]$t).Trim()
     if ($t.Length -gt 100) { $t = $t.Substring(0, 100) }

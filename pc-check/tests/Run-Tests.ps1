@@ -957,6 +957,20 @@ It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드
         Assert (@($found | Where-Object { $_.File -eq 'PCCheck_blackbox_PC_20990102_000000.csv' }).Count -eq 1) "대괄호 폴더 기록 찾음 ($($found.Count))"
     } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
 }
+It 'shop.txt: 메모장 ANSI(CP949)·UTF-8(BOM 유무)·UTF-16 으로 저장해도 한글이 깨지지 않음' {
+    $d = Join-Path $OutDir ('shopenc_' + [guid]::NewGuid().ToString('N')); [void][IO.Directory]::CreateDirectory($d)
+    $f = Join-Path $d 'shop.txt'; $txt = "OO컴퓨터 · 010-1234-5678`r`n둘째"
+    $old = [Threading.Thread]::CurrentThread.CurrentCulture
+    try {
+        [Threading.Thread]::CurrentThread.CurrentCulture = New-Object Globalization.CultureInfo('ko-KR')
+        $cases = @(@('CP949', [Text.Encoding]::GetEncoding(949).GetBytes(($txt -replace ' · ', ' - '))), @('UTF8', (New-Object Text.UTF8Encoding($false)).GetBytes($txt)), @('UTF8BOM', ([byte[]](0xEF, 0xBB, 0xBF) + (New-Object Text.UTF8Encoding($false)).GetBytes($txt))), @('UTF16', ([byte[]](0xFF, 0xFE) + [Text.Encoding]::Unicode.GetBytes($txt))))
+        foreach ($c in $cases) {
+            [IO.File]::WriteAllBytes($f, [byte[]]$c[1])
+            $want = $(if ($c[0] -eq 'CP949') { 'OO컴퓨터 - 010-1234-5678' } else { 'OO컴퓨터 · 010-1234-5678' })
+            Assert-Eq (Get-ShopText '' $d) $want "$($c[0])"
+        }
+    } finally { [Threading.Thread]::CurrentThread.CurrentCulture = $old }
+}
 It '폴더 이름에 [ ] 가 있어도: shop.txt·USB 이력·보고서 파일을 찾음' {
     $d = Join-Path $OutDir ('shop[2]_' + [guid]::NewGuid().ToString('N')); [void][IO.Directory]::CreateDirectory($d)
     [IO.File]::WriteAllText((Join-Path $d 'shop.txt'), "괄호컴퓨터`r`n", (New-Object Text.UTF8Encoding($true)))
