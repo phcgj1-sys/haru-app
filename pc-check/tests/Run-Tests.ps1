@@ -576,6 +576,17 @@ It '블랙박스: 메모리 검사 오류 뒤 꺼지면 원인과 제목이 일�
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { foreach ($t in $a.Title, $g.Title) { Assert ((Tr $t) -notmatch '[가-힣]') "영어: $(Tr $t)" } } finally { $script:UiLang = $lg }
 }
+It '지난 검사 대비: 노하드는 이후 끝난 블랙박스 이상 기록도 새 문제로 셈' {
+    $bad = Read-BlackboxAnalysis (New-Bb2File 'bb_new.csv' (Rep 10 @('full', 95, 99, 70, 99, 300, '', 0, '')))   # 2026-11-14 기록, 갑자기 끊김
+    Assert-Eq $bad.Level 'bad' '이상 기록'
+    $d = New-Scenario @{ Blackbox = @($bad) }
+    $n = Get-NewSince $d (Get-Date '2026-11-13T00:00:00'); Assert-Eq $n.Blackbox 1 '이후 이상 1건'
+    $n2 = Get-NewSince $d (Get-Date '2026-11-15T00:00:00'); Assert-Eq $n2.Blackbox 0 '이전 기록은 제외'
+    $dx = Get-Diagnosis -Data $d; $dx.Previous = [ordered]@{ Created = '2026-11-13T00:00:00'; Health = 80; New = $n; NewTotal = 1 }
+    $h = New-HtmlReport -Data $d -Dx $dx; Assert ($h -match '블랙박스 이상 1') '보고서 항목'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { Assert ((New-HtmlReport -Data $d -Dx $dx) -match 'Blackbox failure 1') '영어' } finally { $script:UiLang = $lg }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
