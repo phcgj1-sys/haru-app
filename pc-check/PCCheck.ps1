@@ -1016,17 +1016,21 @@ function Get-Diagnosis {
 # =====================================================================
 #  보고서
 # =====================================================================
+function Get-TimelineSeries($Data) {
+    # 날짜별 차트 계열 — 진단 집계와 같은 기준 (블루스크린의 41 은 '꺼짐'에서 제외, 그래픽 중복 제거, USB 디스크 오류 제외)
+    return [ordered]@{
+        '갑자기 꺼짐' = @{ C = 'var(--c-psu)'; T = @(@(Get-Arr (Get-Prop $Data 'Shutdowns')) | Where-Object { -not (Format-BugCode (Get-Prop $_ 'Code')) } | ForEach-Object { Get-Prop $_ 'T' }) }
+        '블루스크린' = @{ C = 'var(--c-bsod)'; T = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { Get-Prop $_ 'T' }) }
+        '그래픽' = @{ C = 'var(--c-gpu)'; T = @(@(Merge-GpuEvents (Get-Prop $Data 'GpuEvents')) | ForEach-Object { Get-Prop $_ 'T' }) }
+        'WHEA' = @{ C = 'var(--c-whea)'; T = @(Get-Arr (Get-Prop $Data 'Whea') | ForEach-Object { Get-Prop $_ 'T' }) }
+        '디스크 오류' = @{ C = 'var(--c-disk)'; T = @(@((Split-DiskEvents $Data).Internal) | ForEach-Object { Get-Prop $_ 'T' }) }
+    }
+}
 function Get-TimelineSvg($Data) {
     $days = [int](Get-Prop (Get-Prop $Data 'Meta') 'Days'); if ($days -le 0) { $days = 30 }
     $end = (ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created')); if (-not $end) { $end = Get-Date }
     $end = $end.Date
-    $series = [ordered]@{
-        '갑자기 꺼짐' = @{ C = 'var(--c-psu)'; T = @(Get-Arr (Get-Prop $Data 'Shutdowns') | ForEach-Object { Get-Prop $_ 'T' }) }
-        '블루스크린' = @{ C = 'var(--c-bsod)'; T = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { Get-Prop $_ 'T' }) }
-        '그래픽' = @{ C = 'var(--c-gpu)'; T = @(Get-Arr (Get-Prop $Data 'GpuEvents') | ForEach-Object { Get-Prop $_ 'T' }) }
-        'WHEA' = @{ C = 'var(--c-whea)'; T = @(Get-Arr (Get-Prop $Data 'Whea') | ForEach-Object { Get-Prop $_ 'T' }) }
-        '디스크 오류' = @{ C = 'var(--c-disk)'; T = @(Get-Arr (Get-Prop $Data 'DiskEvents') | ForEach-Object { Get-Prop $_ 'T' }) }
-    }
+    $series = Get-TimelineSeries $Data
     $bins = @{}
     $max = 1
     foreach ($name in $series.Keys) {

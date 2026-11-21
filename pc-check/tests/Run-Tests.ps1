@@ -351,6 +351,21 @@ It '최근 추세: 최근 7일 문제가 이전보다 2배 이상 잦으면 안�
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $f = @((Get-Diagnosis -Data $up).Findings | Where-Object { $_.Title -match '잦아짐' })[0]; Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') "영어: $(Tr $f.Detail)" } finally { $script:UiLang = $lg }
 }
+It '날짜별 차트: 진단 집계와 같은 기준 (블루스크린 41·그래픽 중복·USB 디스크 제외)' {
+    $t0 = (Get-Date).AddDays(-2)
+    $d = New-Scenario @{
+        Shutdowns = @([ordered]@{ T = (T 1); Code = ''; PowerButton = $false }, [ordered]@{ T = (T 2); Code = '0x116'; PowerButton = $false })
+        BugChecks = @([ordered]@{ T = (T 2); Code = '0x116' })
+        GpuEvents = @([ordered]@{ T = (Format-T $t0); Source = 'Display'; Id = 4101; Xid = $null; Msg = 'x' }, [ordered]@{ T = (Format-T $t0.AddSeconds(30)); Source = 'LiveKernelEvent'; Id = 1001; Xid = $null; Msg = 'x' })
+        Disks = @([ordered]@{ Name = 'SSD'; DeviceId = '0'; Bus = 'NVMe'; Health = 'Healthy' }); DiskEvents = @([ordered]@{ T = (T 1); Source = 'disk'; Id = 11; DiskNum = 3; Msg = 'x' })
+    }
+    $sr = Get-TimelineSeries $d; $dx = Get-Diagnosis -Data $d
+    Assert-Eq @($sr['갑자기 꺼짐'].T).Count $dx.Counts.PowerLoss '꺼짐 = 집계'
+    Assert-Eq @($sr['그래픽'].T).Count $dx.Counts.Gpu '그래픽 = 집계'
+    Assert-Eq @($sr['디스크 오류'].T).Count $dx.Counts.Disk '디스크 = 집계'
+    Assert-Eq @($sr['갑자기 꺼짐'].T).Count 1 '블루스크린 41 제외'
+    Assert ((Get-TimelineSvg $d) -match '<svg') '차트 생성'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
