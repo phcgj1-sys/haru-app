@@ -414,6 +414,11 @@ It '검사 소요 시간: 보고서 하단에 총 시간과 느린 단계 표시
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert ((New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)) -match 'Scan took 12.3 s \(slowest step: Windows stability index 8.4 s\)') '영어' } finally { $script:UiLang = $lg }
 }
+It 'CI: 지원 종료 예정(Node 20) 액션 버전을 쓰지 않음' {
+    $wf = Get-Content -Raw (Join-Path $PSScriptRoot '..\..\.github\workflows\pc-check.yml')
+    Assert ($wf -notmatch 'actions/(checkout|upload-artifact)@v[1-4]\b') 'checkout·upload-artifact 는 v5 이상'
+    Assert ($wf -match 'actions/checkout@v\d+') 'checkout 사용'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
