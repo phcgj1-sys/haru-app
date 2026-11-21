@@ -336,6 +336,19 @@ It '그래픽 오류: 같은 멈춤의 Display 4101 과 LiveKernelEvent 141 은 
     Assert-Eq $dx.Counts.Gpu 2 '진단 집계 2건'
     Assert-Eq @(Merge-GpuEvents @()).Count 0 '빈 목록'
 }
+It '최근 추세: 최근 7일 문제가 이전보다 2배 이상 잦으면 안내' {
+    $mk = { param($daysAgo) @($daysAgo | ForEach-Object { [ordered]@{ T = (T $_); Code = ''; PowerButton = $false } }) }
+    $up = New-Scenario @{ Shutdowns = (& $mk @(1, 2, 3, 4, 20)) }; $up.Meta.Days = 30
+    $tr = Get-ProblemTrend $up; Assert-Eq $tr.Recent 4 '최근 4'; Assert-Eq $tr.Earlier 1 '이전 1'; Assert $tr.Rising '증가'
+    Assert (@((Get-Diagnosis -Data $up).Findings | Where-Object { $_.Title -match '잦아짐' }).Count -eq 1) '안내 표시'
+    $flat = New-Scenario @{ Shutdowns = (& $mk @(1, 2, 3, 10, 12, 15, 18, 20, 22, 25)) }; $flat.Meta.Days = 30
+    Assert (-not (Get-ProblemTrend $flat).Rising) '고르게 나면 증가 아님'
+    $few = New-Scenario @{ Shutdowns = (& $mk @(1, 2)) }; $few.Meta.Days = 30
+    Assert (-not (Get-ProblemTrend $few).Rising) '2건뿐이면 판단 안 함'
+    $short = New-Scenario @{}; $short.Meta.Days = 7; Assert ($null -eq (Get-ProblemTrend $short)) '기간 7일이면 비교 안 함'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { $f = @((Get-Diagnosis -Data $up).Findings | Where-Object { $_.Title -match '잦아짐' })[0]; Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') "영어: $(Tr $f.Detail)" } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

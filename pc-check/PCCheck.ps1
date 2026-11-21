@@ -543,6 +543,21 @@ function Get-Prop($o, [string]$n) {
     $p = $o.PSObject.Properties[$n]; if ($p) { return $p.Value }; return $null
 }
 
+function Get-ProblemTrend($Data, [int]$RecentDays = 7) {
+    # 꺼짐·블루스크린·그래픽 오류·WHEA 의 최근 7일 빈도와 그 이전 빈도 비교
+    $m = Get-Prop $Data 'Meta'
+    $now = ConvertTo-Date (Get-Prop $m 'Created'); if (-not $now) { $now = Get-Date }
+    $days = [int](Get-Prop $m 'Days'); if ($days -le $RecentDays) { return $null }
+    $cut = $now.AddDays(-$RecentDays)
+    $ts = @()
+    foreach ($k in 'Shutdowns', 'BugChecks', 'Whea') { $ts += @(@(Get-Arr (Get-Prop $Data $k)) | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') }) }
+    $ts += @(@(Merge-GpuEvents (Get-Prop $Data 'GpuEvents')) | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') })
+    $ts = @($ts | Where-Object { $_ -and $_ -ge $now.AddDays(-$days) })
+    $recent = @($ts | Where-Object { $_ -ge $cut }).Count; $earlier = $ts.Count - $recent
+    $earlierDays = $days - $RecentDays
+    $rising = ($recent -ge 3) -and (($recent / [double]$RecentDays) -ge 2.0 * ($earlier / [double]$earlierDays))
+    return [pscustomobject]@{ Recent = $recent; Earlier = $earlier; EarlierDays = $earlierDays; Rising = $rising }
+}
 function Merge-GpuEvents($Events) {
     # 한 번의 그래픽 드라이버 멈춤(TDR)은 Display 4101 과 Windows 오류 보고(LiveKernelEvent 141)로 두 번 남음 → 3분 안의 오류 보고는 같은 사건으로 보고 한 번만 셈
     $all = @(Get-Arr $Events)
@@ -781,6 +796,12 @@ function Get-Diagnosis {
     $stab = Get-Prop $Data 'Stability'
     if ($stab -and $null -ne (Get-Prop $stab 'Latest') -and [double](Get-Prop $stab 'Latest') -lt 3) {
         & $find 'info' 'DRIVER' "Windows 안정성 지수 낮음 ($(Get-Prop $stab 'Latest')/10)" '신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.' 0
+    }
+
+    # ---- 최근 추세: 최근 7일이 그 전보다 하루 평균 2배 이상 잦으면 (부품이 나빠지는 중일 수 있음)
+    $trend = Get-ProblemTrend $Data
+    if ($trend -and $trend.Rising) {
+        & $find 'info' 'META' "최근 들어 문제가 잦아짐 (최근 7일 $($trend.Recent) 건)" "그 전 $($trend.EarlierDays)일 동안은 $($trend.Earlier) 건이었습니다. 부품 상태가 나빠지는 중일 수 있으니 1순위 원인부터 빨리 점검하세요." 0
     }
 
     # ---- 7) WHEA 하드웨어 오류
@@ -2915,7 +2936,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:USB·카드 리더 디스크 오류 (\d+) 건', 'USB / card-reader disk errors: $1'), @('PC 내부 디스크가 아니라 USB 메모리·외장 디스크·카드 리더에서 난 오류입니다. 해당 장치를 빼거나 바꿔 보세요 (PC 고장 원인으로 보지 않음).', 'These errors came from a USB stick, external disk or card reader, not an internal disk. Unplug or replace that device (not treated as a PC fault).'), @('RE:과열 보호: (?:그래픽카드|Graphics card) ([\d.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'), @('예상하지 못한 오류가 발생했습니다.', 'An unexpected error occurred.'), @('점검: ', 'Checked by: '), @('블랙박스 이상', 'Blackbox failure'), @('다음 정밀 검사 추천: ', 'Recommended next test: '), @("프로그램의 '정밀 검사'에서 실행해 원인을 확인하세요.", "Run it from 'Detailed tests' in the program to confirm the cause."), @('RE:블랙박스: RAM 검사 오류 (\d+) 건 뒤 꺼짐 \(RAM 불량 의심\)', 'Blackbox: shut down after $1 RAM test error(s) (faulty RAM suspected)'), @('RE:블랙박스: VRAM 검사 오류 (\d+) 건 뒤 꺼짐 \(그래픽카드 불량 의심\)', 'Blackbox: shut down after $1 VRAM test error(s) (faulty graphics card suspected)'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:최근 들어 문제가 잦아짐 \(최근 7일 (\d+) 건\)', 'Problems are getting more frequent ($1 in the last 7 days)'), @('RE:그 전 (\d+)일 동안은 (\d+) 건이었습니다\. 부품 상태가 나빠지는 중일 수 있으니 1순위 원인부터 빨리 점검하세요\.', 'There were $2 in the $1 days before. A part may be deteriorating, so check the top cause soon.'), @('RE:USB·카드 리더 디스크 오류 (\d+) 건', 'USB / card-reader disk errors: $1'), @('PC 내부 디스크가 아니라 USB 메모리·외장 디스크·카드 리더에서 난 오류입니다. 해당 장치를 빼거나 바꿔 보세요 (PC 고장 원인으로 보지 않음).', 'These errors came from a USB stick, external disk or card reader, not an internal disk. Unplug or replace that device (not treated as a PC fault).'), @('RE:과열 보호: (?:그래픽카드|Graphics card) ([\d.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'), @('예상하지 못한 오류가 발생했습니다.', 'An unexpected error occurred.'), @('점검: ', 'Checked by: '), @('블랙박스 이상', 'Blackbox failure'), @('다음 정밀 검사 추천: ', 'Recommended next test: '), @("프로그램의 '정밀 검사'에서 실행해 원인을 확인하세요.", "Run it from 'Detailed tests' in the program to confirm the cause."), @('RE:블랙박스: RAM 검사 오류 (\d+) 건 뒤 꺼짐 \(RAM 불량 의심\)', 'Blackbox: shut down after $1 RAM test error(s) (faulty RAM suspected)'), @('RE:블랙박스: VRAM 검사 오류 (\d+) 건 뒤 꺼짐 \(그래픽카드 불량 의심\)', 'Blackbox: shut down after $1 VRAM test error(s) (faulty graphics card suspected)'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
