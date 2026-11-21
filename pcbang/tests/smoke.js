@@ -348,6 +348,12 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(nw.join('/') === 'wifi/link', '네트워크: 와이파이는 와이파이 경고만, 유선 100Mbps 는 속도 경고 (' + nw.join('/') + ')');
   }
 
+  // TPM 1.2 는 Win11 뱅가드 실행 불가, 노하드 PC 보안 부팅 안내는 PXE 주의
+  {
+    const tp = await page.evaluate(() => { const P = window.__pcbang; const run = nat => P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: Object.assign({ os: 'win11' }, nat) }); return [run({ tpm: '있음 (1.2)', secureBoot: '켜짐' }).some(x => x.id === 'tpm'), /노하드/.test((run({ tpm: '있음 (2.0)', secureBoot: '꺼짐', diskless: true }).find(x => x.id === 'sb') || {}).fix || '')]; });
+    ok(tp.join() === 'true,true', 'TPM 1.2 경고·노하드 보안 부팅 안내 (' + tp.join() + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],

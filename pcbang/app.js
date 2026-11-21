@@ -363,7 +363,7 @@ function judge(game, sp, opt) {
   // 롤·발로란트(라이엇 뱅가드): Windows 11 에서는 TPM 2.0 + 보안 부팅이 켜져 있어야 실행됨
   if ((game.id === 'val' || game.id === 'lol') && sp.os === 'win11') {
     if (/꺼짐/.test(nat.secureBoot || '')) r.issues.push({ l: 'fail', t: '보안 부팅(Secure Boot)이 꺼져 있어 실행 안 됨(VAN9003) — BIOS에서 켜야 함' });
-    if (/없음/.test(nat.tpm || '')) r.issues.push({ l: 'fail', t: 'TPM 2.0이 없거나 꺼져 있어 실행 안 됨(VAN9001) — BIOS에서 fTPM/PTT 켜기' });
+    if (/없음|\b1\.2\b/.test(nat.tpm || '')) r.issues.push({ l: 'fail', t: (/1\.2/.test(nat.tpm) ? 'TPM 1.2라' : 'TPM 2.0이 없거나 꺼져 있어') + ' 실행 안 됨(VAN9001) — ' + (/1\.2/.test(nat.tpm) ? 'TPM 2.0 필요(BIOS의 fTPM/PTT 또는 TPM 2.0 모듈)' : 'BIOS에서 fTPM/PTT 켜기') });
   }
   if ((game.id === 'lol' || game.id === 'val') && sp.winOld) r.issues.push({ l: 'fail', spec: true, t: 'Windows 10 1809 이하로 보여요 — 빌드 19041 이상으로 업데이트 필요(VAN 9004). 정확한 빌드는 점검 프로그램으로 확인' });
   if ((game.id === 'lol' || game.id === 'val') && nat.osBuild && nat.osBuild < 19041) r.issues.push({ l: 'fail', t: 'Windows 10 빌드 ' + nat.osBuild + ' — 19041 이상으로 업데이트 필요(VAN 9004)' });
@@ -1191,8 +1191,8 @@ function problems(st) {
   else if (dualX3d && nat.power && pwGood.test(nat.power)) add('power', 'info', '전원 관리 ' + nat.power + ' — 이 CPU(듀얼 CCD X3D)는 균형 조정 권장', 'AMD 칩셋 드라이버의 코어 파킹이 균형 조정에서 게임을 3D V-Cache 코어로 보내요. 고성능이면 이 기능이 꺼져 게임 프레임이 떨어질 수 있어요. AMD 칩셋 드라이버 설치·Xbox Game Bar 최신 버전도 확인하세요.', '전원(X3D)');
   else if (nat.power && pwBad.test(nat.power)) add('power', 'warn', '전원 관리 옵션: ' + nat.power, '제어판 → 전원 옵션 → 고성능을 고르세요. 명령 프롬프트: powercfg /setactive SCHEME_MIN', '전원 ' + nat.power);
   else if (nat.power && !pwGood.test(nat.power)) add('power', 'info', '사용자 지정 전원 관리: ' + nat.power, '매장 관리 프로그램이 만든 전원 계획일 수 있어요. 제어판 → 전원 옵션에서 고성능 계열인지 확인하세요(최소 프로세서 상태 100%).', '전원 ' + nat.power);
-  if (nat.os === 'win11' && /꺼짐/.test(nat.secureBoot || '')) add('sb', 'bad', '보안 부팅 꺼짐 — 롤·발로란트 실행 불가(VAN9003)', 'BIOS(부팅 때 Del/F2) → Boot → Secure Boot 켜기. CSM이 켜져 있으면 끄고 UEFI 모드로 바꿔야 해요.', '보안 부팅 꺼짐');
-  if (nat.os === 'win11' && /없음/.test(nat.tpm || '')) add('tpm', 'bad', 'TPM 2.0 없음/꺼짐 — 롤·발로란트 실행 불가(VAN9001)', 'BIOS에서 인텔은 PTT, AMD는 fTPM을 켜세요.', 'TPM 꺼짐');
+  if (nat.os === 'win11' && /꺼짐/.test(nat.secureBoot || '')) add('sb', 'bad', '보안 부팅 꺼짐 — 롤·발로란트 실행 불가(VAN9003)', nat.diskless ? '노하드 PC는 바로 CSM을 끄면 네트워크 부팅(PXE)이 안 될 수 있어요. 먼저 노하드 업체에 UEFI·보안 부팅 지원(서버 이미지·부팅 설정)을 확인한 뒤, BIOS → Boot → CSM 끄기·Secure Boot 켜기를 하세요.' : 'BIOS(부팅 때 Del/F2) → Boot → Secure Boot 켜기. CSM이 켜져 있으면 끄고 UEFI 모드로 바꿔야 해요.', '보안 부팅 꺼짐');
+  if (nat.os === 'win11' && /없음|\b1\.2\b/.test(nat.tpm || '')) add('tpm', 'bad', (/1\.2/.test(nat.tpm) ? 'TPM 1.2 — 롤·발로란트는 TPM 2.0 필요(VAN9001)' : 'TPM 2.0 없음/꺼짐 — 롤·발로란트 실행 불가(VAN9001)'), 'BIOS에서 인텔은 PTT, AMD는 fTPM을 켜세요(켜면 TPM 2.0으로 잡혀요). 메인보드에 단 TPM 1.2 모듈이 있으면 빼거나 BIOS에서 펌웨어 TPM으로 바꾸세요.', 'TPM ' + (/1\.2/.test(nat.tpm) ? '1.2' : '꺼짐'));
   if (nat.osBuild && nat.osBuild < 19041) add('build', 'bad', 'Windows 10 빌드 ' + nat.osBuild + ' — 롤·발로란트 실행 불가(VAN 9004)', '윈도우 업데이트로 최신 버전(22H2 이상)으로 올리세요.', '윈도우 구버전');
   if (nat.os === 'win10-32') add('os32', 'bad', '32비트 윈도우', '인기 게임은 모두 64비트 전용이에요. 64비트 윈도우를 새로 설치해야 해요.', '32비트 윈도우');
   if (nat.cpu && nat.board && /i[579]-1[234]\d{3}f?\b/i.test(nat.cpu) && !/i[579]-1[234]\d{3}kf?\b/i.test(nat.cpu) && /\b[bh][67]\d0/i.test(nat.board)) add('pl1', 'info', 'K 없는 인텔 CPU + ' + nat.board.replace(/^.*?\b([BH][67]\d0)/i, '$1') + ' 보드: 장기 전력(PL1)이 65W로 묶였을 수 있어요', 'HWiNFO의 "CPU 전력 제한 PL1"이 65W면 BIOS(ASUS: Ai Tweaker → Internal CPU Power Management → Long Duration Package Power Limit)에서 쿨러에 맞게 95~150W로 올리세요. 실전 테스트의 "CPU 클럭 저하"로도 확인할 수 있어요.', 'PL1 65W 의심');
