@@ -542,6 +542,22 @@ function Get-Prop($o, [string]$n) {
     $p = $o.PSObject.Properties[$n]; if ($p) { return $p.Value }; return $null
 }
 
+function Test-Diskless($Data) {
+    # 노하드(네트워크 부팅): 디스크가 iSCSI·가상(파일) 디스크뿐 (가상 머신 제외)
+    if ([bool](Get-Prop (Get-Prop $Data 'System') 'IsVM')) { return $false }
+    $busList = @(@(Get-Arr (Get-Prop $Data 'Disks')) | ForEach-Object { [string](Get-Prop $_ 'Bus') })
+    return ($busList.Count -gt 0 -and @($busList | Where-Object { $_ -notmatch '(?i)iSCSI|File Backed Virtual|Virtual' }).Count -eq 0)
+}
+function Get-ReportDir($Data, [string]$OutDir, [bool]$IsDefault, [string]$UsbRoot) {
+    # 노하드는 재부팅하면 바탕화면이 지워지므로, 저장 위치를 따로 정하지 않았고 USB 가 있으면 USB 에 저장
+    if ($IsDefault -and $UsbRoot -and (Test-Diskless $Data)) { return ($UsbRoot.TrimEnd('\', '/') + '\' + "$(Get-OutputPrefix)_reports") }
+    return $OutDir
+}
+function Get-UsbRoot {
+    if (-not $script:IsWin) { return '' }
+    try { $u = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | Where-Object { $_.FreeSpace -gt 50MB }) | Select-Object -First 1; if ($u) { return ($u.DeviceID + '\') } } catch {}
+    return ''
+}
 function Get-PsuEstimate($Data) {
     # 최대 소비전력 추정과 권장 파워 용량 (측정값 우선, 없으면 모델별 대표값). 순간 전력 급증 대비 30% 여유
     $gpuW = 0.0; $gpuSrc = ''
@@ -795,8 +811,7 @@ function Get-Diagnosis {
     }
     $isVM = [bool](Get-Prop $sys 'IsVM')
     # 노하드(네트워크 부팅): 디스크가 iSCSI·가상(파일) 디스크뿐이면 재부팅 시 기록이 사라지므로 블랙박스 안내
-    $busList = @($disks | ForEach-Object { [string](Get-Prop $_ 'Bus') })
-    $diskless = (-not $isVM) -and $busList.Count -gt 0 -and @($busList | Where-Object { $_ -notmatch '(?i)iSCSI|File Backed Virtual|Virtual' }).Count -eq 0
+    $diskless = Test-Diskless $Data
     if ($diskless) {
         $hasBb = @(Get-Arr (Get-Prop $Data 'Blackbox')).Count -gt 0
         & $find $(if ($hasBb) { 'info' } else { 'warn' }) 'META' '노하드(네트워크 부팅) PC 로 보임' $(if ($hasBb) { '재부팅하면 Windows 기록이 사라지는 환경입니다. 아래 블랙박스 기록을 기준으로 판단하세요.' } else { '재부팅하면 Windows 기록이 사라져, 기록이 깨끗해도 문제가 없다는 뜻이 아닙니다. USB 를 꽂고 정밀 검사 → 블랙박스 기록(단계별 자동 테스트)을 실행하세요.' }) 0
@@ -2310,7 +2325,7 @@ function Show-Gui {
             if ($noteBox.Text.Trim()) { $data.Meta.Note = $noteBox.Text.Trim() }
             $dx = Get-Diagnosis -Data $data
             $bar.Value = $bar.Maximum - 1
-            $state.Result = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
+            $state.Result = Save-Results -Data $data -Dx $dx -Dir (Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)) -Track
             $state.Summary = Get-SummaryText $data $dx
             $bar.Value = $bar.Maximum
             $score.Text = "$($dx.Health)"
@@ -2868,6 +2883,7 @@ if ($Lang -eq 'auto') { $script:UiLang = Get-DefaultLang } else { $script:UiLang
 
 $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
+$script:OutDirDefault = -not $OutDir
 if (-not $OutDir) {
     $desk = [Environment]::GetFolderPath('Desktop'); if (-not $desk) { $desk = $HOME }
     $OutDir = Join-Path $desk (Get-OutputPrefix)
@@ -2916,7 +2932,7 @@ Write-TrHost "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분
 $data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, (Tr $name)) }
 if ($Note) { $data.Meta.Note = $Note.Trim() }
 $dx = Get-Diagnosis -Data $data
-$res = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
+$res = Save-Results -Data $data -Dx $dx -Dir (Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)) -Track
 Write-ConsoleResult $dx $res
 if ($Mode -eq 'Silent') { Write-Output $res; return }
 if (-not $NoOpen) { Start-Process $res.Html }

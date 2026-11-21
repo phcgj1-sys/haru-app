@@ -604,6 +604,15 @@ It '검사 이력: USB 블랙박스 폴더에도 저장해 노하드 재부팅 �
         Assert-Eq @(Read-History).Count 2 '중복 없이 2건'
     } finally { $script:WorkDir = $oldWd; $script:ExtraHistoryDirs = $oldEx }
 }
+It '노하드: 저장 위치를 정하지 않았고 USB 가 있으면 보고서를 USB 에 저장 (바탕화면은 재부팅 시 지워짐)' {
+    $dl = New-Scenario @{ Disks = @([ordered]@{ Name = 'iSCSI Disk'; Bus = 'iSCSI'; Health = 'Healthy' }) }
+    $nm = New-Scenario @{}
+    Assert (Test-Diskless $dl) '노하드 판정'; Assert (-not (Test-Diskless $nm)) '일반 PC'
+    Assert-Eq (Get-ReportDir $dl 'C:\Desk\PC진단' $true 'E:\') 'E:\PC진단_reports' 'USB 로'
+    Assert-Eq (Get-ReportDir $dl 'D:\내폴더' $false 'E:\') 'D:\내폴더' '직접 정한 위치는 그대로'
+    Assert-Eq (Get-ReportDir $dl 'C:\Desk\PC진단' $true '') 'C:\Desk\PC진단' 'USB 없으면 그대로'
+    Assert-Eq (Get-ReportDir $nm 'C:\Desk\PC진단' $true 'E:\') 'C:\Desk\PC진단' '일반 PC 는 그대로'
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
