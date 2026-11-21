@@ -582,12 +582,17 @@ function sanitizeNative(o) {
 $('#nativeClear').addEventListener('click', function () {
   if (!S.native) { toast('지울 점검 프로그램 결과가 없어요'); return; }
   if (!confirm('붙여넣은 점검 프로그램 결과를 지울까요? (매장 현황에 넣은 기록은 그대로예요)')) return;
-  S.native = null; save(); renderSpec(); $('#nativeNet').innerHTML = '<p class="small muted">아직 붙여넣은 결과가 없어요.</p>'; $('#nativeMsg').innerHTML = ''; toast('점검 프로그램 결과를 지웠어요');
+  S.native = null; if (S.seatFromNative) { S.seat = ''; S.seatFromNative = false; seatPill(); } save(); renderSpec(); $('#nativeNet').innerHTML = '<p class="small muted">아직 붙여넣은 결과가 없어요.</p>'; $('#nativeMsg').innerHTML = ''; toast('점검 프로그램 결과를 지웠어요');
 });
 $('#nativeApply').addEventListener('click', function () {
   try {
     var o = decodeNative($('#nativeIn').value);
-    S.native = o; if (!S.seat && o.seat) { S.seat = String(o.seat); seatPill(); } save(); renderSpec(); renderNativeNet();
+    S.native = o;
+    // 좌석 번호: 비어 있으면 결과의 좌석으로, 다르면 물어봄(다른 좌석 결과가 이 PC의 웹 결과와 섞여 두 줄로 갈라지지 않게)
+    var ns = o.seat != null && String(o.seat) !== '' ? String(o.seat) : '';
+    if (ns && !S.seat) { S.seat = ns; S.seatFromNative = true; seatPill(); }
+    else if (ns && normSeat(S.seat) !== normSeat(ns) && confirm('이 결과는 ' + ns + '번 좌석 것이에요(지금 이 화면은 ' + S.seat + '번 좌석).\n좌석 번호를 ' + ns + '번으로 바꿀까요?\n\n여러 좌석 결과를 모으려면 매장 현황 탭에 넣으세요.')) { S.seat = ns; S.seatFromNative = true; seatPill(); }
+    save(); renderSpec(); renderNativeNet();
     $('#nativeMsg').innerHTML = '<span class="pill ok">적용했어요</span>';
     toast('점검 프로그램 결과를 적용했어요');
   } catch (e) { $('#nativeMsg').innerHTML = '<span class="pill bad">읽지 못했어요: ' + esc(e.message) + '</span>'; }
@@ -1112,7 +1117,7 @@ function drawSteps(state) {
 }
 $('#runAll').addEventListener('click', async function () {
   var b = this; if (testBusy) { toast('다른 측정이 끝난 뒤 눌러 주세요'); return; } lockTests(true);
-  S.seat = $('#seatIn').value.trim(); save(); seatPill();
+  S.seat = $('#seatIn').value.trim(); S.seatFromNative = false; save(); seatPill();
   var st = {}, bar = $('#allBar');
   var setP = function (base, span) { return function (p) { bar.style.width = (base + span * p / 100) + '%'; }; };
   async function step(key, base, span, fn) { st[key] = 'run'; drawSteps(st); try { await fn(setP(base, span)); st[key] = 'done'; } catch (e) { st[key] = 'err'; console.error(e); } bar.style.width = (base + span) + '%'; drawSteps(st); }
@@ -1688,7 +1693,7 @@ $('#copyRep').addEventListener('click', function () {
     '조치할 것: ' + (pr.length ? pr.map(function (p) { return p.t; }).join(' / ') : '없음'), '게임:'].concat(GAMES.map(function (g) { var j = judge(g, sp, S.opt); return ' ' + g.rank + '. ' + g.name + ' — ' + levelOf(g, j)[1] + (j.fps != null ? ' · ' + fpsText(g, j) + 'fps' : ''); })).join('\n');
   (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { toast('복사했어요'); }, function () { prompt('아래 글을 복사하세요', t); });
 });
-$('#seatIn').addEventListener('change', function () { S.seat = this.value.trim(); save(); seatPill(); });
+$('#seatIn').addEventListener('change', function () { S.seat = this.value.trim(); S.seatFromNative = false; save(); seatPill(); });
 
 /* ---------------- 실전 게임 테스트 (game-test.bat 결과) ---------------- */
 var GT_KEY = 'pcbang_games_v1';
