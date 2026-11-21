@@ -193,6 +193,16 @@ It '디스크 상태: Unknown 은 고장으로 보지 않음, Warning 은 주의
     $old = $script:UiLang; $script:UiLang = 'en'
     try { $e = Tr ("$($w[0].Title) $($w[0].Detail)"); Assert ($e -notmatch '[가-힣]') "영어: $e" } finally { $script:UiLang = $old }
 }
+It 'Windows 메모리 진단: 최근 통과보다 오래된 실패는 해결된 것으로 (참고만)' {
+    $old = New-Scenario @{ MemDiag = @([ordered]@{ T = (T 1); Id = 1101; Failed = $false; Msg = 'ok' }, [ordered]@{ T = (T 5); Id = 1202; Failed = $true; Msg = 'err' }) }
+    $dx = Get-Diagnosis -Data $old
+    Assert (-not (@($dx.Findings) | Where-Object { $_.Title -eq 'Windows 메모리 진단에서 RAM 오류 발견' })) '해결된 실패는 심각 아님'
+    $f = @($dx.Findings | Where-Object { $_.Title -match '이후 검사 통과' }); Assert-Eq $f.Count 1 '참고로 표시'; Assert-Eq $f[0].Level 'info' 'info'
+    $new = New-Scenario @{ MemDiag = @([ordered]@{ T = (T 1); Id = 1202; Failed = $true; Msg = 'err' }, [ordered]@{ T = (T 5); Id = 1101; Failed = $false; Msg = 'ok' }) }
+    Assert (@((Get-Diagnosis -Data $new).Findings | Where-Object { $_.Title -eq 'Windows 메모리 진단에서 RAM 오류 발견' }).Count -eq 1) '통과 후 다시 실패면 심각'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { $e = Tr "$($f[0].Title) $($f[0].Detail)"; Assert ($e -notmatch '[가-힣]') "영어: $e" } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
