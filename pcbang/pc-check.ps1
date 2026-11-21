@@ -638,6 +638,11 @@ if ($cfg) {
   if ($ad.Speed) { $speed = (" {0}Mbps" -f [math]::Round([double]$ad.Speed / 1e6)) }
   $kind = '유선'
   if ($ad.Name -match 'Wi-?Fi|Wireless|WLAN|802\.11') { $kind = '무선(와이파이)' }
+  # 이름에 Wi-Fi 가 없는 USB 무선 랜(ipTIME A3000UA·Archer T3U 등): 매체 종류(802.11)나 어댑터 종류(9=무선)로 판별 — 관리자 권한 필요 없음
+  if ($kind -eq '유선') {
+    try { $na = Get-NetAdapter -InterfaceIndex $cfg.InterfaceIndex -ErrorAction Stop; if ([string]$na.PhysicalMediaType -match '802\.11|Wireless' -or [string]$na.NdisPhysicalMedium -eq '9') { $kind = '무선(와이파이)' } } catch {}
+    if ($kind -eq '유선' -and $ad.AdapterTypeID -eq 9) { $kind = '무선(와이파이)' }
+  }
   $result.adapter = ("{0} · {1}{2}" -f $kind, $ad.Name, $speed)
   Say ("      {0}" -f $result.adapter)
   Say ("      게이트웨이: {0}" -f $gateway)

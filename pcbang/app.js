@@ -1178,8 +1178,10 @@ function problems(st) {
   }
   if (gw && gw.recv && !(gw.loss > 0 || gw.avg > 3) && ext.length && median(ext.map(function (x) { return x.avg; })) > 40) add('ext', 'warn', '외부 핑이 높음 (중간값 ' + fmt(median(ext.map(function (x) { return x.avg; }))) + 'ms)', '매장 안은 정상이에요. 통신사 회선 상태를 문의하세요.', '외부 핑 높음');
   if (nat.adapter) {
-    if (/무선|wi-?fi|wireless/i.test(nat.adapter)) add('wifi', 'warn', '와이파이로 연결됨', '게임용 좌석은 유선 랜 연결을 권장해요.', '와이파이');
-    var lm = nat.adapter.match(/(\d+)\s*Mbps/); if (lm && +lm[1] > 0 && +lm[1] < 1000) add('link', 'warn', '랜 연결 속도 ' + lm[1] + 'Mbps', '1Gbps가 아니에요. 랜선(8가닥 모두 연결된 Cat5e 이상)과 허브 포트를 확인하세요.', '랜 ' + lm[1] + 'Mbps');
+    var isWifi = /무선|wi-?fi|wireless|wlan|802\.11/i.test(nat.adapter);
+    if (isWifi) add('wifi', 'warn', '와이파이로 연결됨', '게임용 좌석은 유선 랜 연결을 권장해요.', '와이파이');
+    // 와이파이 속도(867Mbps 등)는 무선 연결 속도라 랜선 안내가 맞지 않음
+    var lm = nat.adapter.match(/(\d+)\s*Mbps/); if (!isWifi && lm && +lm[1] > 0 && +lm[1] < 1000) add('link', 'warn', '랜 연결 속도 ' + lm[1] + 'Mbps', '1Gbps가 아니에요. 랜선(8가닥 모두 연결된 Cat5e 이상)과 허브 포트를 확인하세요.', '랜 ' + lm[1] + 'Mbps');
   }
   // 전원 관리: 고성능·최고의 성능(복제본이나 영문 이름 포함)은 정상, 절전·균형은 경고, 그 밖의 사용자 지정 계획은 참고
   var pwGood = /고성능|최고|high performance|ultimate/i, pwBad = /절전|균형|power saver|balanced/i;

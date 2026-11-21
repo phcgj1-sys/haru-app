@@ -342,6 +342,12 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(hl.join('/') === 'true:bad/false:ok', '주사율: 최대보다 낮은 설정(144/240) 경고, 143/144 정상 (' + hl.join('/') + ')');
   }
 
+  // 네트워크: 와이파이 867Mbps 에 '랜 연결 속도' 경고 안 함, 유선 100Mbps 는 경고
+  {
+    const nw = await page.evaluate(() => { const P = window.__pcbang; const run = a => P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: { adapter: a } }).filter(x => /wifi|link/.test(x.id)).map(x => x.id).join() || '-'; return [run('무선(와이파이) · Intel(R) Wi-Fi 6 AX201 867Mbps'), run('유선 · Realtek PCIe GbE Family Controller 100Mbps')]; });
+    ok(nw.join('/') === 'wifi/link', '네트워크: 와이파이는 와이파이 경고만, 유선 100Mbps 는 속도 경고 (' + nw.join('/') + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
