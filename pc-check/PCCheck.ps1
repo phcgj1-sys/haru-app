@@ -2383,11 +2383,11 @@ function Save-Download([string]$Url, [string]$Dest, [string]$Sha256) {
     try { Invoke-WebRequest -Uri $Url -OutFile $tmp -UseBasicParsing -UserAgent "PCCheck/$($script:AppVersion)" -ErrorAction Stop }
     finally { $ProgressPreference = $pp }
     if ($Sha256) {
-        $h = (Get-FileHash -Path $tmp -Algorithm SHA256).Hash
+        $h = (Get-FileHash -LiteralPath $tmp -Algorithm SHA256).Hash
         if ($h -ne $Sha256.ToUpper()) { Remove-Item -LiteralPath $tmp -Force; throw "파일 무결성 검증 실패 (SHA256 불일치)" }
         Write-PCLog "  sha256 ok"
     }
-    Move-Item $tmp $Dest -Force
+    Move-Item -LiteralPath $tmp -Destination $Dest -Force
 }
 
 function Select-WindowsAsset($assets) {
@@ -2409,7 +2409,9 @@ function Get-MemtestAsset([switch]$UsePinned) {
             $a = Select-WindowsAsset @($rel.assets)
             if ($a) {
                 $sha = $null; if ($a.digest -match '^sha256:([0-9a-fA-F]{64})$') { $sha = $Matches[1] }
-                return [pscustomobject]@{ Name = $a.name; Url = $a.browser_download_url; Sha256 = $sha; Source = 'api' }
+                # 해시가 없으면 검증 없이 실행 파일을 받게 되므로 검증된 고정 버전 사용
+                if ($sha) { return [pscustomobject]@{ Name = $a.name; Url = $a.browser_download_url; Sha256 = $sha; Source = 'api' } }
+                Write-PCLog "github asset has no sha256 digest, using pinned: $($a.name)"
             }
         } catch { Write-PCLog "github api failed, using pinned: $($_.Exception.Message)" }
     }

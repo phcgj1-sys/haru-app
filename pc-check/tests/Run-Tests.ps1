@@ -583,6 +583,18 @@ It 'GitHub 릴리스에서 Windows 파일 고르기' {
 }
 
 
+It 'memtest_vulkan 최신판: 해시(SHA-256)가 없으면 검증 안 된 파일 대신 고정 버전' {
+    $script:FakeRel = $null
+    function Invoke-RestMethod { return $script:FakeRel }
+    try {
+        $script:FakeRel = [pscustomobject]@{ assets = @([pscustomobject]@{ name = 'memtest_vulkan-v0.9.0.exe'; browser_download_url = 'https://example.invalid/x.exe'; digest = $null }) }
+        $a = Get-MemtestAsset
+        Assert-Eq $a.Source 'pinned' '해시 없으면 고정 버전'; Assert ($a.Sha256 -match '^[0-9a-f]{64}$') '고정 버전 해시'
+        $script:FakeRel = [pscustomobject]@{ assets = @([pscustomobject]@{ name = 'memtest_vulkan-v0.9.0.exe'; browser_download_url = 'https://example.invalid/x.exe'; digest = ('sha256:' + ('a' * 64)) }) }
+        $a = Get-MemtestAsset
+        Assert-Eq $a.Source 'api' '해시 있으면 최신판'; Assert-Eq $a.Sha256 ('a' * 64) '해시 전달'
+    } finally { Remove-Item Function:\Invoke-RestMethod -ErrorAction SilentlyContinue }
+}
 It 'Format-BugCode 정규화' {
     Assert-Eq (Format-BugCode '0x00000116') '0x116' 'hex 문자열'
     Assert-Eq (Format-BugCode 278) '0x116' '정수'
