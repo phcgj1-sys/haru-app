@@ -464,6 +464,9 @@ It '다음 정밀 검사 추천 (원인별 도구, 노하드면 블랙박스)' {
     Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data (New-Scenario $scenarios['RAM 불량: 메모리 진단 실패 + 다양한 블루스크린'].Data))) 'ram' 'RAM'
     Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data (New-Scenario $scenarios['파워 부족: 블루스크린 없이 반복 꺼짐 + 그래픽 오류 직후'].Data))) 'blackbox' '파워'
     Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data (New-Scenario @{}))) '' '정상 PC 는 추천 없음'
+    Assert-Eq (Get-RecommendedTool ([pscustomobject]@{ Causes = @([pscustomobject]@{ Key = 'DRIVER'; Score = 40 }); Counts = @{ Bsod = 0 }; Findings = @() })) '' '블루스크린 없으면 BlueScreenView 추천 안 함'
+    Assert-Eq (Get-RecommendedTool ([pscustomobject]@{ Causes = @([pscustomobject]@{ Key = 'DRIVER'; Score = 40 }); Counts = @{ Bsod = 2 }; Findings = @() })) 'bsv' '블루스크린 있으면 추천'
+    Assert-Eq (Get-RecommendedTool ([pscustomobject]@{ Causes = @([pscustomobject]@{ Key = 'GPU_DRIVER'; Score = 40 }); Counts = @{ Bsod = 0 }; Findings = @() })) 'vram' 'TDR 만 있으면 VRAM 검사'
     $dl = New-Scenario @{ Disks = @([ordered]@{ Name = 'iSCSI'; Bus = 'iSCSI'; Health = 'Healthy' }) }
     Assert-Eq (Get-RecommendedTool (Get-Diagnosis -Data $dl)) 'blackbox' '노하드'
     foreach ($k in 'vram', 'ram', 'blackbox', 'bsv') { Assert (@($script:ExternalTools | Where-Object { $_.Key -eq $k }).Count -eq 1) "도구 존재: $k" }

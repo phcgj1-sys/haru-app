@@ -2325,8 +2325,11 @@ function Get-RecommendedTool($Dx) {
     $top = @($Dx.Causes) | Select-Object -First 1
     if ($top -and $top.Score -ge 30) {
         switch ($top.Key) {
-            'GPU_HW' { return 'vram' } 'GPU_DRIVER' { return 'bsv' } 'RAM' { return 'ram' }
-            'PSU' { return 'blackbox' } 'THERMAL' { return 'blackbox' } 'CPU_OC' { return 'blackbox' } 'DRIVER' { return 'bsv' } 'DISK' { return '' }
+            # BlueScreenView 는 블루스크린 덤프가 있어야 의미가 있음 (절전 중 꺼짐·TDR 만 있으면 추천하지 않음)
+            'GPU_HW' { return 'vram' } 'RAM' { return 'ram' }
+            'GPU_DRIVER' { if ([int]$Dx.Counts.Bsod -gt 0) { return 'bsv' } else { return 'vram' } }
+            'DRIVER' { if ([int]$Dx.Counts.Bsod -gt 0) { return 'bsv' } else { return '' } }
+            'PSU' { return 'blackbox' } 'THERMAL' { return 'blackbox' } 'CPU_OC' { return 'blackbox' } 'DISK' { return '' }
         }
     }
     if (@($Dx.Findings) | Where-Object { $_.Title -match '노하드' }) { return 'blackbox' }
