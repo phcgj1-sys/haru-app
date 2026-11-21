@@ -902,6 +902,14 @@ It '분석 실패: 예상 못한 오류가 나도 원자료(JSON)는 저장' {
         Assert (@(Get-ChildItem $dir -Filter '*.json').Count -eq 1) 'JSON 저장'
     } finally { Set-Item function:script:Get-Diagnosis $orig }
 }
+It '빠른 자동 테스트: 같은 6단계를 약 10분으로, 원래 계획은 그대로' {
+    $q = Get-QuickPlan
+    Assert-Eq (($q | ForEach-Object { $_.Key }) -join ',') (($script:StagePlan | ForEach-Object { $_.Key }) -join ',') '같은 단계'
+    Assert-Eq (($q | Measure-Object -Property Sec -Sum).Sum) 600 '10분'
+    Assert-Eq (($script:StagePlan | Measure-Object -Property Sec -Sum).Sum) 1920 '원래 계획 32분 유지 (복사본 사용)'
+    $g = Get-StageAt $q 70; Assert-Eq $g.Key 'cpu' '70초면 CPU 단계'
+    $g = Get-StageAt $q 590; Assert-Eq $g.Key 'pulse' '마지막 출렁임'; Assert (Get-StageAt $q 601).Done '끝'
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'

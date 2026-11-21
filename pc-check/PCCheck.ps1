@@ -1575,6 +1575,11 @@ $script:StagePlan = @(
     @{ Key = 'full';  Name = '전체 부하 (CPU+GPU)';   Sec = 480; Cpu = $true;  Gpu = $true;  Ram = $false; Pulse = $false }
     @{ Key = 'pulse'; Name = '전력 출렁임 (10초 간격)'; Sec = 240; Cpu = $true;  Gpu = $true;  Ram = $false; Pulse = $true }
 )
+function Get-QuickPlan {
+    # 빠른 자동 테스트 (약 10분): 같은 6단계를 짧게 — 매장 1차 점검용. 원인 판정 방식은 같음
+    $sec = @{ idle = 60; cpu = 120; ram = 120; gpu = 120; full = 120; pulse = 60 }
+    return @($script:StagePlan | ForEach-Object { $c = $_.Clone(); $c.Sec = $sec[$_.Key]; $c })
+}
 function Get-StageAt($Plan, [double]$Elapsed) {
     # 경과 시간(초)에 해당하는 단계와 그 순간 켜야 할 부하
     $t = 0.0; $i = 0
@@ -2201,7 +2206,8 @@ function Show-BlackboxDialog {
     $browse = & $mk Windows.Forms.Button '찾아보기' 446 61 98 30
     $warn = & $mk Windows.Forms.Label $(if ($def.Removable) { 'USB 가 선택되었습니다.' } else { '(주의) USB 가 없습니다. 노하드라면 USB 를 꽂고 다시 여세요.' }) 108 94 436 22
     $warn.ForeColor = $(if ($def.Removable) { [Drawing.Color]::SeaGreen } else { [Drawing.Color]::DarkOrange })
-    $autoR = & $mk Windows.Forms.RadioButton '단계별 자동 정밀 테스트 (약 32분, 권장)' 16 124 528 26
+    $autoR = & $mk Windows.Forms.RadioButton '단계별 자동 정밀 테스트 (약 32분, 권장)' 16 124 340 26
+    $quickChk = & $mk Windows.Forms.CheckBox '빠른 테스트 (약 10분)' 364 124 180 26
     $autoTip = & $mk Windows.Forms.Label '대기 → CPU → RAM 검사 → GPU·VRAM → 전체 부하 → 전력 출렁임 순서로 자동 진행. 꺼진 단계로 원인을 좁힙니다.' 34 150 510 42
     $autoTip.ForeColor = [Drawing.Color]::DimGray
     $manR = & $mk Windows.Forms.RadioButton '직접 설정' 16 196 528 26
@@ -2216,7 +2222,7 @@ function Show-BlackboxDialog {
     $stopB = & $mk Windows.Forms.Button '중지' 196 416 170 44
     $anaB = & $mk Windows.Forms.Button '기록 파일 분석' 376 416 168 44
     $stopB.Enabled = $false
-    $st = @{ Box = $null; Cpu = $null; Gpu = $null; Ram = $false; Start = $null; Auto = $false; GpuFailed = $false; Hot = 0 }
+    $st = @{ Box = $null; Cpu = $null; Gpu = $null; Ram = $false; Start = $null; Auto = $false; GpuFailed = $false; Hot = 0; Plan = $script:StagePlan }
     $t = New-Object Windows.Forms.Timer; $t.Interval = 1000
     $setLoad = {
         param([bool]$cpu, [bool]$gpu, [bool]$ram)
@@ -2240,10 +2246,10 @@ function Show-BlackboxDialog {
         if ($st.Gpu) { Stop-GpuLoad $st.Gpu; $st.Gpu = $null }
         if ($st.Ram) { Stop-RamTest; $st.Ram = $false }
         if ($st.Box) { Stop-Blackbox $st.Box; $st.Box = $null }
-        $startB.Enabled = $true; $stopB.Enabled = $false; $autoR.Enabled = $true; $manR.Enabled = $true
+        $startB.Enabled = $true; $stopB.Enabled = $false; $autoR.Enabled = $true; $manR.Enabled = $true; $quickChk.Enabled = $autoR.Checked
         foreach ($c in $cpuChk, $gpuChk, $ramChk) { $c.Enabled = $manR.Checked }
     }
-    $manR.Add_CheckedChanged({ foreach ($c in $cpuChk, $gpuChk, $ramChk) { $c.Enabled = $manR.Checked } })
+    $manR.Add_CheckedChanged({ foreach ($c in $cpuChk, $gpuChk, $ramChk) { $c.Enabled = $manR.Checked }; $quickChk.Enabled = -not $manR.Checked })
     $t.Add_Tick({
         try {
             if (-not $st.Box) { return }
@@ -2259,7 +2265,7 @@ function Show-BlackboxDialog {
             }
             $head = ''
             if ($st.Auto) {
-                $g = Get-StageAt $script:StagePlan $el
+                $g = Get-StageAt $st.Plan $el
                 if ($g.Done) { $p = $sy.Path; & $stopAll; $live.Text = (Tr '단계별 정밀 테스트를 모두 마쳤습니다. 다시 검사하면 결과가 보고서에 나옵니다.') + "`n" + $p; return }
                 $sy.Stage = $g.Key
                 & $setLoad $g.Cpu $g.Gpu $g.Ram
@@ -2279,6 +2285,7 @@ function Show-BlackboxDialog {
     $startB.Add_Click({
         try {
             $st.Auto = $autoR.Checked; $st.GpuFailed = $false; $st.Hot = 0
+            $st.Plan = $(if ($quickChk.Checked) { Get-QuickPlan } else { $script:StagePlan })
             if ($st.Auto -or $gpuChk.Checked) {
                 # GPU 부하 도구를 미리 준비 (노하드는 재부팅마다 지워지므로 매번 받음). 실패하면 바로 알림
                 $live.Text = Tr 'GPU 부하 도구 준비 중...'; [Windows.Forms.Application]::DoEvents()
@@ -2292,7 +2299,7 @@ function Show-BlackboxDialog {
             if ($st.GpuFailed) { Add-BlackboxEvent $st.Box.Sync 'GPUFAIL'; $st.Box.Sync.GpuSeen = ' GPUFAIL' }
             if (-not $st.Auto) { & $setLoad $cpuChk.Checked $gpuChk.Checked $ramChk.Checked; $st.Box.Sync.Stage = 'manual' }
             $st.Start = Get-Date; $t.Start()
-            $startB.Enabled = $false; $stopB.Enabled = $true; $autoR.Enabled = $false; $manR.Enabled = $false
+            $startB.Enabled = $false; $stopB.Enabled = $true; $autoR.Enabled = $false; $manR.Enabled = $false; $quickChk.Enabled = $false
             foreach ($c in $cpuChk, $gpuChk, $ramChk) { $c.Enabled = $false }
         } catch { & $stopAll; [void][Windows.Forms.MessageBox]::Show($f, (Tr "기록을 시작하지 못했습니다.`n$($_.Exception.Message)"), (Tr $script:AppName), 'OK', 'Error') }
     })
@@ -3063,7 +3070,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:보고서를 만들지 못했습니다 \(원자료는 저장됨: (.+?)\): ', 'Could not build the report (raw data saved: $1): '), @('RE:검사 소요 ([\d.]+)초', 'Scan took $1 s'), @('RE:\(가장 오래 걸린 단계: (.+?) ([\d.]+)초\)', '(slowest step: $1 $2 s)'), @('RE:그래픽 오류 뒤 멈춰 전원 버튼으로 끔 (\d+) 회', 'Froze after a graphics error and was turned off with the power button: $1'), @('RE:그래픽 오류 뒤 멈춤 → 강제 종료 (\d+) 회', 'Freeze after graphics error → forced shutdown: $1'), @('그래픽 드라이버가 멈춘 뒤 화면이 돌아오지 않아 전원 버튼으로 끈 것으로 보입니다. 드라이버를 깨끗이 다시 설치(DDU)하고, 계속되면 VRAM 검사를 하세요.', 'The graphics driver appears to have frozen and the screen did not come back, so the PC was turned off with the power button. Do a clean driver reinstall (DDU), and run the VRAM test if it keeps happening.'), @('판단 보류 (노하드: 블랙박스 기록 필요)', 'On hold (diskless PC: blackbox recording needed)'), @('RE:최근 들어 문제가 잦아짐 \(최근 7일 (\d+) 건\)', 'Problems are getting more frequent ($1 in the last 7 days)'), @('RE:그 전 (\d+)일 동안은 (\d+) 건이었습니다\. 부품 상태가 나빠지는 중일 수 있으니 1순위 원인부터 빨리 점검하세요\.', 'There were $2 in the $1 days before. A part may be deteriorating, so check the top cause soon.'), @('RE:USB·카드 리더 디스크 오류 (\d+) 건', 'USB / card-reader disk errors: $1'), @('PC 내부 디스크가 아니라 USB 메모리·외장 디스크·카드 리더에서 난 오류입니다. 해당 장치를 빼거나 바꿔 보세요 (PC 고장 원인으로 보지 않음).', 'These errors came from a USB stick, external disk or card reader, not an internal disk. Unplug or replace that device (not treated as a PC fault).'), @('RE:과열 보호: (?:그래픽카드|Graphics card) ([\d.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'), @('예상하지 못한 오류가 발생했습니다.', 'An unexpected error occurred.'), @('점검: ', 'Checked by: '), @('블랙박스 이상', 'Blackbox failure'), @('다음 정밀 검사 추천: ', 'Recommended next test: '), @("프로그램의 '정밀 검사'에서 실행해 원인을 확인하세요.", "Run it from 'Detailed tests' in the program to confirm the cause."), @('RE:블랙박스: RAM 검사 오류 (\d+) 건 뒤 꺼짐 \(RAM 불량 의심\)', 'Blackbox: shut down after $1 RAM test error(s) (faulty RAM suspected)'), @('RE:블랙박스: VRAM 검사 오류 (\d+) 건 뒤 꺼짐 \(그래픽카드 불량 의심\)', 'Blackbox: shut down after $1 VRAM test error(s) (faulty graphics card suspected)'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('빠른 테스트 (약 10분)', 'Quick test (~10 min)'), @('RE:보고서를 만들지 못했습니다 \(원자료는 저장됨: (.+?)\): ', 'Could not build the report (raw data saved: $1): '), @('RE:검사 소요 ([\d.]+)초', 'Scan took $1 s'), @('RE:\(가장 오래 걸린 단계: (.+?) ([\d.]+)초\)', '(slowest step: $1 $2 s)'), @('RE:그래픽 오류 뒤 멈춰 전원 버튼으로 끔 (\d+) 회', 'Froze after a graphics error and was turned off with the power button: $1'), @('RE:그래픽 오류 뒤 멈춤 → 강제 종료 (\d+) 회', 'Freeze after graphics error → forced shutdown: $1'), @('그래픽 드라이버가 멈춘 뒤 화면이 돌아오지 않아 전원 버튼으로 끈 것으로 보입니다. 드라이버를 깨끗이 다시 설치(DDU)하고, 계속되면 VRAM 검사를 하세요.', 'The graphics driver appears to have frozen and the screen did not come back, so the PC was turned off with the power button. Do a clean driver reinstall (DDU), and run the VRAM test if it keeps happening.'), @('판단 보류 (노하드: 블랙박스 기록 필요)', 'On hold (diskless PC: blackbox recording needed)'), @('RE:최근 들어 문제가 잦아짐 \(최근 7일 (\d+) 건\)', 'Problems are getting more frequent ($1 in the last 7 days)'), @('RE:그 전 (\d+)일 동안은 (\d+) 건이었습니다\. 부품 상태가 나빠지는 중일 수 있으니 1순위 원인부터 빨리 점검하세요\.', 'There were $2 in the $1 days before. A part may be deteriorating, so check the top cause soon.'), @('RE:USB·카드 리더 디스크 오류 (\d+) 건', 'USB / card-reader disk errors: $1'), @('PC 내부 디스크가 아니라 USB 메모리·외장 디스크·카드 리더에서 난 오류입니다. 해당 장치를 빼거나 바꿔 보세요 (PC 고장 원인으로 보지 않음).', 'These errors came from a USB stick, external disk or card reader, not an internal disk. Unplug or replace that device (not treated as a PC fault).'), @('RE:과열 보호: (?:그래픽카드|Graphics card) ([\d.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'), @('예상하지 못한 오류가 발생했습니다.', 'An unexpected error occurred.'), @('점검: ', 'Checked by: '), @('블랙박스 이상', 'Blackbox failure'), @('다음 정밀 검사 추천: ', 'Recommended next test: '), @("프로그램의 '정밀 검사'에서 실행해 원인을 확인하세요.", "Run it from 'Detailed tests' in the program to confirm the cause."), @('RE:블랙박스: RAM 검사 오류 (\d+) 건 뒤 꺼짐 \(RAM 불량 의심\)', 'Blackbox: shut down after $1 RAM test error(s) (faulty RAM suspected)'), @('RE:블랙박스: VRAM 검사 오류 (\d+) 건 뒤 꺼짐 \(그래픽카드 불량 의심\)', 'Blackbox: shut down after $1 VRAM test error(s) (faulty graphics card suspected)'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
@@ -3079,7 +3086,7 @@ $script:EnPairs = @(
     @('그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.', 'The graphics memory test (memtest_vulkan) found errors. If they persist with overclocking disabled, the card needs warranty service.'),
     @('그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)', 'Graphics card connection lost (ERROR_DEVICE_LOST)'),
     @('GPU 부하 도구가 시작되지 못해 GPU 단계는 시험되지 않음 (Vulkan 드라이버 확인)', 'The GPU load tool failed to start, so the GPU stages were not tested (check the Vulkan driver)'),
-    @('단계별 자동 정밀 테스트 (약 32분, 권장)', 'Automatic staged test (about 32 min, recommended)'),
+    @('단계별 자동 정밀 테스트 (약 32분, 권장)', 'Staged auto test (~32 min, recommended)'),
     @('대기 → CPU → RAM 검사 → GPU·VRAM → 전체 부하 → 전력 출렁임 순서로 자동 진행. 꺼진 단계로 원인을 좁힙니다.', 'Runs idle → CPU → RAM test → GPU/VRAM → full load → power swings automatically. The stage where it dies narrows the cause.'),
     @('직접 설정', 'Manual'), @('RAM 검사 (Windows 안에서, 재부팅 없음)', 'RAM test (inside Windows, no reboot)'),
     @('단계별 정밀 테스트를 모두 마쳤습니다. 다시 검사하면 결과가 보고서에 나옵니다.', 'The staged test is complete. Run a scan to see the result in the report.'),
