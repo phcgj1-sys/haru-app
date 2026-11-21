@@ -237,17 +237,21 @@ It '-ExitCode: 무인 실행 결과를 종료 코드로 (0 양호 · 1 주의 ·
     [void][IO.Directory]::CreateDirectory($OutDir)
     $jp = Join-Path $OutDir ('ec_' + [guid]::NewGuid().ToString('N') + '.json')
     [IO.File]::WriteAllText($jp, (ConvertTo-Json -InputObject $d -Depth 6), (New-Object Text.UTF8Encoding($true)))
+    # 5.1 은 자식 프로세스의 오류 출력을 오류 기록으로 바꿔 Stop 이면 테스트가 멈추므로 이 안에서는 Continue
+    $oldEap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+    try {
     $exe = $(if ($PSVersionTable.PSEdition -eq 'Desktop') { 'powershell.exe' } else { 'pwsh' }); $ps1 = Join-Path $root 'PCCheck.ps1'
-    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $jp -OutDir (Join-Path $OutDir 'ec1') -NoOpen -Lang ko -ExitCode 2>&1
+    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $jp -OutDir (Join-Path $OutDir 'ec1') -NoOpen -Lang ko -ExitCode 2>$null
     Assert-Eq $LASTEXITCODE $want "종료 코드 (기대 $want)"
     Assert ($want -ge 1) '문제 시나리오는 0 아님'
-    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $jp -OutDir (Join-Path $OutDir 'ec2') -NoOpen -Lang ko 2>&1
+    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $jp -OutDir (Join-Path $OutDir 'ec2') -NoOpen -Lang ko 2>$null
     Assert-Eq $LASTEXITCODE 0 '-ExitCode 없으면 0'
     $bad = Join-Path $OutDir ('ec_bad_' + [guid]::NewGuid().ToString('N') + '.json'); [IO.File]::WriteAllText($bad, '{ 이건 JSON 아님')
-    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $bad -OutDir (Join-Path $OutDir 'ec3') -NoOpen -Lang ko -ExitCode 2>&1
+    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $bad -OutDir (Join-Path $OutDir 'ec3') -NoOpen -Lang ko -ExitCode 2>$null
     Assert-Eq $LASTEXITCODE 3 '읽지 못하면 3 (주의 1 과 구분)'
-    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson (Join-Path $OutDir 'missing[1].json') -OutDir (Join-Path $OutDir 'ec4') -NoOpen -Lang ko -ExitCode 2>&1
+    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson (Join-Path $OutDir 'missing[1].json') -OutDir (Join-Path $OutDir 'ec4') -NoOpen -Lang ko -ExitCode 2>$null
     Assert-Eq $LASTEXITCODE 3 '파일 없으면 3'
+    } finally { $ErrorActionPreference = $oldEap; $global:LASTEXITCODE = 0 }   # 남은 종료 코드 3 때문에 CI 단계가 실패하지 않도록
 }
 It '콘솔 결과 점수 색: 화면·보고서와 같음 (판단 보류는 점수가 높아도 초록 아님)' {
     Assert-Eq (Get-GradeConsoleColor @{ Health = 95; Grade = '양호' }) 'Green' '양호'
@@ -1460,4 +1464,4 @@ It '날짜 형식은 지역 설정(태국 불기 등)과 무관' {
 }
 Write-Host "`n결과: 통과 $script:pass · 실패 $script:fail" -ForegroundColor $(if ($script:fail) { 'Red' } else { 'Green' })
 Remove-Item $OutDir -Recurse -Force -ErrorAction SilentlyContinue
-if ($script:fail) { exit 1 }
+if ($script:fail) { exit 1 } else { exit 0 }   # 테스트 중 실행한 자식 프로세스의 종료 코드가 남지 않도록
