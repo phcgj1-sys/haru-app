@@ -121,7 +121,8 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
   await page.click('[data-tab="games"]'); await page.click('[data-tab="home"]'); await page.waitForTimeout(150);
   ok(!/60Hz로 동작/.test(await page.innerText('#summary')), '주사율: 나중에 다시 잰 144Hz 가 우선');
   await page.click('[data-tab="log"]');
-  const before = await page.textContent('#shopCount');
+  await page.click('#shopAddThis'); await page.waitForTimeout(150);
+  const before = await page.textContent('#shopCount'); // 한 번 넣은 뒤 개수 (같은 PC 를 다시 넣어도 그대로여야 함)
   await page.click('#shopAddThis'); await page.click('#shopAddThis'); await page.waitForTimeout(150);
   ok(await page.textContent('#shopCount') === before, '매장 현황: 같은 PC 결과를 다시 넣어도 줄이 늘지 않음 (' + before + ')');
 
