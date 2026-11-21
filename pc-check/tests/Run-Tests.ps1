@@ -420,11 +420,16 @@ It 'CI: 지원 종료 예정(Node 20) 액션 버전을 쓰지 않음' {
     Assert ($wf -match 'actions/checkout@v\d+') 'checkout 사용'
 }
 It '-HideName: PC 이름을 같은 PC 면 같은 코드로 가리고 보고서·요약에 원래 이름이 남지 않음' {
-    $d = New-Scenario @{}; $d.Meta.Computer = 'HONGGILDONG-PC'
-    Hide-ComputerName $d
+    $d = New-Scenario @{ AppCrashes = @([ordered]@{ T = (T 1); App = 'game.exe'; Msg = 'C:\Users\honggd\AppData\Local\game.exe crashed' }) }
+    $d.Meta.Computer = 'HONGGILDONG-PC'
+    $d.Blackbox = @([ordered]@{ File = 'PCCheck_blackbox_HONGGILDONG-PC_20261114_100000.csv'; Level = 'ok'; Title = 'x'; Detail = 'y' })
+    $d = Hide-ComputerName $d 'honggd'
     Assert ($d.Meta.Computer -match '^PC-[0-9a-f]{6}$') "코드 $($d.Meta.Computer)"
-    $c1 = $d.Meta.Computer; Hide-ComputerName $d; Assert-Eq $d.Meta.Computer $c1 '두 번 적용해도 그대로'
-    $e = New-Scenario @{}; $e.Meta.Computer = 'honggildong-pc'; Hide-ComputerName $e; Assert-Eq $e.Meta.Computer $c1 '같은 PC 는 같은 코드 (대소문자 무관)'
+    $c1 = $d.Meta.Computer; $d = Hide-ComputerName $d 'honggd'; Assert-Eq $d.Meta.Computer $c1 '두 번 적용해도 그대로'
+    $e = New-Scenario @{}; $e.Meta.Computer = 'honggildong-pc'; $e = Hide-ComputerName $e; Assert-Eq $e.Meta.Computer $c1 '같은 PC 는 같은 코드 (대소문자 무관)'
+    $all = ConvertTo-Json -InputObject $d -Depth 8
+    Assert ($all -notmatch 'HONGGILDONG') '블랙박스 파일 이름 등 자료 전체에서 PC 이름 제거'
+    Assert ($all -notmatch 'honggd') '경로 속 사용자 이름 제거'; Assert ($all -match 'Users\\\\user\\\\') '경로는 user 로'
     $dx = Get-Diagnosis -Data $d
     foreach ($t in @((New-HtmlReport -Data $d -Dx $dx), (Get-SummaryText $d $dx), (ConvertTo-Json -InputObject $d -Depth 6))) { Assert ($t -notmatch 'HONGGILDONG') '원래 이름 없음' }
     Assert ((Get-ConsoleRelaunchArgs -Path 'x.ps1' -Days 30 -HideName) -contains '-HideName') '콘솔 재실행에도 전달'

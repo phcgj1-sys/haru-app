@@ -1930,11 +1930,17 @@ function Get-ScanTimeText($Meta) {
     }
     return "$txt<br>"
 }
-function Hide-ComputerName($Data) {
-    # 보고서를 인터넷 커뮤니티 등에 올릴 때: PC 이름(사람 이름이 들어가는 경우가 많음)을 같은 PC 면 늘 같은 코드로 바꿈 (지난 검사 대비는 그대로 동작)
+function Get-AnonName([string]$Name) { return 'PC-' + (Get-ShortHash "name|$($Name.ToUpperInvariant())").Substring(0, 6) }
+function Hide-ComputerName($Data, [string]$UserName = $env:USERNAME) {
+    # 보고서를 인터넷 커뮤니티 등에 올릴 때: PC 이름·Windows 사용자 이름(사람 이름인 경우가 많음)을 자료 전체에서 가림
+    # PC 이름은 같은 PC 면 늘 같은 코드(지난 검사 대비 유지), 사용자 이름은 'user'
     $m = Get-Prop $Data 'Meta'; $n = [string](Get-Prop $m 'Computer')
-    if (-not $n -or $n -match '^PC-[0-9a-f]{6}$') { return }
-    $m.Computer = 'PC-' + (Get-ShortHash "name|$($n.ToUpperInvariant())").Substring(0, 6)
+    if (-not $n -or $n -match '^PC-[0-9a-f]{6}$') { return $Data }
+    $code = Get-AnonName $n
+    $json = ConvertTo-Json -InputObject $Data -Depth 8
+    $json = [regex]::Replace($json, [regex]::Escape($n), $code, 'IgnoreCase')
+    if ($UserName -and $UserName.Length -ge 2) { $json = [regex]::Replace($json, '(?<=[\\/])' + [regex]::Escape($UserName) + '(?=[\\/"])', 'user', 'IgnoreCase') }
+    return (ConvertFrom-PCJson $json)
 }
 function Get-WindowTitle([string]$Shop) {
     # 창 제목: 프로그램 이름·버전 + 매장 이름 (매장 이름은 번역하지 않음)
@@ -2581,7 +2587,7 @@ function Show-Gui {
             $status.Text = Tr '분석 중...'
             if ($noteBox.Text.Trim()) { $data.Meta.Note = $noteBox.Text.Trim() }
             if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
-            if ($script:HideName) { Hide-ComputerName $data }
+            if ($script:HideName) { $data = Hide-ComputerName $data }
             $rdir = Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)
             $dx = Invoke-SafeDiagnosis $data $rdir
             $bar.Value = $bar.Maximum - 1
@@ -3199,7 +3205,7 @@ Write-TrHost "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분
 $data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, (Tr $name)) }
 if ($Note) { $data.Meta.Note = $Note.Trim() }
 if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
-if ($script:HideName) { Hide-ComputerName $data }
+if ($script:HideName) { $data = Hide-ComputerName $data }
 $rdir = Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)
 $dx = Invoke-SafeDiagnosis $data $rdir
 $res = Save-Results -Data $data -Dx $dx -Dir $rdir -Track
