@@ -1765,6 +1765,12 @@ function Get-DayChoices([int]$Days) {
     # 화면의 분석 기간 목록: 기본 7·30·90·180일 + 명령줄로 받은 값 (오름차순)
     return @(@(7, 30, 90, 180) + @($Days) | Where-Object { $_ -ge 1 -and $_ -le 365 } | Sort-Object -Unique)
 }
+function Get-WindowTitle([string]$Shop) {
+    # 창 제목: 프로그램 이름·버전 + 매장 이름 (매장 이름은 번역하지 않음)
+    $t = "$($script:AppName) v$($script:AppVersion)"
+    if ($Shop) { $t += " — $Shop" }
+    return $t
+}
 function Get-ShopText([string]$Shop, [string]$Dir) {
     # 매장(점검자) 이름·연락처: -Shop 값, 없으면 프로그램 옆 shop.txt 첫 줄 (보고서·요약에 표시, 최대 100자)
     $t = $Shop
@@ -2326,7 +2332,7 @@ function Show-Gui {
     $big  = New-Object Drawing.Font('Malgun Gothic', (26 * $SimScale), [Drawing.FontStyle]::Bold)
 
     $f = New-Object Windows.Forms.Form
-    $f.Text = "$($script:AppName) v$($script:AppVersion)"
+    $f.Text = Get-WindowTitle $script:ShopText
     $f.StartPosition = 'CenterScreen'; $f.Font = $font; $f.BackColor = [Drawing.Color]::FromArgb(246, 247, 249)
     $f.AutoScaleMode = 'None'   # 배치는 아래 $doLayout 이 화면 배율($s)과 창 크기로 직접 계산
     $s = $SimScale
@@ -2488,7 +2494,7 @@ function Show-Gui {
     $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $noteLbl, $noteBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $copyB, $grp))
     if ($script:UiLang -eq 'en') {
         # 화면 글자 번역 (컨트롤 · 목록 머리글 · 기간 선택)
-        $f.Text = Tr $f.Text
+        $f.Text = (Tr "$($script:AppName) v$($script:AppVersion)") + $(if ($script:ShopText) { " — $($script:ShopText)" })
         $stack = New-Object System.Collections.Stack; $stack.Push($f)
         while ($stack.Count) { $c = $stack.Pop(); foreach ($k in $c.Controls) { if ($k.Text) { $k.Text = Tr $k.Text }; $stack.Push($k) } }
         foreach ($col in $list.Columns) { $col.Text = Tr $col.Text }

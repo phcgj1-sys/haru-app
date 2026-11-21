@@ -302,6 +302,12 @@ It '영어 콘솔 모드: 결과 출력에 한글이 남지 않음 (점수 단�
         }
     } finally { $script:UiLang = $lg }
 }
+It '창 제목: 매장 이름 표시 (없으면 프로그램 이름·버전만)' {
+    Assert-Eq (Get-WindowTitle '') "$($script:AppName) v$($script:AppVersion)" '기본'
+    Assert-Eq (Get-WindowTitle 'OO컴퓨터') "$($script:AppName) v$($script:AppVersion) — OO컴퓨터" '매장'
+    $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
+    Assert ($src -match [regex]::Escape('$f.Text = Get-WindowTitle $script:ShopText')) '메인 창에서 사용'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
