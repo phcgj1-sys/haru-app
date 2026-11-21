@@ -2416,6 +2416,15 @@ function Write-ConsoleResult($Dx, $Res) {
     Write-TrHost "`n보고서: $($Res.Html)" -ForegroundColor Green
 }
 
+function Get-ConsoleRelaunchArgs([string]$Path, [int]$Days, [string]$OutDir, [string]$Lang, [string]$Note) {
+    # 화면을 못 띄워 콘솔로 다시 실행할 때 사용자가 고른 저장 위치·언어·메모를 그대로 넘김
+    $q = { param([string]$v) '"' + ($v -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"' }
+    $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', (& $q $Path), '-Mode', 'Console', '-Days', "$Days")
+    if ($OutDir) { $a += @('-OutDir', (& $q $OutDir)) }
+    if ($Lang) { $a += @('-Lang', $Lang) }
+    if ($Note) { $a += @('-Note', (& $q $Note)) }
+    return $a
+}
 function Start-ConsoleMenu($Res) {
     while ($true) {
         Write-TrHost "`n============ 정밀 검사 ============" -ForegroundColor Cyan
@@ -2809,7 +2818,7 @@ if ($Mode -eq 'Gui') {
             return
         }
 
-        Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', "`"$PSCommandPath`"", '-Mode', 'Console', '-Days', $Days)
+        Start-Process -FilePath 'powershell.exe' -ArgumentList (Get-ConsoleRelaunchArgs -Path $PSCommandPath -Days $Days -OutDir $OutDir -Lang $script:UiLang -Note $Note)
         return
     }
 }

@@ -175,6 +175,16 @@ It '요약 복사 버튼: 화면 문구 영어 번역, 요약은 비어 있지 �
     $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
     Assert ($src -match '\$copyB\.SetBounds') '배치 계산에 포함 (레이아웃 검사 대상)'
 }
+It '화면 실패 → 콘솔 재실행: 저장 위치·언어·메모를 그대로 전달 (따옴표·역슬래시 처리)' {
+    $a = Get-ConsoleRelaunchArgs -Path 'C:\My Tools\PCCheck.ps1' -Days 60 -OutDir 'D:\보고서 폴더\' -Lang 'en' -Note '홍길동 "게임 중" 꺼짐'
+    $j = $a -join ' '
+    Assert ($j -match '-File "C:\\My Tools\\PCCheck\.ps1"') "경로 $j"
+    Assert ($j -match '-Days 60') '기간'; Assert ($j -match '-Lang en') '언어'
+    Assert ($j -match [regex]::Escape('-OutDir "D:\보고서 폴더\\"')) "끝 역슬래시 두 번 (따옴표가 풀리지 않게): $j"
+    Assert ($j -match [regex]::Escape('-Note "홍길동 \"게임 중\" 꺼짐"')) "메모 따옴표 이스케이프: $j"
+    $b = Get-ConsoleRelaunchArgs -Path 'C:\x.ps1' -Days 30 -OutDir '' -Lang 'ko' -Note ''
+    Assert (($b -join ' ') -notmatch '-Note|-OutDir') '빈 값은 넘기지 않음'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
