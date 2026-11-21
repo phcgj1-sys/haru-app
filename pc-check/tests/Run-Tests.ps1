@@ -1232,6 +1232,12 @@ It '쉼표 우선순위 함정 없음 (a + (b), c 형태)' {
     $bad = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.BinaryExpressionAst] -and $n.Operator -in 'Plus', 'Minus', 'Multiply' -and $n.Right -is [System.Management.Automation.Language.ArrayLiteralAst] }, $true))
     Assert-Eq $bad.Count 0 (($bad | ForEach-Object { "$($_.Extent.StartLineNumber): $($_.Extent.Text)" }) -join '; ')
 }
+It 'Measure-Object -Property 미사용 (5.1 은 해시 테이블 키를 못 읽어 오류 — 79회 CI 실패 원인)' {
+    foreach ($f in (Join-Path $PSScriptRoot '..\PCCheck.ps1'), $PSCommandPath) {
+        $bad = @(Select-String -Path $f -Pattern 'Measure-Object\s+-Prop\w*\s+[A-Za-z$(]' | Where-Object { $_.Line -notmatch "Select-String -Path" })
+        Assert ($bad.Count -eq 0) "$(Split-Path $f -Leaf) 줄 $(($bad | ForEach-Object LineNumber) -join ',')"
+    }
+}
 It '정수 리터럴 [math]::Min/Max 함정 없음 (소수가 정수로 잘림)' {
     # [math]::Min(1, 0.39) 은 정수 버전이 골라져 0 이 됨 → 소수가 섞이는 식에는 1.0 처럼 실수 리터럴을 써야 함
     $src = [IO.File]::ReadAllLines((Join-Path $root 'PCCheck.ps1'))
