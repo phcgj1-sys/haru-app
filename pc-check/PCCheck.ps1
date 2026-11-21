@@ -91,7 +91,7 @@ function Format-BugCode($n) {
 $script:LogFile = $null
 function Write-PCLog([string]$msg) {
     if (-not $script:LogFile) { return }
-    try { Add-Content -Path $script:LogFile -Value ((Get-Date).ToString('HH:mm:ss', [Globalization.CultureInfo]::InvariantCulture) + " $msg") -Encoding UTF8 } catch {}
+    try { Add-Content -LiteralPath $script:LogFile -Value ((Get-Date).ToString('HH:mm:ss', [Globalization.CultureInfo]::InvariantCulture) + " $msg") -Encoding UTF8 } catch {}
 }
 
 # =====================================================================
@@ -1456,7 +1456,7 @@ function Get-HistoryPaths {
     $dirs = @()
     if ($null -ne $script:ExtraHistoryDirs) { $dirs = @($script:ExtraHistoryDirs) }
     elseif ($script:IsWin) { try { $dirs = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { Join-Path ($_.DeviceID + '\') 'PCCheck_blackbox' }) } catch {} }
-    foreach ($d in $dirs) { if ($d -and (Test-Path $d)) { $l += (Join-Path $d 'history.json') } }
+    foreach ($d in $dirs) { if ($d -and (Test-Path -LiteralPath $d)) { $l += (Join-Path $d 'history.json') } }
     return $l
 }
 function Read-History {
@@ -1533,7 +1533,7 @@ function Invoke-SafeDiagnosis($Data, [string]$Dir) {
         $msg = $_.Exception.Message; Write-PCLog "diagnosis failed: $msg"
         $p = ''
         try {
-            if (-not (Test-Path $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
+            if (-not (Test-Path -LiteralPath $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
             $p = Join-Path $Dir ("{0}_{1}.json" -f (Get-OutputPrefix), (Get-FileStamp (Get-Date)))
             [IO.File]::WriteAllText($p, (ConvertTo-Json -InputObject $Data -Depth 6), (New-Object System.Text.UTF8Encoding($true)))
         } catch { $p = '' }
@@ -1542,7 +1542,7 @@ function Invoke-SafeDiagnosis($Data, [string]$Dir) {
 }
 function Save-Results {
     param($Data, $Dx, [string]$Dir, [switch]$Track)
-    if (-not (Test-Path $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
+    if (-not (Test-Path -LiteralPath $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
     # 이력 비교는 부가 기능 — 실패해도 보고서는 저장
     if ($Track) { try { Add-Comparison $Data $Dx (Read-History) } catch { Write-PCLog "comparison failed: $($_.Exception.Message)" } }
     $stamp = (ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created')); if (-not $stamp) { $stamp = Get-Date }
@@ -1974,7 +1974,7 @@ function Get-ShopText([string]$Shop, [string]$Dir) {
     if (-not $t) {
         if (-not $Dir) { $Dir = $(if ($PSScriptRoot) { $PSScriptRoot } else { [AppDomain]::CurrentDomain.BaseDirectory }) }
         $f = Join-Path $Dir 'shop.txt'
-        if (Test-Path $f) { try { $t = @(Get-Content -Encoding UTF8 $f | Where-Object { $_.Trim() })[0] } catch {} }
+        if (Test-Path -LiteralPath $f) { try { $t = @(Get-Content -LiteralPath $f -Encoding UTF8 | Where-Object { $_.Trim() })[0] } catch {} }
     }
     $t = ([string]$t).Trim()
     if ($t.Length -gt 100) { $t = $t.Substring(0, 100) }
@@ -2013,7 +2013,7 @@ function Get-GpuLoadStatus([string]$LogPath) {
     $r = [pscustomobject]@{ Errors = 0; DeviceLost = $false; InitFailed = $false; Passed = $false; Testing = $false }
     $txt = ''
     foreach ($f in @($LogPath, ($LogPath + '.err'))) {
-        if ($f -and (Test-Path $f)) { try { $fs = [IO.File]::Open($f, 'Open', 'Read', 'ReadWrite'); try { $txt += (New-Object IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() } } catch {} }
+        if ($f -and (Test-Path -LiteralPath $f)) { try { $fs = [IO.File]::Open($f, 'Open', 'Read', 'ReadWrite'); try { $txt += (New-Object IO.StreamReader($fs)).ReadToEnd() } finally { $fs.Dispose() } } catch {} }
     }
     if (-not $txt) { return $r }
     $r.Errors = ([regex]::Matches($txt, '(?im)^\s*Error found')).Count
@@ -2180,7 +2180,7 @@ function Read-BlackboxAnalysis([string]$Path) {
 function Get-BlackboxDirMemoryPath { return (Join-Path $script:WorkDir 'blackbox-dirs.txt') }
 function Get-BlackboxDirMemory {
     $p = Get-BlackboxDirMemoryPath
-    if (-not (Test-Path $p)) { return @() }
+    if (-not (Test-Path -LiteralPath $p)) { return @() }
     try { return @(Get-Content -Encoding UTF8 $p | Where-Object { $_.Trim() }) } catch { return @() }
 }
 function Add-BlackboxDirMemory([string]$Dir) {
@@ -2335,7 +2335,7 @@ function Show-BlackboxDialog {
     $stopB.Add_Click({ $p = $st.Box.Path; & $stopAll; $live.Text = (Tr '기록을 마쳤습니다.') + "`n" + $p })
     $anaB.Add_Click({
         $o = New-Object Windows.Forms.OpenFileDialog; $o.Filter = 'PCCheck blackbox (*.csv)|PCCheck_blackbox_*.csv|CSV (*.csv)|*.csv'
-        if (Test-Path $dirBox.Text) { $o.InitialDirectory = $dirBox.Text }
+        if (Test-Path -LiteralPath $dirBox.Text) { $o.InitialDirectory = $dirBox.Text }
         if ($o.ShowDialog($f) -eq 'OK') {
             try {
                 $a = Read-BlackboxAnalysis $o.FileName
@@ -2376,7 +2376,7 @@ function Save-Download([string]$Url, [string]$Dest, [string]$Sha256) {
     finally { $ProgressPreference = $pp }
     if ($Sha256) {
         $h = (Get-FileHash -Path $tmp -Algorithm SHA256).Hash
-        if ($h -ne $Sha256.ToUpper()) { Remove-Item $tmp -Force; throw "파일 무결성 검증 실패 (SHA256 불일치)" }
+        if ($h -ne $Sha256.ToUpper()) { Remove-Item -LiteralPath $tmp -Force; throw "파일 무결성 검증 실패 (SHA256 불일치)" }
         Write-PCLog "  sha256 ok"
     }
     Move-Item $tmp $Dest -Force
@@ -2412,16 +2412,16 @@ function Install-MemtestVulkan {
     param([switch]$UsePinned)
 
     $dir = Join-Path $script:WorkDir 'memtest_vulkan'
-    $exe = Get-ChildItem $dir -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'memtest' } | Select-Object -First 1
+    $exe = Get-ChildItem -LiteralPath $dir -Recurse -Filter '*.exe' -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'memtest' } | Select-Object -First 1
     if (-not $exe) {
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
         $asset = Get-MemtestAsset -UsePinned:$UsePinned
         $file = Join-Path $script:WorkDir $asset.Name
         Save-Download $asset.Url $file $asset.Sha256
         if ($asset.Name -match '\.exe$') { Move-Item $file (Join-Path $dir $asset.Name) -Force }
-        else { Expand-Archive $file -DestinationPath $dir -Force; Remove-Item $file -Force -ErrorAction SilentlyContinue }
+        else { Expand-Archive -LiteralPath $file -DestinationPath $dir -Force; Remove-Item -LiteralPath $file -Force -ErrorAction SilentlyContinue }
 
-        $exe = Get-ChildItem $dir -Recurse -Filter '*.exe' | Where-Object { $_.Name -match 'memtest' } | Select-Object -First 1
+        $exe = Get-ChildItem -LiteralPath $dir -Recurse -Filter '*.exe' | Where-Object { $_.Name -match 'memtest' } | Select-Object -First 1
     }
     if (-not $exe) { throw '실행 파일을 찾지 못했습니다.' }
     return $exe.FullName
@@ -2431,15 +2431,15 @@ function Start-MemtestVulkan { $p = Install-MemtestVulkan; Start-Process -FilePa
 function Install-BlueScreenView {
     $dir = Join-Path $script:WorkDir 'BlueScreenView'
     $exe = Join-Path $dir 'BlueScreenView.exe'
-    if (-not (Test-Path $exe)) {
+    if (-not (Test-Path -LiteralPath $exe)) {
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
         $zip = Join-Path $script:WorkDir 'bluescreenview.zip'
         $url = if ([Environment]::Is64BitOperatingSystem) { 'https://www.nirsoft.net/utils/bluescreenview-x64.zip' } else { 'https://www.nirsoft.net/utils/bluescreenview.zip' }
         Save-Download $url $zip $null
         Expand-Archive $zip -DestinationPath $dir -Force
-        Remove-Item $zip -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
     }
-    if (-not (Test-Path $exe)) { throw '실행 파일을 찾지 못했습니다.' }
+    if (-not (Test-Path -LiteralPath $exe)) { throw '실행 파일을 찾지 못했습니다.' }
     return $exe
 }
 function Start-BlueScreenView { Start-Process (Install-BlueScreenView) }
@@ -2780,7 +2780,7 @@ function Show-Gui {
             while (-not $state.Result -and -not $state.Failed -and $sw.Elapsed.TotalSeconds -lt 180) { [Windows.Forms.Application]::DoEvents(); Start-Sleep -Milliseconds 30 }
             $timer.Stop()
             if ($state.Failed) { $issues += "검사 흐름 오류: $($state.Failed)" }
-            elseif (-not $state.Result -or -not (Test-Path $state.Result.Html)) { $issues += '검사 흐름: 180초 안에 보고서가 만들어지지 않음' }
+            elseif (-not $state.Result -or -not (Test-Path -LiteralPath $state.Result.Html)) { $issues += '검사 흐름: 180초 안에 보고서가 만들어지지 않음' }
             elseif ($list.Items.Count -lt 1) { $issues += '검사 흐름: 결과 목록이 비어 있음' }
             elseif (-not $copyB.Enabled -or -not $state.Summary) { $issues += '검사 흐름: 요약 복사 준비 안 됨' }
             elseif ($f.AcceptButton -ne $start) { $issues += '검사 흐름: Enter 키 기본 단추가 검사 시작이 아님' }
@@ -2834,7 +2834,7 @@ function Get-ConsoleRelaunchArgs([string]$Path, [int]$Days, [string]$OutDir, [st
 function Copy-SummaryText($Res) {
     # 저장된 상담용 요약(.txt)을 클립보드로 (이 PC 안에서만)
     try {
-        if (-not $Res -or -not $Res.Txt -or -not (Test-Path $Res.Txt)) { return $false }
+        if (-not $Res -or -not $Res.Txt -or -not (Test-Path -LiteralPath $Res.Txt)) { return $false }
         Set-Clipboard -Value ([IO.File]::ReadAllText($Res.Txt)) -ErrorAction Stop
         return $true
     } catch { Write-PCLog "copy failed: $($_.Exception.Message)"; return $false }

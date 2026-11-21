@@ -892,6 +892,16 @@ It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드
         Assert (@($found | Where-Object { $_.File -eq 'PCCheck_blackbox_PC_20990102_000000.csv' }).Count -eq 1) "대괄호 폴더 기록 찾음 ($($found.Count))"
     } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
 }
+It '폴더 이름에 [ ] 가 있어도: shop.txt·USB 이력·보고서 파일을 찾음' {
+    $d = Join-Path $OutDir ('shop[2]_' + [guid]::NewGuid().ToString('N')); [void][IO.Directory]::CreateDirectory($d)
+    [IO.File]::WriteAllText((Join-Path $d 'shop.txt'), "괄호컴퓨터`r`n", (New-Object Text.UTF8Encoding($true)))
+    Assert-Eq (Get-ShopText '' $d) '괄호컴퓨터' 'shop.txt 읽음'
+    $old = $script:ExtraHistoryDirs
+    try { $script:ExtraHistoryDirs = @($d); Assert (@(Get-HistoryPaths) -contains (Join-Path $d 'history.json')) 'USB 이력 경로 포함' } finally { $script:ExtraHistoryDirs = $old }
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    $bad = @([regex]::Matches($src, '(?m)(Test-Path|Get-ChildItem|Remove-Item) \$(Dir|f|d|p|exe|dir|file|zip|tmp|_)\b') | ForEach-Object { $_.Value })
+    Assert-Eq $bad.Count 0 "와일드카드로 해석되는 경로: $($bad -join ', ')"
+}
 It '블랙박스: USB 안 하위 폴더에 기록한 것도 (기억이 지워진 뒤에도) 찾음' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usbroot_' + [guid]::NewGuid().ToString('N'))
