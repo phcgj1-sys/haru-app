@@ -1745,7 +1745,11 @@ function gtProblems(g) {
   var out = [];
   var e = gtExpect(g);
   // 게임 안 FPS 제한(60·120·144·165·200·240 또는 모니터 주사율)에 걸려 있으면 낮아도 정상
-  var capped = g.fps && [60, 75, 100, 120, 144, 165, 200, 240, g.hz].some(function (c) { return c && Math.abs(g.fps.avg - c) < 2.5; }) && !(g.gpu.utilAvg >= 90);
+  var capAt = null;
+  if (g.fps && !(g.gpu.utilAvg >= 90)) [60, 75, 100, 120, 144, 165, 200, 240, 300, g.hz].some(function (c) { if (c && Math.abs(g.fps.avg - c) < 2.5) { capAt = c; return true; } return false; });
+  var capped = capAt != null;
+  // 60~165 에 묶이고 모니터가 더 빠르면 보통 게임 옵션 FPS 제한·수직 동기화 설정(200·240·300 은 게임 엔진 상한이라 알리지 않음)
+  if (capAt && g.hz && capAt <= 165 && capAt < g.hz * 0.9) out.push({ id: 'gt-cap', lv: 'warn', t: 'FPS가 ' + capAt + '에 묶여 있음 (모니터 ' + g.hz + 'Hz)', short: 'FPS ' + capAt + ' 제한', fix: '게임 옵션의 FPS 제한·수직 동기화(V-Sync), 그래픽 드라이버의 최대 프레임 속도 설정을 확인하세요. 모니터 주사율까지 올리면 더 부드러워요.' });
   if (g.fps && e && e.exp && e.exp.high && g.fps.avg < e.exp.high * 0.6 && !/제한/.test(g.bottleneck) && !capped) out.push({ id: 'gt-low', lv: 'warn', t: '실전 FPS가 같은 부품 예상치보다 많이 낮음 (' + Math.round(g.fps.avg) + ' / 예상 높음 옵션 ' + e.exp.high + ')', short: '실전 FPS 낮음', fix: '발열·전원 옵션·그래픽 드라이버·백그라운드 프로그램을 확인하세요. 게임 안 옵션이 아주 높거나 해상도가 크면 정상일 수 있어요.' });
   if (g.fps && g.fps.stutterPerMin >= 6) out.push({ id: 'gt-stut', lv: 'warn', t: '게임 중 끊김 분당 ' + g.fps.stutterPerMin + '회', short: '게임 끊김', fix: '저장 장치 상태(노하드면 서버 디스크·네트워크 부하), 램 사용량, 백그라운드 프로그램을 확인하세요.' });
   if (g.cpu.clockStart && g.cpu.clockEnd && g.cpu.clockEnd < g.cpu.clockStart * 0.85 && !(g.cpu.coreAvg < 50)) out.push({ id: 'gt-cpuclk', lv: 'bad', t: '게임 중 CPU 클럭 저하 (' + fmt(g.cpu.clockStart) + '→' + fmt(g.cpu.clockEnd) + 'MHz)', short: 'CPU 클럭 저하', fix: 'K 없는 인텔 CPU는 BIOS 장기 전력 제한(PL1)이 65W로 묶여 있는 경우가 많아요. HWiNFO로 PL1을 확인하고 쿨러에 맞게 95~150W로 올리세요. CPU 온도가 95°C 근처면 쿨러·서멀을 점검하세요.' });

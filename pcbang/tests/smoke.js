@@ -251,6 +251,20 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(pr[0] && pr[0].indexOf('extdead') >= 0 && pr[1].indexOf('extping') >= 0 && pr[1].indexOf('extdead') < 0, '점검 프로그램: 외부 핑 전부 무응답 판정 (' + (pr[0] || []).filter(x => /ext/.test(x)) + ' / ' + (pr[1] || []).filter(x => /ext/.test(x)) + ')');
   }
 
+  // 실전 테스트: 60fps 상한 + 144Hz 모니터면 '묶여 있음' 안내, 서든 200(엔진 상한)은 안내 없음
+  {
+    const cp = await page.evaluate(() => { const P = window.__pcbang; return null; });
+    const mk = (seat, app, avg, hz) => 'PCBANGG1:' + b64({ v: 1, kind: 'game', seat, time: '2026-11-21 11:0' + seat, app, hz, fps: { avg, low1: avg * 0.8 }, cpu: { avg: 40 }, gpu: { utilAvg: 50 }, tl: {} });
+    await page.click('[data-tab="game"]');
+    await page.evaluate(c => { document.querySelector('#gtPaste').value = c; document.querySelector('#gtImport').click(); }, [mk(71, 'TslGame.exe', 60.1, 144), mk(72, 'SuddenAttack.exe', 199.6, 240)].join('\n'));
+    await page.waitForTimeout(200);
+    const t = await page.innerText('#gtList');
+    const i71 = await page.$$eval('[data-gt]', (els) => els.findIndex(e => /71번/.test(e.innerText))), i72 = await page.$$eval('[data-gt]', (els) => els.findIndex(e => /72번/.test(e.innerText)));
+    await page.click('[data-gt="' + i71 + '"]'); const d71 = await page.innerText('#gtDetail');
+    await page.click('[data-gt="' + i72 + '"]'); const d72 = await page.innerText('#gtDetail');
+    ok(/60에 묶여/.test(d71) && !/묶여/.test(d72), '실전 테스트: 60fps 상한은 안내·서든 200 은 안내 없음');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
