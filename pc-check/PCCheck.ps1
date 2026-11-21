@@ -37,6 +37,7 @@ $script:IsWin      = ($env:OS -eq 'Windows_NT')
 # =====================================================================
 function HtmlEnc($s) { if ($null -eq $s) { return '' }; return [System.Net.WebUtility]::HtmlEncode((Tr ([string]$s))) }
 
+function Get-FileStamp($dt) { return ([datetime]$dt).ToString('yyyyMMdd_HHmmss', [Globalization.CultureInfo]::InvariantCulture) }
 function Format-T($dt) { if ($null -eq $dt) { return '' }; return ([datetime]$dt).ToString('yyyy-MM-ddTHH:mm:ss', [Globalization.CultureInfo]::InvariantCulture) }
 function ConvertTo-CsvField($v) {
     # 지역 설정과 무관하게 소수점은 항상 '.' (독일어 등 ',' 소수점 Windows 에서 CSV 가 깨지지 않도록)
@@ -824,7 +825,7 @@ function Get-Diagnosis {
         if ($inst.Count) {
 
             & $add 'GPU_DRIVER' 18 '그래픽 드라이버 설치 직후(3일 이내)부터 문제 시작'
-            & $find 'warn' 'GPU_DRIVER' '그래픽 드라이버 설치 직후부터 문제 시작' "$((($inst | Sort-Object -Descending | Select-Object -First 1)).ToString('yyyy-MM-dd')) 드라이버 설치 후 문제가 시작됐습니다. 이전 버전으로 되돌려 보세요 (DDU 사용)." 5
+            & $find 'warn' 'GPU_DRIVER' '그래픽 드라이버 설치 직후부터 문제 시작' "$((($inst | Sort-Object -Descending | Select-Object -First 1)).ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)) 드라이버 설치 후 문제가 시작됐습니다. 이전 버전으로 되돌려 보세요 (DDU 사용)." 5
         }
     }
 
@@ -967,7 +968,7 @@ function Get-Diagnosis {
         $dd = ConvertTo-Date (Get-Prop $g 'DriverDate')
         if ($dd -and ($now - $dd).TotalDays -gt 365 -and (Get-Prop $g 'Vendor') -in 'NVIDIA', 'AMD') {
             if ($gpuCount -gt 0) { & $add 'GPU_DRIVER' 8 '그래픽 드라이버가 1년 이상 오래됨' }
-            & $find 'info' 'GPU_DRIVER' "그래픽 드라이버가 오래됨 ($($dd.ToString('yyyy-MM-dd')))" "$(Get-Prop $g 'Name') 드라이버를 최신 안정 버전으로 업데이트하세요." 2
+            & $find 'info' 'GPU_DRIVER' "그래픽 드라이버가 오래됨 ($($dd.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)))" "$(Get-Prop $g 'Name') 드라이버를 최신 안정 버전으로 업데이트하세요." 2
         }
     }
     $biosD = ConvertTo-Date (Get-Prop $sys 'BIOSDate')
@@ -978,7 +979,7 @@ function Get-Diagnosis {
         if ($crashes.Count -or $whea.Count) { & $add 'CPU_OC' 10 'Intel 13·14세대 CPU + 크래시 (알려진 불안정 이슈)' }
     }
     if ($biosD -and ($now - $biosD).TotalDays -gt 365 * 3 -and ($crashes.Count + $whea.Count) -gt 0) {
-        & $find 'info' 'CPU_OC' "메인보드 BIOS 가 오래됨 ($($biosD.ToString('yyyy-MM-dd')))" '안정성 개선이 포함된 최신 BIOS 를 확인하세요.' 0
+        & $find 'info' 'CPU_OC' "메인보드 BIOS 가 오래됨 ($($biosD.ToString('yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture)))" '안정성 개선이 포함된 최신 BIOS 를 확인하세요.' 0
     }
     if ((Get-Prop $sys 'FastStartup') -eq 1 -and ($plCount + $crashes.Count) -gt 0) {
         & $find 'info' 'DRIVER' '빠른 시작(Fast Startup) 켜짐' '종료/부팅 관련 문제가 있으면 제어판 > 전원 옵션에서 "빠른 시작 켜기"를 꺼 보세요.' 0
@@ -1095,8 +1096,8 @@ function Get-TimelineSvg($Data) {
             $tip += "$n $v"
             [void]$sb.Append(("<rect x='{0}' y='{1}' width='{2}' height='{3}' rx='1.5' fill='{4}'/>" -f $x.ToString('0.#', $inv), $y.ToString('0.#', $inv), ([math]::Max(1.0, $bw - 2)).ToString('0.#', $inv), $h.ToString('0.#', $inv), $series[$n].C))
         }
-        if ($tip.Count) { [void]$sb.Append(("<rect x='{0}' y='0' width='{1}' height='{2}' fill='transparent'><title>{3}: {4}</title></rect>" -f $x.ToString('0.#', $inv), $bw.ToString('0.#', $inv), $Hh, $day.ToString('MM-dd'), ($tip -join ', '))) }
-        if ($i % [math]::Max(1, [int]($days / 6)) -eq 0 -or $i -eq $days - 1) { [void]$sb.Append(("<text x='{0}' y='{1}' class='lbl'>{2}</text>" -f $x.ToString('0.#', $inv), ($Hh + 16), $day.ToString('MM-dd'))) }   # int-ok: 정수 결과가 의도됨
+        if ($tip.Count) { [void]$sb.Append(("<rect x='{0}' y='0' width='{1}' height='{2}' fill='transparent'><title>{3}: {4}</title></rect>" -f $x.ToString('0.#', $inv), $bw.ToString('0.#', $inv), $Hh, $day.ToString('MM-dd', [Globalization.CultureInfo]::InvariantCulture), ($tip -join ', '))) }
+        if ($i % [math]::Max(1, [int]($days / 6)) -eq 0 -or $i -eq $days - 1) { [void]$sb.Append(("<text x='{0}' y='{1}' class='lbl'>{2}</text>" -f $x.ToString('0.#', $inv), ($Hh + 16), $day.ToString('MM-dd', [Globalization.CultureInfo]::InvariantCulture))) }   # int-ok: 정수 결과가 의도됨
     }
     [void]$sb.Append('</svg><div class="legend">')
     foreach ($n in $series.Keys) { [void]$sb.Append("<span><i style='background:$($series[$n].C)'></i>$n</span>") }
@@ -1533,7 +1534,7 @@ function Invoke-SafeDiagnosis($Data, [string]$Dir) {
         $p = ''
         try {
             if (-not (Test-Path $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
-            $p = Join-Path $Dir ("{0}_{1:yyyyMMdd_HHmmss}.json" -f (Get-OutputPrefix), (Get-Date))
+            $p = Join-Path $Dir ("{0}_{1}.json" -f (Get-OutputPrefix), (Get-FileStamp (Get-Date)))
             [IO.File]::WriteAllText($p, (ConvertTo-Json -InputObject $Data -Depth 6), (New-Object System.Text.UTF8Encoding($true)))
         } catch { $p = '' }
         throw "보고서를 만들지 못했습니다 (원자료는 저장됨: $p): $msg"
@@ -1548,7 +1549,7 @@ function Save-Results {
     # 여러 PC 보고서를 한 폴더(USB)에 모아도 구분되도록 PC 이름 포함 (파일 이름에 못 쓰는 문자 제거, -HideName 이면 코드)
     $pcn = ([string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')) -replace '[\\/:*?"<>|\s]', ''
     if ($pcn.Length -gt 32) { $pcn = $pcn.Substring(0, 32) }
-    $base = Join-Path $Dir ($(if ($pcn) { "{0}_{1}_{2:yyyyMMdd_HHmmss}" -f (Get-OutputPrefix), $pcn, $stamp } else { "{0}_{1:yyyyMMdd_HHmmss}" -f (Get-OutputPrefix), $stamp }))
+    $base = Join-Path $Dir ($(if ($pcn) { "{0}_{1}_{2}" -f (Get-OutputPrefix), $pcn, (Get-FileStamp $stamp) } else { "{0}_{1}" -f (Get-OutputPrefix), (Get-FileStamp $stamp) }))
     $utf8 = New-Object System.Text.UTF8Encoding($true)
     # 원자료(JSON)를 먼저 저장 — 보고서 생성이 어떤 PC 에서 실패해도 -FromJson 으로 다시 만들 수 있게
     [IO.File]::WriteAllText("$base.json", (ConvertTo-Json -InputObject $Data -Depth 6), $utf8)
@@ -1782,7 +1783,7 @@ function Start-Blackbox {
     Add-BlackboxDirMemory $Dir
     # -HideName 이면 USB 에 남는 기록 파일 이름·머리말에도 실제 PC 이름 대신 코드
     $pcName = $(if ($script:HideName) { Get-AnonName $env:COMPUTERNAME } else { $env:COMPUTERNAME })
-    $path = Join-Path $Dir ("PCCheck_blackbox_{0}_{1:yyyyMMdd_HHmmss}.csv" -f $pcName, (Get-Date))
+    $path = Join-Path $Dir ("PCCheck_blackbox_{0}_{1}.csv" -f $pcName, (Get-FileStamp (Get-Date)))
     $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; Stage = ''; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0; GpuLog = ''; GpuSeen = ''; Pending = ''; Warn = '' })
     Write-DurableLine $path ("# PCCheck blackbox,v2,{0},{1},{2}" -f $pcName, (Format-T (Get-Date)), $script:AppVersion)
     Write-DurableLine $path $script:BlackboxCols
@@ -3208,7 +3209,7 @@ if (-not $OutDir) {
     $OutDir = Join-Path $desk (Get-OutputPrefix)
 }
 New-Item -ItemType Directory -Force -Path $script:WorkDir, (Join-Path $script:WorkDir 'logs') -ErrorAction SilentlyContinue | Out-Null
-$script:LogFile = Join-Path $script:WorkDir ("logs\{0:yyyyMMdd_HHmmss}.log" -f (Get-Date))
+$script:LogFile = Join-Path $script:WorkDir ("logs\{0}.log" -f (Get-FileStamp (Get-Date)))
 Write-PCLog "$($script:AppName) v$($script:AppVersion) mode=$Mode days=$Days ps=$($PSVersionTable.PSVersion)"
 
 if ($FromJson) {

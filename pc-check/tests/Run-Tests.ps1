@@ -1348,6 +1348,17 @@ It '배치 파일은 ASCII + CRLF' {
     foreach ($f in $bat) { $b = [IO.File]::ReadAllBytes($f.FullName); Assert (@($b | Where-Object { $_ -gt 127 }).Count -eq 0) "$($f.Name) ASCII"; Assert ([Text.Encoding]::ASCII.GetString($b) -match "`r`n") "$($f.Name) CRLF" }
 }
 
+It '날짜 형식은 지역 설정(태국 불기 등)과 무관' {
+    $old = [Threading.Thread]::CurrentThread.CurrentCulture
+    try {
+        [Threading.Thread]::CurrentThread.CurrentCulture = New-Object Globalization.CultureInfo('th-TH')
+        Assert-Eq (Get-FileStamp ([datetime]'2026-03-04T05:06:07')) '20260304_050607' '불기 연도 아님'
+    } finally { [Threading.Thread]::CurrentThread.CurrentCulture = $old }
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    Assert (-not ($src -match '\{\d:yyyy')) '-f 날짜 서식 없음'
+    $bad = @([regex]::Matches($src, "ToString\('[yMdHms:_ -]+'\)") | ForEach-Object { $_.Value })
+    Assert-Eq $bad.Count 0 "InvariantCulture 없는 날짜 ToString: $($bad -join ', ')"
+}
 Write-Host "`n결과: 통과 $script:pass · 실패 $script:fail" -ForegroundColor $(if ($script:fail) { 'Red' } else { 'Green' })
 Remove-Item $OutDir -Recurse -Force -ErrorAction SilentlyContinue
 if ($script:fail) { exit 1 }
