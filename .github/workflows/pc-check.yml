@@ -85,6 +85,12 @@ jobs:
         run: |
           $pkg = Join-Path $env:RUNNER_TEMP 'PCCheck'
           Copy-Item ./PCCheck.ps1, ./*.bat, ./README.md, ./THIRD-PARTY.md, ./CHANGELOG.md -Destination $pkg
+          # Readable manual for buyers who open files in a browser instead of a Markdown viewer
+          $body = (ConvertFrom-Markdown -Path ./README.md).Html
+          $css = 'body{font-family:"Malgun Gothic",sans-serif;max-width:860px;margin:24px auto;padding:0 16px;line-height:1.6}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}code{background:#f3f3f3;padding:1px 4px}'
+          $html = "<!doctype html><html><head><meta charset=`"utf-8`"><title>PC One-Click Check</title><style>$css</style></head><body>$body</body></html>"
+          [IO.File]::WriteAllText((Join-Path $pkg 'README.html'), $html, (New-Object System.Text.UTF8Encoding($true)))
+          if (-not (Test-Path (Join-Path $pkg 'README.html'))) { throw 'README.html missing' }
           Compress-Archive -Path "$pkg/*" -DestinationPath (Join-Path $env:RUNNER_TEMP 'PCCheck.zip') -Force
           Get-ChildItem $pkg | Format-Table Name, Length | Out-String | Write-Host
 

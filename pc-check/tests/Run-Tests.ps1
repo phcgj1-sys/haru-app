@@ -419,6 +419,12 @@ It '검사 소요 시간: 보고서 하단에 총 시간과 느린 단계 표시
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert ((New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)) -match 'Scan took 12.3 s \(slowest step: Windows stability index 8.4 s\)') '영어' } finally { $script:UiLang = $lg }
 }
+It 'CI 배포 ZIP: 브라우저로 볼 수 있는 README.html 포함, 워크플로는 ASCII 만 (5.1 인라인 스크립트 규칙)' {
+    $wf = Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot '..\..\.github\workflows\pc-check.yml')
+    Assert ($wf -match 'ConvertFrom-Markdown -Path \./README\.md') 'README 변환'; Assert ($wf -match "README\.html") 'README.html 저장'
+    Assert (-not ($wf.ToCharArray() | Where-Object { [int]$_ -gt 127 })) '워크플로에 비 ASCII 문자 없음'
+    if (Get-Command ConvertFrom-Markdown -ErrorAction SilentlyContinue) { Assert ((ConvertFrom-Markdown -Path (Join-Path $PSScriptRoot '..\README.md')).Html -match '<table') '변환 결과에 표' }
+}
 It 'CI: 지원 종료 예정(Node 20) 액션 버전을 쓰지 않음' {
     $wf = Get-Content -Raw (Join-Path $PSScriptRoot '..\..\.github\workflows\pc-check.yml')
     Assert ($wf -notmatch 'actions/checkout@v[1-4]\b') 'checkout 은 v5 이상 (Node 24)'
