@@ -587,6 +587,23 @@ It '지난 검사 대비: 노하드는 이후 끝난 블랙박스 이상 기록�
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert ((New-HtmlReport -Data $d -Dx $dx) -match 'Blackbox failure 1') '영어' } finally { $script:UiLang = $lg }
 }
+It '검사 이력: USB 블랙박스 폴더에도 저장해 노하드 재부팅 후에도 지난 검사 대비 유지' {
+    $oldWd = $script:WorkDir; $oldEx = $script:ExtraHistoryDirs
+    $usb = Join-Path $OutDir ('usb_' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $usb | Out-Null
+    try {
+        $script:WorkDir = Join-Path $OutDir ('wd1_' + [guid]::NewGuid().ToString('N')); $script:ExtraHistoryDirs = @($usb)
+        $d1 = New-Scenario @{}; $d1.Meta.Created = Format-T (Get-Date).AddDays(-3)
+        [void](Save-Results -Data $d1 -Dx (Get-Diagnosis -Data $d1) -Dir $OutDir -Track)
+        Assert (Test-Path (Join-Path $usb 'history.json')) 'USB 사본 저장'
+        # 재부팅으로 기본 위치가 비워진 상황
+        $script:WorkDir = Join-Path $OutDir ('wd2_' + [guid]::NewGuid().ToString('N'))
+        Assert-Eq @(Read-History).Count 1 'USB 에서 이력 읽음'
+        $d2 = New-Scenario @{}; $dx2 = Get-Diagnosis -Data $d2
+        [void](Save-Results -Data $d2 -Dx $dx2 -Dir $OutDir -Track)
+        Assert ($null -ne $dx2.Previous) '지난 검사 대비 동작'
+        Assert-Eq @(Read-History).Count 2 '중복 없이 2건'
+    } finally { $script:WorkDir = $oldWd; $script:ExtraHistoryDirs = $oldEx }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'

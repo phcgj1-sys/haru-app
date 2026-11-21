@@ -1337,12 +1337,24 @@ function Get-NewSince($Data, [datetime]$Since) {
 # 영어 사용자에게 한글 파일·폴더 이름이 보이지 않도록 언어별 이름 사용
 function Get-OutputPrefix { if ($script:UiLang -eq 'en') { return 'PCCheck' } else { return 'PC진단' } }
 function Get-HistoryPath { return (Join-Path $script:WorkDir 'history.json') }
+function Get-HistoryPaths {
+    # 기본 위치 + USB 의 블랙박스 폴더(있을 때만). 노하드는 재부팅하면 기본 위치가 지워지므로 USB 사본으로 이어 감
+    $l = @(Get-HistoryPath)
+    $dirs = @()
+    if ($null -ne $script:ExtraHistoryDirs) { $dirs = @($script:ExtraHistoryDirs) }
+    elseif ($script:IsWin) { try { $dirs = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { Join-Path ($_.DeviceID + '\') 'PCCheck_blackbox' }) } catch {} }
+    foreach ($d in $dirs) { if ($d -and (Test-Path $d)) { $l += (Join-Path $d 'history.json') } }
+    return $l
+}
 function Read-History {
-    $p = Get-HistoryPath
-    if (-not (Test-Path $p)) { return @() }
-    # 5.1 의 ConvertFrom-Json 은 JSON 배열을 통째로 하나의 개체로 내보내므로 직접 풀어서 반환
-    try { $j = ConvertFrom-PCJson (Get-Content -Raw -Encoding UTF8 $p); foreach ($x in $j) { $x } } catch { }
-
+    # 여러 위치의 기록을 합쳐 시간순으로 (같은 검사는 한 번만)
+    $all = @{}
+    foreach ($p in (Get-HistoryPaths)) {
+        if (-not (Test-Path $p)) { continue }
+        # 5.1 의 ConvertFrom-Json 은 JSON 배열을 통째로 하나의 개체로 내보내므로 직접 풀어서 사용
+        try { $j = ConvertFrom-PCJson (Get-Content -Raw -Encoding UTF8 $p); foreach ($x in $j) { if ($x) { $all["$(Get-Prop $x 'Computer')|$(Get-Prop $x 'Created')"] = $x } } } catch { }
+    }
+    foreach ($k in ($all.Keys | Sort-Object { [string]($_ -split '\|', 2)[1] })) { $all[$k] }
 }
 function Add-Comparison($Data, $Dx, $History) {
     $me = [string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')
@@ -1359,10 +1371,13 @@ function Add-Comparison($Data, $Dx, $History) {
 function Add-History($Data, $Dx) {
     $h = @(Read-History) + @([ordered]@{ Created = (Get-Prop (Get-Prop $Data 'Meta') 'Created'); Computer = (Get-Prop (Get-Prop $Data 'Meta') 'Computer'); Health = $Dx.Health; Counts = $Dx.Counts })
     if ($h.Count -gt 50) { $h = $h[($h.Count - 50)..($h.Count - 1)] }
-    try {
-        New-Item -ItemType Directory -Force -Path $script:WorkDir | Out-Null
-        [IO.File]::WriteAllText((Get-HistoryPath), (ConvertTo-Json -InputObject @($h) -Depth 5), (New-Object System.Text.UTF8Encoding($true)))
-    } catch { Write-PCLog "history save failed: $($_.Exception.Message)" }
+    $json = ConvertTo-Json -InputObject @($h) -Depth 5
+    foreach ($p in (Get-HistoryPaths)) {
+        try {
+            New-Item -ItemType Directory -Force -Path (Split-Path $p) | Out-Null
+            [IO.File]::WriteAllText($p, $json, (New-Object System.Text.UTF8Encoding($true)))
+        } catch { Write-PCLog "history save failed ($p): $($_.Exception.Message)" }
+    }
 }
 
 function Save-Results {
