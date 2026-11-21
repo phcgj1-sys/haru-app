@@ -636,6 +636,17 @@ It '저장 파일 이름: PC 이름 포함 (못 쓰는 문자 제거, HideName �
     $x = Hide-ComputerName $d; $r2 = Save-Results -Data $x -Dx (Get-Diagnosis -Data $x) -Dir $dir
     Assert ((Split-Path $r2.Html -Leaf) -match '^PC진단_PC-[0-9a-f]{6}_20261114_100000\.html$') "가린 이름 $(Split-Path $r2.Html -Leaf)"
 }
+It '콘솔 메뉴 요약 복사: 저장된 요약을 클립보드로, 파일 없으면 실패 처리' {
+    $dir = Join-Path $OutDir ('cp_' + [guid]::NewGuid().ToString('N'))
+    $d = New-Scenario @{}; $r = Save-Results -Data $d -Dx (Get-Diagnosis -Data $d) -Dir $dir
+    $script:copied = $null
+    function global:Set-Clipboard { param($Value, $ErrorAction) $script:copied = $Value }
+    try {
+        Assert (Copy-SummaryText $r) '복사 성공'
+        Assert ($script:copied -eq [IO.File]::ReadAllText($r.Txt)) '요약 내용 그대로'
+        Assert (-not (Copy-SummaryText ([pscustomobject]@{ Txt = (Join-Path $dir 'none.txt') }))) '파일 없으면 false'
+    } finally { Remove-Item function:global:Set-Clipboard -ErrorAction SilentlyContinue }
+}
 It '인쇄용 점검 확인란: 화면에서는 숨기고 인쇄 시에만 표시' {
     $h = New-HtmlReport -Data (New-Scenario @{}) -Dx (Get-Diagnosis -Data (New-Scenario @{}))
     Assert ($h -match 'class="sign"') '확인란'; Assert ($h -match '\.sign\{display:none') '화면 숨김'; Assert ($h -match '@media print\{\.sign\{display:flex\}') '인쇄 표시'
