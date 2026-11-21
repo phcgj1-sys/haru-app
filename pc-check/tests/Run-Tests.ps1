@@ -243,6 +243,14 @@ It '다음 정밀 검사 추천: 보고서·요약에 표시 (원인 없으면 �
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $e = New-HtmlReport -Data $d -Dx $dx; Assert ($e -match 'Recommended next test: ') '영어'; Assert ($e -notmatch '다음 정밀') '한글 없음' } finally { $script:UiLang = $lg }
 }
+It '문서: 사용자용 명령줄 옵션은 모두 README 에 설명됨' {
+    $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
+    $block = [regex]::Match($src, '(?s)\bparam\((.*?)\n\)').Groups[1].Value
+    $names = @([regex]::Matches($block, '\$(\w+)') | ForEach-Object { $_.Groups[1].Value } | Where-Object { $_ -notin 'GuiSmokeTest', 'LoadOnly' } | Sort-Object -Unique)
+    Assert ($names.Count -ge 6) "옵션 수 $($names.Count)"
+    $readme = Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot '..\README.md')
+    foreach ($n in $names) { Assert ($readme -match "-$n\b") "README 에 -$n 설명 없음" }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
