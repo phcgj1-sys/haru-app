@@ -1938,6 +1938,7 @@ function Get-ResultExitCode($Dx) {
     # 배치·원격 관리 도구에서 여러 PC 를 분류할 때 쓰는 종료 코드 (-ExitCode)
     switch (Get-GradeClass $Dx) { 'ok' { return 0 } 'warn' { return 1 } default { return 2 } }
 }
+function Get-GradeConsoleColor($Dx) { switch (Get-GradeClass $Dx) { 'ok' { return 'Green' } 'warn' { return 'Yellow' } default { return 'Red' } } }   # 화면·보고서와 같은 색 (판단 보류는 노랑)
 function Get-GradeClass($Dx) {
     # 점수 색: 판단 보류(노하드 기록 없음)는 점수가 높아도 초록(양호)으로 보이지 않게 주의 색
     if ([string]$Dx.Grade -match '판단 보류') { return 'warn' }
@@ -2826,7 +2827,7 @@ function Write-TrHost {
 }
 function Write-ConsoleResult($Dx, $Res) {
     Write-TrHost ''
-    Write-TrHost ("상태 점수: {0}/100 ({1})" -f $Dx.Health, $Dx.Grade) -ForegroundColor $(if ($Dx.Health -ge 90) { 'Green' } elseif ($Dx.Health -ge 70) { 'Yellow' } else { 'Red' })
+    Write-TrHost ("상태 점수: {0}/100 ({1})" -f $Dx.Health, $Dx.Grade) -ForegroundColor (Get-GradeConsoleColor $Dx)
     if (@($Dx.Causes).Count) {
         Write-TrHost "`n가장 의심되는 원인" -ForegroundColor Cyan
         $i = 0; foreach ($c in $Dx.Causes | Select-Object -First 3) { $i++; Write-TrHost ("  {0}. {1}  {2}점 (가능성 {3})" -f $i, $c.Name, $c.Score, $c.Confidence); foreach ($r in @($c.Reasons) | Select-Object -First 2) { Write-TrHost "     - $r" -ForegroundColor DarkGray } }

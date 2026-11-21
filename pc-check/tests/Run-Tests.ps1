@@ -249,6 +249,14 @@ It '-ExitCode: 무인 실행 결과를 종료 코드로 (0 양호 · 1 주의 ·
     $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson (Join-Path $OutDir 'missing[1].json') -OutDir (Join-Path $OutDir 'ec4') -NoOpen -Lang ko -ExitCode 2>&1
     Assert-Eq $LASTEXITCODE 3 '파일 없으면 3'
 }
+It '콘솔 결과 점수 색: 화면·보고서와 같음 (판단 보류는 점수가 높아도 초록 아님)' {
+    Assert-Eq (Get-GradeConsoleColor @{ Health = 95; Grade = '양호' }) 'Green' '양호'
+    Assert-Eq (Get-GradeConsoleColor @{ Health = 95; Grade = '판단 보류 (기록 필요)' }) 'Yellow' '판단 보류'
+    Assert-Eq (Get-GradeConsoleColor @{ Health = 80; Grade = '주의' }) 'Yellow' '주의'
+    Assert-Eq (Get-GradeConsoleColor @{ Health = 50; Grade = '위험' }) 'Red' '위험'
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    Assert ([regex]::Match($src, '(?s)function Write-ConsoleResult.*?\n\}').Value -match 'Get-GradeConsoleColor') '콘솔 출력에서 사용'
+}
 It '화면 분석 기간 목록: 명령줄 -Days 값을 그대로 포함 (60 → 90 으로 바뀌지 않음)' {
     Assert-Eq ((Get-DayChoices 30) -join ',') '7,30,90,180' '기본'
     Assert-Eq ((Get-DayChoices 60) -join ',') '7,30,60,90,180' '60 추가'
