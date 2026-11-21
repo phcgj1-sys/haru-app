@@ -42,6 +42,23 @@ function ConvertTo-CsvField($v) {
     if ($v -is [IFormattable] -and -not ($v -is [string])) { $s = $v.ToString($null, [Globalization.CultureInfo]::InvariantCulture) } else { $s = [string]$v }
     return ($s -replace ',', ';')
 }
+function ConvertFrom-PCJson([string]$Text) {
+    # PowerShell 7 의 ConvertFrom-Json 은 날짜 문자열을 DateTime 으로 바꿔 지역 형식(11/19/2026)으로 표시되므로 원래 형식으로 되돌림
+    $o = $Text | ConvertFrom-Json
+    $fix = {
+        param($x)
+        if ($null -eq $x) { return }
+        if ($x -is [System.Management.Automation.PSCustomObject]) {
+            foreach ($p in @($x.PSObject.Properties)) {
+                if ($p.Value -is [datetime]) { $p.Value = Format-T $p.Value } else { & $fix $p.Value }
+            }
+        } elseif ($x -is [System.Collections.IList]) {
+            for ($i = 0; $i -lt $x.Count; $i++) { if ($x[$i] -is [datetime]) { $x[$i] = Format-T $x[$i] } else { & $fix $x[$i] } }
+        }
+    }
+    foreach ($item in @($o)) { & $fix $item }
+    return , $o
+}
 function ConvertTo-Date($s) {
     if ($null -eq $s -or $s -eq '') { return $null }
     if ($s -is [datetime]) { return $s }
@@ -1320,7 +1337,7 @@ function Read-History {
     $p = Get-HistoryPath
     if (-not (Test-Path $p)) { return @() }
     # 5.1 의 ConvertFrom-Json 은 JSON 배열을 통째로 하나의 개체로 내보내므로 직접 풀어서 반환
-    try { $j = (Get-Content -Raw -Encoding UTF8 $p) | ConvertFrom-Json; foreach ($x in $j) { $x } } catch { }
+    try { $j = ConvertFrom-PCJson (Get-Content -Raw -Encoding UTF8 $p); foreach ($x in $j) { $x } } catch { }
 
 }
 function Add-Comparison($Data, $Dx, $History) {
@@ -2827,7 +2844,7 @@ $script:LogFile = Join-Path $script:WorkDir ("logs\{0:yyyyMMdd_HHmmss}.log" -f (
 Write-PCLog "$($script:AppName) v$($script:AppVersion) mode=$Mode days=$Days ps=$($PSVersionTable.PSVersion)"
 
 if ($FromJson) {
-    $data = Get-Content -Raw -Encoding UTF8 -Path $FromJson | ConvertFrom-Json
+    $data = ConvertFrom-PCJson (Get-Content -Raw -Encoding UTF8 -Path $FromJson)
     $dx = Get-Diagnosis -Data $data
     $res = Save-Results -Data $data -Dx $dx -Dir $OutDir
     Write-ConsoleResult $dx $res

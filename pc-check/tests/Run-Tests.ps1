@@ -29,7 +29,7 @@ function New-Scenario([hashtable]$over) {
     return $d
 }
 function Top($dx) { return @($dx.Causes)[0].Key }
-function RoundTrip($d) { return (ConvertTo-Json -InputObject $d -Depth 6 | ConvertFrom-Json) }
+function RoundTrip($d) { return (ConvertFrom-PCJson (ConvertTo-Json -InputObject $d -Depth 6)) }   # -FromJson 과 같은 경로
 
 $scenarios = [ordered]@{
     '파워 부족: 블루스크린 없이 반복 꺼짐 + 그래픽 오류 직후' = @{
@@ -215,6 +215,17 @@ It 'Intel 13·14세대 안내: 대상 데스크톱 모델만 (i5-13400·노트�
     $mk = { param($cpu) $d = New-Scenario @{}; $d.System.CPU = $cpu; @((Get-Diagnosis -Data $d).Findings | Where-Object { $_.Title -match '13·14세대' }).Count }
     foreach ($c in '13th Gen Intel(R) Core(TM) i9-13900K', '14th Gen Intel(R) Core(TM) i7-14700KF', '13th Gen Intel(R) Core(TM) i5-13600K', '14th Gen Intel(R) Core(TM) i9-14900') { Assert-Eq (& $mk $c) 1 $c }
     foreach ($c in '13th Gen Intel(R) Core(TM) i5-13400F', '13th Gen Intel(R) Core(TM) i7-13700H', '13th Gen Intel(R) Core(TM) i5-1335U', 'Intel(R) Core(TM) i7-12700K') { Assert-Eq (& $mk $c) 0 $c }
+}
+It 'JSON 재분석(-FromJson): PowerShell 7 에서도 날짜가 원래 형식 유지 (11/19/2026 같은 지역 형식 아님)' {
+    $d = New-Scenario @{ Shutdowns = @([ordered]@{ T = (T 2); Code = ''; PowerButton = $false }) }
+    $j = ConvertFrom-PCJson (ConvertTo-Json -InputObject $d -Depth 6)
+    Assert ($j.Shutdowns[0].T -is [string]) "문자열 유지 ($($j.Shutdowns[0].T.GetType().Name))"
+    Assert ($j.Shutdowns[0].T -match '^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d$') "형식 $($j.Shutdowns[0].T)"
+    Assert ($j.Meta.Created -match '^\d{4}-\d\d-\d\dT') '중첩 개체'
+    $h = New-HtmlReport -Data $j -Dx (Get-Diagnosis -Data $j)
+    Assert ($h -notmatch '\d{1,2}/\d{1,2}/\d{4}') '보고서에 지역 날짜 형식 없음'
+    $arr = ConvertFrom-PCJson '[{"Created":"2026-11-10T09:00:00","Health":60},{"Created":"2026-11-14T09:00:00","Health":80}]'
+    Assert-Eq @($arr).Count 2 '배열 그대로'; Assert-Eq @($arr)[1].Created '2026-11-14T09:00:00' '배열 안 날짜'
 }
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
