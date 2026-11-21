@@ -257,6 +257,15 @@ It '콘솔 결과 점수 색: 화면·보고서와 같음 (판단 보류는 점�
     $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
     Assert ([regex]::Match($src, '(?s)function Write-ConsoleResult.*?\n\}').Value -match 'Get-GradeConsoleColor') '콘솔 출력에서 사용'
 }
+It '-HideName: 이벤트 문장 속 PC\사용자 이름도 가림 (경로가 아니어도), 더 긴 이름은 그대로' {
+    $d = New-Scenario @{ GpuEvents = @([ordered]@{ T = (T 1); Source = 'User32'; Id = 1074; Xid = $null; Msg = 'restart of computer HG-PC on behalf of user HG-PC\honggd for the following reason' }, [ordered]@{ T = (T 2); Source = 'x'; Id = 1; Xid = $null; Msg = 'C:\Users\honggd2\a.txt' }) }
+    $d.Meta.Computer = 'HG-PC'
+    $h = Hide-ComputerName $d 'honggd'
+    $j = ConvertTo-Json -InputObject $h -Depth 8
+    Assert ($j -notmatch 'honggd for') "문장 속 사용자 이름 가림"
+    Assert ($j -match '\\\\user for') "'user' 로 바뀜"
+    Assert ($j -match 'honggd2') '다른(더 긴) 이름은 그대로'
+}
 It '화면 분석 기간 목록: 명령줄 -Days 값을 그대로 포함 (60 → 90 으로 바뀌지 않음)' {
     Assert-Eq ((Get-DayChoices 30) -join ',') '7,30,90,180' '기본'
     Assert-Eq ((Get-DayChoices 60) -join ',') '7,30,60,90,180' '60 추가'
