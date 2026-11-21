@@ -135,6 +135,17 @@ $script:BugDb = @{
     '0xEF'  = @{ N = 'CRITICAL_PROCESS_DIED';           D = '핵심 시스템 프로세스 종료';                          W = @{ DISK = 8; DRIVER = 8 } }
     '0x7B'  = @{ N = 'INACCESSIBLE_BOOT_DEVICE';        D = '부팅 디스크 접근 불가';                              W = @{ DISK = 15 } }
     '0x154' = @{ N = 'UNEXPECTED_STORE_EXCEPTION';      D = '저장소 관리 예외';                                  W = @{ DISK = 10; RAM = 5 } }
+    '0x7F'  = @{ N = 'UNEXPECTED_KERNEL_MODE_TRAP';     D = 'CPU 예외 (하드웨어·RAM·오버클럭)';                  W = @{ RAM = 8; CPU_OC = 8; DRIVER = 4 } }
+    '0x109' = @{ N = 'CRITICAL_STRUCTURE_CORRUPTION';   D = '커널 데이터 손상 (RAM·드라이버)';                   W = @{ RAM = 10; DRIVER = 6 } }
+    '0x13A' = @{ N = 'KERNEL_MODE_HEAP_CORRUPTION';     D = '커널 메모리 손상 (드라이버·RAM)';                   W = @{ DRIVER = 10; RAM = 6 } }
+    '0x18B' = @{ N = 'SECURE_KERNEL_ERROR';             D = '보안 커널 오류 (드라이버·가상화 기반 보안)';         W = @{ DRIVER = 8; RAM = 3 } }
+    '0x24'  = @{ N = 'NTFS_FILE_SYSTEM';                D = '파일 시스템(NTFS) 오류';                             W = @{ DISK = 14; RAM = 3 } }
+    '0xC000021A' = @{ N = 'STATUS_SYSTEM_PROCESS_TERMINATED'; D = 'Windows 핵심 프로세스 종료 (시스템 파일·디스크)'; W = @{ DISK = 6; DRIVER = 6 } }
+    '0x113' = @{ N = 'VIDEO_DXGKRNL_FATAL_ERROR';       D = '그래픽 커널 치명 오류';                             W = @{ GPU_DRIVER = 14; GPU_HW = 4 } }
+    '0x10D' = @{ N = 'WDF_VIOLATION';                   D = '장치 드라이버(WDF) 규칙 위반';                       W = @{ DRIVER = 12 } }
+    '0x144' = @{ N = 'BUGCODE_USB3_DRIVER';             D = 'USB 3 장치·드라이버 오류';                           W = @{ DRIVER = 12 } }
+    '0x15F' = @{ N = 'CONNECTED_STANDBY_WATCHDOG_TIMEOUT'; D = '절전(모던 스탠바이) 중 드라이버 응답 없음';         W = @{ DRIVER = 12 } }
+    '0x1CA' = @{ N = 'SYNTHETIC_WATCHDOG_TIMEOUT';      D = '시스템 전체 응답 없음 (하드웨어·드라이버)';          W = @{ CPU_OC = 6; DRIVER = 6; PSU = 3 } }
     '0x1000007E' = @{ N = 'SYSTEM_THREAD_EXCEPTION_NOT_HANDLED_M'; D = '드라이버 예외 처리 실패';              W = @{ DRIVER = 12 } }
     '0x1000008E' = @{ N = 'KERNEL_MODE_EXCEPTION_NOT_HANDLED_M';   D = '커널 모드 예외';                      W = @{ DRIVER = 10; RAM = 5 } }
 }
@@ -2795,7 +2806,7 @@ $script:EnPairs = @(
     @('드라이버 예외 처리 실패', 'Unhandled driver exception'), @('커널 모드 예외', 'Kernel-mode exception'), @('절전/전원 전환 중 드라이버 문제', 'Driver problem during a sleep/power transition'),
     @('드라이버 또는 SSD 펌웨어 응답 지연', 'Driver or SSD firmware not responding in time'), @('디스크에서 데이터를 읽지 못함', 'Could not read data from disk'), @('디스크 읽기 오류', 'Disk read error'),
     @('핵심 프로세스 종료 (디스크 문제에서 흔함)', 'Critical process terminated (common with disk problems)'), @('핵심 시스템 프로세스 종료', 'Critical system process died'),
-    @('부팅 디스크 접근 불가', 'Boot disk inaccessible'), @('저장소 관리 예외', 'Storage management exception'), @('BlueScreenView 로 원인 드라이버 확인 권장', 'Check the faulting driver with BlueScreenView'),
+    @('부팅 디스크 접근 불가', 'Boot disk inaccessible'), @('저장소 관리 예외', 'Storage management exception'), @('CPU 예외 (하드웨어·RAM·오버클럭)', 'CPU exception (hardware, RAM, overclock)'), @('커널 데이터 손상 (RAM·드라이버)', 'Kernel data corruption (RAM, driver)'), @('커널 메모리 손상 (드라이버·RAM)', 'Kernel memory corruption (driver, RAM)'), @('보안 커널 오류 (드라이버·가상화 기반 보안)', 'Secure kernel error (driver, virtualization-based security)'), @('파일 시스템(NTFS) 오류', 'File system (NTFS) error'), @('Windows 핵심 프로세스 종료 (시스템 파일·디스크)', 'Critical Windows process terminated (system files, disk)'), @('그래픽 커널 치명 오류', 'Fatal graphics kernel error'), @('장치 드라이버(WDF) 규칙 위반', 'Device driver (WDF) rule violation'), @('USB 3 장치·드라이버 오류', 'USB 3 device/driver error'), @('절전(모던 스탠바이) 중 드라이버 응답 없음', 'Driver unresponsive during sleep (modern standby)'), @('시스템 전체 응답 없음 (하드웨어·드라이버)', 'Whole system unresponsive (hardware, driver)'), @('BlueScreenView 로 원인 드라이버 확인 권장', 'Check the faulting driver with BlueScreenView'),
     @('그래픽 엔진 예외 (주로 앱/드라이버)', 'Graphics engine exception (usually app/driver)'), @('GPU 메모리 페이지 오류 (주로 앱/드라이버)', 'GPU memory page fault (usually app/driver)'),
     @('GPU 작업 중단 (앱 오류)', 'GPU stopped processing (app error)'), @('작업 강제 종료', 'Work forcibly terminated'), @('VRAM 더블비트 ECC 오류', 'VRAM double-bit ECC error'),
     @('내부 마이크로컨트롤러 정지', 'Internal microcontroller halt'), @('VRAM 페이지 퇴출(ECC)', 'VRAM page retirement (ECC)'), @('VRAM 페이지 퇴출 실패', 'VRAM page retirement failure'),

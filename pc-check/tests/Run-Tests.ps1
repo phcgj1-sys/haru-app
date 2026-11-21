@@ -377,6 +377,16 @@ It '그래픽 오류 직후 전원 버튼 강제 종료는 파워 부족 패턴�
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $f = @($btn.Findings | Where-Object { $_.Title -match '강제 종료' })[0]; Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') '영어' } finally { $script:UiLang = $lg }
 }
+It '블루스크린 코드표: 흔한 코드가 모두 등록되고 설명은 영어로 번역됨' {
+    $codes = '0xA', '0x1E', '0x3B', '0x50', '0x7E', '0x7F', '0x9F', '0xC2', '0xD1', '0xEF', '0xF4', '0x101', '0x109', '0x116', '0x117', '0x119', '0x124', '0x133', '0x139', '0x13A', '0x154', '0x18B', '0x19', '0x1A', '0x24', '0x7A', '0x77', '0xC000021A', '0x113', '0x10D', '0x144', '0x15F', '0x1CA'
+    $lg = $script:UiLang
+    foreach ($c in $codes) {
+        $b = Get-BugInfo $c; Assert ($b.N -ne '기타') "$c 미등록"
+        $script:UiLang = 'en'; try { Assert ((Tr $b.D) -notmatch '[가-힣]') "$c 설명 번역 없음: $($b.D)" } finally { $script:UiLang = $lg }
+    }
+    $dx = Get-Diagnosis -Data (New-Scenario @{ BugChecks = @([ordered]@{ T = (T 1); Code = '0x113' }, [ordered]@{ T = (T 2); Code = '0x113' }) })
+    Assert-Eq @($dx.Causes)[0].Key 'GPU_DRIVER' '0x113 → 그래픽 드라이버'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
