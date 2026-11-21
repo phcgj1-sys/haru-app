@@ -616,7 +616,7 @@ It '영어 모드: 저장 파일 이름에 한글 없음 (PCCheck_...)' {
     $old = $script:UiLang; $script:UiLang = 'en'
     try {
         $d = New-Scenario @{}; $r = Save-Results -Data $d -Dx (Get-Diagnosis -Data $d) -Dir $dir
-        foreach ($f in $r.Html, $r.Json, $r.Txt) { Assert ((Split-Path $f -Leaf) -match '^PCCheck_\d{8}_\d{6}\.') "영문 이름 $f"; Assert (Test-Path $f) '파일 존재' }
+        foreach ($f in $r.Html, $r.Json, $r.Txt) { Assert ((Split-Path $f -Leaf) -match '^PCCheck_([^_]+_)?\d{8}_\d{6}\.') "영문 이름 $f"; Assert (Test-Path $f) '파일 존재' }
     } finally { $script:UiLang = $old }
     Assert ((Get-OutputPrefix) -eq 'PC진단') '한국어는 기존 이름 유지'
 }
@@ -627,6 +627,14 @@ It '보고서 탭 제목: PC 이름·날짜 포함 (여러 보고서를 열어�
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert ((New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)) -match '<title>[^<가-힣]+ — SHOP-PC7 2026-11-14</title>') '영어 제목' } finally { $script:UiLang = $lg }
     $x = Hide-ComputerName $d; Assert ((New-HtmlReport -Data $x -Dx (Get-Diagnosis -Data $x)) -notmatch 'SHOP-PC7') 'HideName 이면 제목에도 없음'
+}
+It '저장 파일 이름: PC 이름 포함 (못 쓰는 문자 제거, HideName 이면 코드)' {
+    $dir = Join-Path $OutDir ('fn_' + [guid]::NewGuid().ToString('N'))
+    $d = New-Scenario @{}; $d.Meta.Computer = 'SHOP:PC 7'; $d.Meta.Created = '2026-11-14T10:00:00'
+    $r = Save-Results -Data $d -Dx (Get-Diagnosis -Data $d) -Dir $dir
+    Assert-Eq (Split-Path $r.Html -Leaf) 'PC진단_SHOPPC7_20261114_100000.html' '이름'
+    $x = Hide-ComputerName $d; $r2 = Save-Results -Data $x -Dx (Get-Diagnosis -Data $x) -Dir $dir
+    Assert ((Split-Path $r2.Html -Leaf) -match '^PC진단_PC-[0-9a-f]{6}_20261114_100000\.html$') "가린 이름 $(Split-Path $r2.Html -Leaf)"
 }
 It '인쇄용 점검 확인란: 화면에서는 숨기고 인쇄 시에만 표시' {
     $h = New-HtmlReport -Data (New-Scenario @{}) -Dx (Get-Diagnosis -Data (New-Scenario @{}))

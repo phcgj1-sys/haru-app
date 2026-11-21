@@ -1545,7 +1545,10 @@ function Save-Results {
     # 이력 비교는 부가 기능 — 실패해도 보고서는 저장
     if ($Track) { try { Add-Comparison $Data $Dx (Read-History) } catch { Write-PCLog "comparison failed: $($_.Exception.Message)" } }
     $stamp = (ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created')); if (-not $stamp) { $stamp = Get-Date }
-    $base = Join-Path $Dir ("{0}_{1:yyyyMMdd_HHmmss}" -f (Get-OutputPrefix), $stamp)
+    # 여러 PC 보고서를 한 폴더(USB)에 모아도 구분되도록 PC 이름 포함 (파일 이름에 못 쓰는 문자 제거, -HideName 이면 코드)
+    $pcn = ([string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')) -replace '[\\/:*?"<>|\s]', ''
+    if ($pcn.Length -gt 32) { $pcn = $pcn.Substring(0, 32) }
+    $base = Join-Path $Dir ($(if ($pcn) { "{0}_{1}_{2:yyyyMMdd_HHmmss}" -f (Get-OutputPrefix), $pcn, $stamp } else { "{0}_{1:yyyyMMdd_HHmmss}" -f (Get-OutputPrefix), $stamp }))
     $utf8 = New-Object System.Text.UTF8Encoding($true)
     # 원자료(JSON)를 먼저 저장 — 보고서 생성이 어떤 PC 에서 실패해도 -FromJson 으로 다시 만들 수 있게
     [IO.File]::WriteAllText("$base.json", (ConvertTo-Json -InputObject $Data -Depth 6), $utf8)
