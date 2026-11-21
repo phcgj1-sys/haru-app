@@ -1555,7 +1555,10 @@ function Save-Results {
     # 메신저로 바로 보낼 수 있는 짧은 요약 (원인 Top 3 · 지금 할 일)
     [IO.File]::WriteAllText("$base.txt", (Get-SummaryText $Data $Dx), $utf8)
     if ($Track) { try { Add-History $Data $Dx } catch { Write-PCLog "history failed: $($_.Exception.Message)" } }
-    return [pscustomobject]@{ Html = "$base.html"; Json = "$base.json"; Txt = "$base.txt" }
+    # 무인(-Mode Silent) 자동화용: 파일 경로 + 점수·등급·1순위 원인 (여러 PC 를 스크립트로 분류할 때)
+    $top = @($Dx.Causes) | Select-Object -First 1
+    return [pscustomobject]@{ Html = "$base.html"; Json = "$base.json"; Txt = "$base.txt"; Health = $Dx.Health; Grade = $Dx.Grade
+        TopCause = $(if ($top) { [string]$top.Key } else { '' }); TopCauseName = $(if ($top) { [string]$top.Name } else { '' }) }
 }
 
 # =====================================================================

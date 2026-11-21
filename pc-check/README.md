@@ -78,7 +78,7 @@ powershell -ExecutionPolicy Bypass -File PCCheck.ps1 -FromJson "PC진단_2026111
 ## 명령줄 옵션
 | 옵션 | 설명 |
 |---|---|
-| `-Mode Gui / Console / Silent` | 화면 / 콘솔+메뉴 / 무인(보고서만) |
+| `-Mode Gui / Console / Silent` | 화면 / 콘솔+메뉴 / 무인(보고서만 — 결과 개체에 `Html`·`Json`·`Txt` 경로와 `Health`·`Grade`·`TopCause` 포함, 여러 PC 자동 분류용) |
 | `-Days 90` | 분석 기간 (1~365일) |
 | `-OutDir D:\reports` | 저장 위치 |
 | `-FromJson file.json` | 저장된 진단 데이터로 보고서 재생성 |

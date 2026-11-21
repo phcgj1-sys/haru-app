@@ -912,6 +912,14 @@ It '빠른 자동 테스트: 같은 6단계를 약 10분으로, 원래 계획은
     $g = Get-StageAt $q 70; Assert-Eq $g.Key 'cpu' '70초면 CPU 단계'
     $g = Get-StageAt $q 590; Assert-Eq $g.Key 'pulse' '마지막 출렁임'; Assert (Get-StageAt $q 601).Done '끝'
 }
+It '무인 실행 결과: 파일 경로와 점수·등급·1순위 원인을 돌려줌 (자동화용)' {
+    $d = New-Scenario $scenarios['VRAM 불량: Xid 48/63 + TDR 블루스크린'].Data
+    $r = Save-Results -Data $d -Dx (Get-Diagnosis -Data $d) -Dir (Join-Path $OutDir ('sl_' + [guid]::NewGuid().ToString('N')))
+    Assert (Test-Path $r.Html) '보고서'; Assert ($r.Health -lt 90) "점수 $($r.Health)"; Assert-Eq $r.TopCause 'GPU_HW' '1순위 원인 키'
+    Assert ([string]$r.TopCauseName) '원인 이름'; Assert ([string]$r.Grade) '등급'
+    $c = New-Scenario @{}; $r2 = Save-Results -Data $c -Dx (Get-Diagnosis -Data $c) -Dir (Join-Path $OutDir ('sl2_' + [guid]::NewGuid().ToString('N')))
+    Assert-Eq $r2.TopCause '' '정상 PC 는 원인 없음'; Assert-Eq $r2.Health 100 '100점'
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
