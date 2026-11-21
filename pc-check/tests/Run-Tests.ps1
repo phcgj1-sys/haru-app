@@ -247,6 +247,15 @@ It '단일 항목 목록 (5.1 배열 풀림 회귀 방지)' {
     Assert (@($dx.Findings) | Where-Object { $_.Title -match '설치 직후' }) '드라이버 설치 직후 판정'
 }
 
+It '권장 파워 용량: Ti·SUPER·XT 변형은 기본 모델보다 먼저, 최신 모델 포함' {
+    $cases = @(@('NVIDIA GeForce RTX 3080 Ti', 350), @('NVIDIA GeForce RTX 3080', 320), @('NVIDIA GeForce RTX 3070 Ti', 290), @('NVIDIA GeForce RTX 3060 Ti', 200),
+               @('NVIDIA GeForce RTX 4070 SUPER', 220), @('NVIDIA GeForce RTX 5070 Ti', 300), @('NVIDIA GeForce RTX 5060', 145), @('AMD Radeon RX 9070 XT', 304),
+               @('AMD Radeon RX 6800 XT', 300), @('AMD Radeon RX 6800', 250), @('AMD Radeon RX 7900 XTX', 355), @('Intel(R) Arc(TM) B580 Graphics', 190), @('Intel(R) Arc(TM) A770 Graphics', 225))
+    foreach ($c in $cases) {
+        $d = New-Scenario @{}; $d.Gpus = @([ordered]@{ Name = $c[0]; Vendor = $(if ($c[0] -match 'NVIDIA') { 'NVIDIA' } elseif ($c[0] -match 'AMD') { 'AMD' } else { 'Intel' }) })
+        Assert-Eq (Get-PsuEstimate $d).GpuW $c[1] $c[0]
+    }
+}
 It '권장 파워 용량: 측정값 우선, 모델 대표값, 파워 의심 시 경고' {
     $d = New-Scenario @{}; $d.System.CPU = 'Intel(R) Core(TM) i9-14900K'; $d.Gpus = @([ordered]@{ Name = 'NVIDIA GeForce RTX 4090'; Vendor = 'NVIDIA' })
     $e = Get-PsuEstimate $d; Assert-Eq $e.GpuW 450 'RTX 4090 대표값'; Assert-Eq $e.CpuW 253 'i9 K'; Assert-Eq $e.RecommendW 1050 '(450+253+75)×1.3=1011 → 1050'

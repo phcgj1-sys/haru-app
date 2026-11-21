@@ -531,12 +531,18 @@ function Get-PsuEstimate($Data) {
     foreach ($n in @(Get-Arr (Get-Prop $Data 'NvSmi'))) { $pl = Get-Prop $n 'PowerLimitW'; if ($null -ne $pl -and [double]$pl -gt $gpuW) { $gpuW = [double]$pl; $gpuSrc = '전력 제한값' } }
     foreach ($b in @(Get-Arr (Get-Prop $Data 'Blackbox'))) { $m = Get-Prop $b 'MaxGpuPowerW'; if ($null -ne $m -and [double]$m -gt $gpuW) { $gpuW = [double]$m; $gpuSrc = '블랙박스 측정' } }
     if ($gpuW -le 0) {
-        $tbl = @(@('RTX 5090', 575), @('RTX 4090', 450), @('RTX 5080', 360), @('RTX 4080', 320), @('RTX 3090', 350), @('RTX 3080', 320), @('RTX 5070 Ti', 300), @('RTX 4070 Ti', 285),
-                 @('RTX 5070', 250), @('RTX 4070', 200), @('RTX 3070', 220), @('RTX 4060 Ti', 160), @('RTX 4060', 115), @('RTX 3060', 170), @('GTX 16', 125), @('GTX 10', 150),
-                 @('RX 7900', 355), @('RX 6900', 300), @('RX 6800', 250), @('RX 7800', 263), @('RX 7700', 245), @('RX 6700', 230), @('RX 7600', 165), @('RX 6600', 132), @('Arc A7', 225), @('Arc A5', 175))
+        # 제조사 기준 보드 전력(TBP/TGP). 'Ti'·'SUPER'·'XT' 변형이 기본 모델에 먼저 잡히지 않도록 긴 이름부터 비교
+        $tbl = @(@('RTX 5090', 575), @('RTX 4090', 450), @('RTX 5080', 360), @('RTX 4080', 320), @('RTX 3090 Ti', 450), @('RTX 3090', 350), @('RTX 3080 Ti', 350), @('RTX 3080', 320),
+                 @('RTX 5070 Ti', 300), @('RTX 4070 Ti', 285), @('RTX 5070', 250), @('RTX 4070 SUPER', 220), @('RTX 4070', 200), @('RTX 3070 Ti', 290), @('RTX 3070', 220),
+                 @('RTX 5060 Ti', 180), @('RTX 5060', 145), @('RTX 4060 Ti', 160), @('RTX 4060', 115), @('RTX 3060 Ti', 200), @('RTX 3060', 170), @('RTX 3050', 130),
+                 @('RTX 2080 Ti', 250), @('RTX 2080', 215), @('RTX 2070', 175), @('RTX 2060', 160), @('GTX 16', 125), @('GTX 10', 150),
+                 @('RX 9070 XT', 304), @('RX 9070', 220), @('RX 9060 XT', 160), @('RX 7900 XTX', 355), @('RX 7900', 315), @('RX 6950', 335), @('RX 6900', 300), @('RX 6800 XT', 300), @('RX 6800', 250),
+                 @('RX 7800', 263), @('RX 7700', 245), @('RX 6750', 250), @('RX 6700', 230), @('RX 7600', 165), @('RX 6650', 180), @('RX 6600', 132), @('Arc B580', 190), @('Arc A7', 225), @('Arc A5', 175))
+        $tbl = @($tbl | Sort-Object { - $_[0].Length })
         foreach ($g in @(Get-Arr (Get-Prop $Data 'Gpus'))) {
             $nm = [string](Get-Prop $g 'Name')
-            foreach ($t in $tbl) { if ($nm -match [regex]::Escape($t[0])) { if ($t[1] -gt $gpuW) { $gpuW = [double]$t[1]; $gpuSrc = '모델 대표값' }; break } }
+            $nmN = ($nm -replace '\((R|TM)\)', ' ' -replace '\s+', ' ')   # 'Intel(R) Arc(TM) A770' → 'Intel Arc A770'
+            foreach ($t in $tbl) { if ($nmN -match [regex]::Escape($t[0])) { if ($t[1] -gt $gpuW) { $gpuW = [double]$t[1]; $gpuSrc = '모델 대표값' }; break } }
             if ($gpuW -le 0 -and (Get-Prop $g 'Vendor') -in 'NVIDIA', 'AMD' -and $nm -notmatch 'Graphics$|Vega \d+ Graphics|Radeon\(TM\) Graphics') { $gpuW = 200.0; $gpuSrc = '일반 그래픽카드 가정' }
         }
     }
