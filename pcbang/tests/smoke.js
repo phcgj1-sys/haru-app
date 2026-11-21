@@ -336,6 +336,12 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(ig.join() === 'true,false,false', '모니터 단자: 외장 그래픽 있는데 내장 단자면 경고, 정상 연결·내장만 있는 PC 는 아님 (' + ig.join() + ')');
   }
 
+  // 주사율: 240Hz 모니터를 144Hz 로 쓰면 경고·체크리스트 불량, 143/144 는 정상
+  {
+    const hl = await page.evaluate(() => { const P = window.__pcbang; const run = (hz, mx) => P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: { hz, monitorMaxHz: mx } }).some(x => x.id === 'hzlow') + ':' + P.chkHz({}, { hz, monitorMaxHz: mx })[0]; return [run(144, 240), run(143, 144)]; });
+    ok(hl.join('/') === 'true:bad/false:ok', '주사율: 최대보다 낮은 설정(144/240) 경고, 143/144 정상 (' + hl.join('/') + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],

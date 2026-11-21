@@ -1142,6 +1142,8 @@ function problems(st) {
   // 모니터
   var maxHz = monMaxHz(nat), onIg = monOnIgpu(nat);
   if (onIg) add('igport', 'bad', '모니터가 메인보드(내장 그래픽) 단자에 연결됨', '모니터 케이블을 그래픽카드 단자(PC 뒷면 아래쪽 가로로 놓인 단자)로 옮기세요. 지금은 게임이 CPU 내장 그래픽으로 돌아 프레임이 크게 떨어지고, 주사율도 60Hz로 묶일 수 있어요.', '내장 그래픽 단자');
+  // 60Hz 를 넘어도 최대보다 낮게 설정된 경우(240Hz 모니터를 144Hz 로 등) — 1~2Hz 차이(143.98 등)는 무시
+  if (!onIg && sp.hz && sp.hz > 61 && maxHz && maxHz >= sp.hz + 10) add('hzlow', 'warn', '모니터가 ' + sp.hz + 'Hz로 설정됨 (최대 ' + maxHz + 'Hz 지원)', '바탕화면 우클릭 → 디스플레이 설정 → 고급 디스플레이 → 새로 고침 빈도를 ' + maxHz + 'Hz로. 목록에 없으면 DP 케이블(또는 HDMI 2.1)·그래픽카드 단자를 확인하세요.', sp.hz + '/' + maxHz + 'Hz');
   if (!onIg && sp.hz && sp.hz <= 61 && (dev.hzInfo || nat.hz) && maxHz && maxHz <= 61) add('hz60', 'info', '60Hz 모니터 (원래 60Hz) — 경쟁 게임엔 144Hz 이상 권장', '고장은 아니에요. 배그·발로란트·오버워치 같은 FPS 게임을 주로 하는 좌석이면 144Hz 이상 모니터로 바꾸면 체감이 크게 좋아져요.', '60Hz 모니터');
   else if (sp.hz && sp.hz <= 61 && (dev.hzInfo || nat.hz)) add('hz60', maxHz && maxHz > 61 ? 'bad' : 'warn', '모니터가 ' + sp.hz + 'Hz로 동작' + (maxHz > 61 ? ' (모니터는 ' + maxHz + 'Hz 지원)' : ''), '바탕화면 우클릭 → 디스플레이 설정 → 고급 디스플레이 → 새로 고침 빈도를 최대로. 안 보이면 케이블을 DP(또는 HDMI 2.0 이상)로 바꾸고, 그래픽카드 단자에 꽂혔는지(메인보드 단자 아님) 확인하세요.', '60Hz 동작');
   // 마우스·키보드·마이크
@@ -1304,7 +1306,7 @@ var CHK = [
     nat = nat || {}; var hz = d.hz || nat.hz || null, mx = monMaxHz(nat), src = d.hz ? '' : ' (점검 프로그램)';
     if (monOnIgpu(nat)) return ['bad', '메인보드(내장 그래픽) 단자에 연결됨'];
     if (!hz) return [null, '주사율 측정 필요'];
-    if (hz > 61) return ['ok', hz + 'Hz' + src + (mx && mx > hz + 5 ? ' · 최대 ' + mx + 'Hz 가능' : '')];
+    if (hz > 61) return mx && mx >= hz + 10 ? ['bad', hz + 'Hz로 설정 (모니터는 ' + mx + 'Hz 지원)' + src] : ['ok', hz + 'Hz' + src];
     if (mx && mx > 61) return ['bad', hz + 'Hz로 동작 (모니터는 ' + mx + 'Hz 지원)'];
     if (mx) return ['ok', hz + 'Hz 모니터 (원래 60Hz)'];
     return [null, hz + 'Hz — 모니터가 원래 60Hz면 정상, 직접 확인'];
