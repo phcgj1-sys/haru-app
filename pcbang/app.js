@@ -1411,6 +1411,30 @@ var STORE_KEY = 'pcbang_store_v1';
 var shop = store.get(STORE_KEY, {});
 function saveShop() { if (!store.set(STORE_KEY, shop)) toast('브라우저 저장 공간이 부족해 매장 현황을 저장하지 못했어요. 백업을 받고 오래된 좌석을 지우세요.'); }
 function normSeat(v) { v = String(v == null ? '' : v).trim().slice(0, 20); return /^\d+$/.test(v) ? String(parseInt(v, 10)) : v; }
+// 매장 현황 줄 키: 좌석 번호가 있으면 'seat:N'(같은 PC 이름만 있는 줄 'pc:이름'은 여기로 합침),
+// 좌석 번호 없이 PC 이름만 있으면 그 PC 이름을 가진 기존 줄(좌석 줄 포함)을 찾아 씀 → 한 PC 가 두 줄로 갈라지지 않음
+function shopKey(seat, comp) {
+  var has = function (k) { return Object.prototype.hasOwnProperty.call(shop, k); };
+  if (seat) {
+    var k = 'seat:' + seat;
+    if (comp && has('pc:' + comp)) shopMerge(k, 'pc:' + comp, seat);
+    return k;
+  }
+  if (!comp) return null;
+  var found = null; Object.keys(shop).forEach(function (k) { if (!found && shop[k] && shop[k].computer === comp) found = k; });
+  return found || 'pc:' + comp;
+}
+function shopMerge(dstKey, srcKey, seat) {
+  var src = shop[srcKey]; if (!src) return;
+  var dst = Object.prototype.hasOwnProperty.call(shop, dstKey) ? shop[dstKey] : { key: dstKey, seat: seat || '', computer: src.computer || '', at: 0 };
+  if (src.native && (!dst.native || natTime(src.native) > natTime(dst.native))) dst.native = src.native;
+  if (src.web && (!dst.web || (+src.web.at || 0) > (+dst.web.at || 0))) dst.web = src.web;
+  var gs = (dst.games || []).concat(src.games || []), seen = {};
+  dst.games = gs.filter(function (g) { var id = gtId(g); if (seen[id]) return false; seen[id] = 1; return true; }).slice(-5);
+  if (src.history && src.history.length) dst.history = (dst.history || []).concat(src.history).slice(-10);
+  dst.computer = dst.computer || src.computer; dst.at = Math.max(dst.at || 0, src.at || 0);
+  shop[dstKey] = dst; delete shop[srcKey];
+}
 function addToShop(items, fileSeat) {
   var errors = 0, keys = {};
   items = items.filter(function (it) { if (it.kind === 'error') { errors++; return false; } return true; });
@@ -1431,7 +1455,7 @@ function addToShop(items, fileSeat) {
     // 좌석·PC 이름이 모두 없으면 측정 시각+부품으로 고정 키(같은 파일을 다시 넣어도 중복 안 됨)
     // 좌석·PC 이름이 모두 없으면 그 PC를 나타내는 바뀌지 않는 값(브라우저가 본 그래픽·스레드·메모리)으로 키를 만듦 → 같은 PC를 다시 넣어도 줄이 늘지 않음
     var fp = w ? [w.data.det && w.data.det.renderer, w.data.det && w.data.det.threads, w.data.det && w.data.det.memGB].map(function (x) { return x == null ? '' : String(x); }).join('|') : String(n && n.data.cpu || '') + '|' + String(n && n.data.time || '');
-    var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : 'x:' + fp.slice(0, 120);
+    var key = shopKey(seat, comp) || 'x:' + fp.slice(0, 120);
     var e = Object.prototype.hasOwnProperty.call(shop, key) ? shop[key] : { key: key, seat: seat, computer: '', at: 0 };
     if (n) {
       // 측정 시각으로 비교: 더 오래된 결과를 나중에 넣어도 최신 결과를 덮지 않고, 이력 방향(이전 → 이후)이 뒤집히지 않게
@@ -1592,7 +1616,7 @@ async function importText(text, fileSeat) {
     gr.list.forEach(function (g) {
       var seat = normSeat(g.seat), comp = g.computer ? g.computer.toUpperCase() : '';
       if (!seat && !comp && fileSeat && /^\d{1,4}$/.test(fileSeat)) seat = normSeat(fileSeat);
-      var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : null; if (!key) return;
+      var key = shopKey(seat, comp); if (!key) return;
       var e2 = Object.prototype.hasOwnProperty.call(shop, key) ? shop[key] : { key: key, seat: seat, computer: comp, at: 0 };
       e2.games = (e2.games || []).filter(function (x) { return gtId(x) !== gtId(g); }).concat([g]).slice(-5);
       e2.at = Math.max(e2.at || 0, Date.parse(String(g.time).replace(' ', 'T')) || Date.now());
@@ -1853,7 +1877,7 @@ function renderGameDetail() {
   $('#gtDel').addEventListener('click', function () { if (!confirm('이 실전 테스트 기록을 지울까요?')) return; gtests.splice(gtSel, 1); store.set(GT_KEY, gtests); gtSel = gtests.length ? 0 : null; renderGameTests(); });
   $('#gtToShop').addEventListener('click', function () {
     var seat = normSeat(g.seat), comp = g.computer ? g.computer.toUpperCase() : '';
-    var key = seat ? 'seat:' + seat : comp ? 'pc:' + comp : null;
+    var key = shopKey(seat, comp);
     if (!key) { toast('좌석 번호나 PC 이름이 없어 붙일 수 없어요'); return; }
     var e2 = Object.prototype.hasOwnProperty.call(shop, key) ? shop[key] : { key: key, seat: seat, computer: comp, at: 0 };
     e2.games = (e2.games || []).filter(function (x) { return gtId(x) !== gtId(g); }).concat([g]).slice(-5);

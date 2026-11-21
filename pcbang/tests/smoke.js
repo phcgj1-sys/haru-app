@@ -287,6 +287,20 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(sp.join() === 'RTX 3060,8,RTX 4060,16,2', '부품 우선순위: 점검 프로그램 > 직접 입력, 무시된 직접 입력 알림 (' + sp.join() + ')');
   }
 
+  // 매장 현황: 같은 PC 가 'PC 이름' 줄과 '좌석' 줄로 갈라지지 않음 (양쪽 순서)
+  {
+    const pA = await (await browser.newContext()).newPage(); pA.on('pageerror', e => errs.push(e.message));
+    await pA.goto(URL); await pA.waitForTimeout(200);
+    const nat = (seat, comp, time) => 'PCBANG1:' + b64({ v: 2, time, seat, computer: comp, cpu: 'Intel(R) Core(TM) i5-12400F', gpus: [{ name: 'NVIDIA GeForce RTX 4060', vram: 8 }], ramGB: 16, os: 'win11' });
+    const imp = async t => { await pA.evaluate(t => { document.querySelector('#shopPaste').value = t; document.querySelector('#shopImportBtn').click(); }, t); await pA.waitForTimeout(150); };
+    await imp(nat(null, 'PC-030', '2026-11-20 10:00')); await imp(nat(30, 'PC-030', '2026-11-21 10:00'));   // 이름 줄 먼저 → 좌석 줄로 합침
+    await imp(nat(40, 'PC-040', '2026-11-20 10:00')); await imp(nat(null, 'PC-040', '2026-11-21 10:00')); // 좌석 줄 먼저 → 이름만 온 결과도 그 줄로
+    const keys = await pA.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('pcbang_store_v1'))).sort().join());
+    const t40 = await pA.evaluate(() => JSON.parse(localStorage.getItem('pcbang_store_v1'))['seat:40'].native.time);
+    ok(keys === 'seat:30,seat:40' && t40 === '2026-11-21 10:00', '매장 현황: 같은 PC 는 한 줄 (' + keys + ', 40번 최신 ' + t40 + ')');
+    await pA.context().close();
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
