@@ -282,6 +282,16 @@ It '문서: 판매 준비 체크리스트가 최신 기능(-HideName·shop.txt·
     $c = Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot '..\판매-준비-체크리스트.md')
     foreach ($k in '-HideName', 'shop.txt', '-Mode Silent', '블랙박스', '코드 서명') { Assert ($c -match [regex]::Escape($k)) "항목: $k" }
 }
+It '문서: 여러 PC 무인 검사 배치 예시 (-ExitCode, 큰 종료 코드부터 확인)' {
+    $readme = [IO.File]::ReadAllText((Join-Path $root 'README.md'))
+    $bat = [regex]::Match($readme, '(?s)```bat\r?\n(.*?)```').Groups[1].Value
+    Assert ($bat -match '-Mode Silent -ExitCode') '무인 + 종료 코드'
+    Assert ($bat -match '"%~dp0PCCheck\.ps1"') 'USB 위치 기준 경로'
+    $i3 = $bat.IndexOf('errorlevel 3'); $i2 = $bat.IndexOf('errorlevel 2'); $i1 = $bat.IndexOf('errorlevel 1')
+    Assert ($i3 -ge 0 -and $i3 -lt $i2 -and $i2 -lt $i1) '큰 숫자부터 확인'
+    $ck = [IO.File]::ReadAllText((Join-Path $root '판매-준비-체크리스트.md'))
+    Assert ($ck -match '-ExitCode') '체크리스트에 안내'
+}
 It '문서: 사용자용 명령줄 옵션은 모두 README 에 설명됨' {
     $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
     $block = [regex]::Match($src, '(?s)\bparam\((.*?)\n\)').Groups[1].Value

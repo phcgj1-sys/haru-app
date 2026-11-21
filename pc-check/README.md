@@ -93,6 +93,16 @@ powershell -ExecutionPolicy Bypass -File PCCheck.ps1 -FromJson "PC진단_내PC_2
 
 로그: `%LOCALAPPDATA%\PCCheck\logs` · 검사 이력: `%LOCALAPPDATA%\PCCheck\history.json`
 
+### 여러 PC 한꺼번에 (PC방·사무실)
+USB 에 프로그램과 아래 배치 파일을 함께 넣고, PC 마다 관리자 권한으로 실행하면 보고서가 USB 의 `reports` 폴더에 PC 이름별로 쌓이고 결과가 바로 표시됩니다.
+```bat
+@echo off
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0PCCheck.ps1" -Mode Silent -ExitCode -OutDir "%~dp0reports"
+if errorlevel 3 (echo 검사 실패 - 로그 확인) else if errorlevel 2 (echo 문제 발견 - 보고서 확인) else if errorlevel 1 (echo 주의) else (echo 양호)
+pause
+```
+(`errorlevel N` 은 'N 이상'이라는 뜻이라 큰 숫자부터 확인합니다. 배치 파일에 한글을 쓰려면 ANSI(CP949)로 저장하세요.)
+
 ## 자주 묻는 질문
 **Q. 인터넷으로 내 정보가 나가나요?**  
 아니요. 검사·분석·보고서 생성은 모두 이 PC 안에서 합니다. 인터넷은 '정밀 검사' 버튼으로 공식 도구(memtest_vulkan·BlueScreenView)를 받을 때만 쓰며, 받은 파일은 SHA-256 으로 검증합니다.
