@@ -971,6 +971,22 @@ It 'shop.txt: 메모장 ANSI(CP949)·UTF-8(BOM 유무)·UTF-16 으로 저장해�
         }
     } finally { [Threading.Thread]::CurrentThread.CurrentCulture = $old }
 }
+It 'USB 드라이브: 이동식 디스크뿐 아니라 USB 외장 SSD(로컬 디스크로 보임)도 찾음, 내부 디스크는 제외' {
+    $oldWin = $script:IsWin; $script:UsbRootsCache = $null
+    function Get-CimInstance { param($ClassName, $Filter, $ErrorAction) return @([pscustomobject]@{ DeviceID = 'E:' }) }
+    function Get-Disk { param($ErrorAction) return @([pscustomobject]@{ Number = 0; BusType = 'NVMe' }, [pscustomobject]@{ Number = 1; BusType = 'USB' }) }
+    function Get-Partition { [CmdletBinding()] param([Parameter(ValueFromPipeline = $true)]$InputObject) process { if ($InputObject.Number -eq 0) { [pscustomobject]@{ DriveLetter = 'C' } } else { [pscustomobject]@{ DriveLetter = [char]0 }; [pscustomobject]@{ DriveLetter = 'f' } } } }
+    try {
+        $script:IsWin = $true
+        $r = @(Get-UsbDriveRoots)
+        Assert-Eq ($r -join ',') 'E:\,F:\' "USB 드라이브 ($($r -join ','))"
+        $script:ExtraHistoryDirs = $null
+        Assert (@(Get-HistoryPaths).Count -ge 1) '이력 경로 계산 오류 없음'
+    } finally {
+        $script:IsWin = $oldWin; $script:UsbRootsCache = $null
+        Remove-Item Function:\Get-CimInstance, Function:\Get-Disk, Function:\Get-Partition -ErrorAction SilentlyContinue
+    }
+}
 It '폴더 이름에 [ ] 가 있어도: shop.txt·USB 이력·보고서 파일을 찾음' {
     $d = Join-Path $OutDir ('shop[2]_' + [guid]::NewGuid().ToString('N')); [void][IO.Directory]::CreateDirectory($d)
     [IO.File]::WriteAllText((Join-Path $d 'shop.txt'), "괄호컴퓨터`r`n", (New-Object Text.UTF8Encoding($true)))

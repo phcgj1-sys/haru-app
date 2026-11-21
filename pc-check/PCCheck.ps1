@@ -624,10 +624,23 @@ function Get-ReportDir($Data, [string]$OutDir, [bool]$IsDefault, [string]$UsbRoo
     if ($IsDefault -and $UsbRoot -and (Test-Diskless $Data)) { return ($UsbRoot.TrimEnd('\', '/') + '\' + "$(Get-OutputPrefix)_reports") }
     return $OutDir
 }
+function Get-UsbDriveRoots([long]$MinFree = 0) {
+    # USB 저장장치 드라이브 (E:\ 등): 이동식 디스크 + USB 로 연결된 외장 SSD·HDD(Windows 는 '로컬 디스크'로 보여 DriveType 3)
+    if (-not $script:IsWin) { return @() }
+    $now = Get-Date
+    if (-not $script:UsbRootsCache -or ($now - $script:UsbRootsCache.T).TotalSeconds -gt 15) {
+        $r = @()
+        try { $r += @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { $_.DeviceID + '\' }) } catch {}
+        try { $r += @(Get-Disk -ErrorAction Stop | Where-Object { [string]$_.BusType -eq 'USB' } | Get-Partition -ErrorAction SilentlyContinue | Where-Object { [string]$_.DriveLetter -match '^[A-Za-z]$' } | ForEach-Object { ([string]$_.DriveLetter).ToUpperInvariant() + ':\' }) } catch {}
+        $script:UsbRootsCache = @{ T = $now; Roots = @($r | Where-Object { $_ } | Select-Object -Unique) }
+    }
+    $roots = @($script:UsbRootsCache.Roots)
+    if ($MinFree -gt 0) { $roots = @($roots | Where-Object { try { (New-Object IO.DriveInfo $_).AvailableFreeSpace -gt $MinFree } catch { $false } }) }
+    return $roots
+}
 function Get-UsbRoot {
-    if (-not $script:IsWin) { return '' }
-    try { $u = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | Where-Object { $_.FreeSpace -gt 50MB }) | Select-Object -First 1; if ($u) { return ($u.DeviceID + '\') } } catch {}
-    return ''
+    $u = @(Get-UsbDriveRoots 50MB) | Select-Object -First 1
+    if ($u) { return $u } else { return '' }
 }
 function Get-PsuEstimate($Data) {
     # 최대 소비전력 추정과 권장 파워 용량 (측정값 우선, 없으면 모델별 대표값). 순간 전력 급증 대비 30% 여유
@@ -1457,7 +1470,7 @@ function Get-HistoryPaths {
     $l = @(Get-HistoryPath)
     $dirs = @()
     if ($null -ne $script:ExtraHistoryDirs) { $dirs = @($script:ExtraHistoryDirs) }
-    elseif ($script:IsWin) { try { $dirs = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { Join-Path ($_.DeviceID + '\') 'PCCheck_blackbox' }) } catch {} }
+    elseif ($script:IsWin) { $dirs = @(Get-UsbDriveRoots | ForEach-Object { $_.TrimEnd('\') + '\PCCheck_blackbox' }) }   # Join-Path 는 빠진 USB 드라이브면 오류
     foreach ($d in $dirs) { if ($d -and (Test-Path -LiteralPath $d)) { $l += (Join-Path $d 'history.json') } }
     return $l
 }
@@ -1771,8 +1784,8 @@ function Get-RecentHwEvents([datetime]$Since) {
 function Get-BlackboxDefaultDir {
     # 이동식 디스크(USB)가 있으면 그곳, 없으면 바탕화면 (노하드에서는 재부팅 시 사라짐)
     try {
-        $usb = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | Where-Object { $_.FreeSpace -gt 10MB }) | Select-Object -First 1
-        if ($usb) { return [pscustomobject]@{ Dir = (Join-Path ($usb.DeviceID + '\') 'PCCheck_blackbox'); Removable = $true } }
+        $usb = @(Get-UsbDriveRoots 10MB) | Select-Object -First 1
+        if ($usb) { return [pscustomobject]@{ Dir = (Join-Path $usb 'PCCheck_blackbox'); Removable = $true } }
     } catch {}
     $desk = [Environment]::GetFolderPath('Desktop'); if (-not $desk) { $desk = [IO.Path]::GetTempPath() }
     return [pscustomobject]@{ Dir = (Join-Path $desk 'PCCheck_blackbox'); Removable = $false }
@@ -2222,7 +2235,7 @@ function Find-BlackboxFiles([int]$Days = 30) {
     $dirs = @()
     $roots = @()
     if ($null -ne $script:BlackboxSearchRoots) { $roots = @($script:BlackboxSearchRoots) }
-    else { try { $roots = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { $_.DeviceID + '\' }) } catch {} }
+    else { $roots = @(Get-UsbDriveRoots) }
     foreach ($r in $roots) {
         $dirs += (Join-Path $r 'PCCheck_blackbox')
         # '찾아보기'로 USB 안의 폴더를 고른 경우 (E:\폴더\PCCheck_blackbox) — 재부팅으로 기억이 지워져도 찾도록 한 단계 아래까지
