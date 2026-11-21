@@ -1207,6 +1207,11 @@ function openAll(v){document.querySelectorAll('details').forEach(function(d){d.o
             $parts = @(); foreach ($k in $lbl.Keys) { if ($pv.New[$k]) { $parts += "$($lbl[$k]) $($pv.New[$k])" } }
             $cmpHtml = "<div class='cmp bad'><b>지난 검사($pvT · $($pv.Health)점) 이후 새 문제 $($pv.NewTotal) 건</b><p>$(HtmlEnc ($parts -join ' · ')) — 문제가 아직 해결되지 않았습니다. 아래 1순위 원인의 다음 단계를 진행하세요.</p></div>"
         }
+        $tr = @(Get-Arr $Dx['Trend'])
+        if ($tr.Count) {
+            $steps = @($tr | ForEach-Object { $d = ([string]$_.Created); "$(HtmlEnc $(if ($d.Length -ge 10) { $d.Substring(5, 5) } else { $d })) $([int]$_.Health)" }) + @("지금 $($Dx.Health)")
+            $cmpHtml += "<p class='sub'>점수 변화: $($steps -join ' → ')</p>"
+        }
     }
     $memDiagText = if ($memD.Count) { $x = $memD[0]; "$(([string](Get-Prop $x 'T')).Replace('T',' ')) — $(if (Get-Prop $x 'Failed') { '❌ 오류 발견' } else { '✅ 오류 없음' })" } else { '실행 기록 없음 (메뉴에서 실행 가능)' }
 
@@ -1320,8 +1325,11 @@ function Read-History {
 }
 function Add-Comparison($Data, $Dx, $History) {
     $me = [string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')
-    $prev = @($History | Where-Object { [string](Get-Prop $_ 'Computer') -eq $me }) | Select-Object -Last 1
+    $mine = @($History | Where-Object { [string](Get-Prop $_ 'Computer') -eq $me })
+    $prev = $mine | Select-Object -Last 1
     if (-not $prev) { return }
+    # 최근 검사 점수 변화 (최대 5회) — 수리 전후 비교용
+    $Dx.Trend = @($mine | Select-Object -Last 5 | ForEach-Object { [ordered]@{ Created = (Format-T (ConvertTo-Date (Get-Prop $_ 'Created'))); Health = [int](Get-Prop $_ 'Health') } })   # PS7 은 JSON 날짜를 DateTime 으로 읽으므로 형식 통일
     $pt = ConvertTo-Date (Get-Prop $prev 'Created'); if (-not $pt) { return }
     $new = Get-NewSince $Data $pt
     $total = 0; foreach ($k in $new.Keys) { $total += $new[$k] }
@@ -2722,7 +2730,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),

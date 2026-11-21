@@ -432,6 +432,10 @@ It '지난 검사 대비: 이후 새 문제 집계와 보고서 표시, 이력 �
         Assert-Eq $dx2.Previous.NewTotal 2 '새 문제 2건'
         Assert-Eq $dx2.Previous.New.PowerLoss 1 '꺼짐 1'
         Assert ([IO.File]::ReadAllText($r.Html) -match '이후 새 문제 2 건') '보고서 표시'
+        Assert-Eq @($dx2.Trend).Count 1 '점수 변화 1회'
+        Assert ([IO.File]::ReadAllText($r.Html) -match "점수 변화: \d\d-\d\d $($dx1.Health) → 지금 $($dx2.Health)") '점수 변화 표시'
+        $lg = $script:UiLang; $script:UiLang = 'en'
+        try { $he = New-HtmlReport -Data $d2 -Dx $dx2; Assert ($he -match "Score history: \d\d-\d\d $($dx1.Health) → now $($dx2.Health)") '영어' } finally { $script:UiLang = $lg }
         # 새 문제 없음
         $d3 = New-Scenario @{}; $d3.Meta.Created = Format-T $now.AddMinutes(5)
         $dx3 = Get-Diagnosis -Data $d3
