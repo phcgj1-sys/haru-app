@@ -634,6 +634,21 @@ It '블랙박스: 직접 고른 폴더에 기록해도 다음 검사에서 찾�
         foreach ($i in 1..12) { Add-BlackboxDirMemory "X$i" }; Assert-Eq @(Get-BlackboxDirMemory).Count 10 '최근 10개만'
     } finally { $script:WorkDir = $oldWd }
 }
+It '블랙박스: USB 안 하위 폴더에 기록한 것도 (기억이 지워진 뒤에도) 찾음' {
+    $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
+    $usb = Join-Path $OutDir ('usbroot_' + [guid]::NewGuid().ToString('N'))
+    try {
+        $script:WorkDir = Join-Path $OutDir ('wdr_' + [guid]::NewGuid().ToString('N'))
+        $sub = Join-Path (Join-Path $usb '테스트') 'PCCheck_blackbox'; New-Item -ItemType Directory -Force -Path $sub | Out-Null
+        $f = Join-Path $sub 'PCCheck_blackbox_PC_20990101_000000.csv'
+        Copy-Item (New-Bb2File 'bb_sub.csv' (Rep 5 @('idle', 5, 99, 40, 1, 20, '', 0, ''))) $f
+        (Get-Item $f).LastWriteTime = Get-Date
+        $script:BlackboxSearchRoots = @($usb)
+        Assert-Eq @(Get-BlackboxDirMemory).Count 0 '기억 없음 (재부팅 상황)'
+        $found = @(Find-BlackboxFiles 30)
+        Assert (@($found | Where-Object { $_.File -eq 'PCCheck_blackbox_PC_20990101_000000.csv' }).Count -eq 1) "하위 폴더 기록 찾음 ($($found.Count))"
+    } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'

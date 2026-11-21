@@ -1931,7 +1931,14 @@ function Add-BlackboxDirMemory([string]$Dir) {
 function Find-BlackboxFiles([int]$Days = 30) {
     # USB·바탕화면에서 최근 블랙박스 기록 찾기
     $dirs = @()
-    try { $dirs += @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { Join-Path ($_.DeviceID + '\') 'PCCheck_blackbox' }) } catch {}
+    $roots = @()
+    if ($null -ne $script:BlackboxSearchRoots) { $roots = @($script:BlackboxSearchRoots) }
+    else { try { $roots = @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { $_.DeviceID + '\' }) } catch {} }
+    foreach ($r in $roots) {
+        $dirs += (Join-Path $r 'PCCheck_blackbox')
+        # '찾아보기'로 USB 안의 폴더를 고른 경우 (E:\폴더\PCCheck_blackbox) — 재부팅으로 기억이 지워져도 찾도록 한 단계 아래까지
+        try { $dirs += @(Get-ChildItem -LiteralPath $r -Directory -ErrorAction Stop | ForEach-Object { Join-Path $_.FullName 'PCCheck_blackbox' }) } catch {}
+    }
     $desk = [Environment]::GetFolderPath('Desktop'); if ($desk) { $dirs += (Join-Path $desk 'PCCheck_blackbox') }
     $dirs += @(Get-BlackboxDirMemory)   # '찾아보기'로 직접 고른 폴더
     $dirs = @($dirs | Where-Object { $_ } | Sort-Object -Unique)
