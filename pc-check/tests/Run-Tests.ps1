@@ -416,7 +416,8 @@ It '검사 소요 시간: 보고서 하단에 총 시간과 느린 단계 표시
 }
 It 'CI: 지원 종료 예정(Node 20) 액션 버전을 쓰지 않음' {
     $wf = Get-Content -Raw (Join-Path $PSScriptRoot '..\..\.github\workflows\pc-check.yml')
-    Assert ($wf -notmatch 'actions/(checkout|upload-artifact)@v[1-4]\b') 'checkout·upload-artifact 는 v5 이상'
+    Assert ($wf -notmatch 'actions/checkout@v[1-4]\b') 'checkout 은 v5 이상 (Node 24)'
+    Assert ($wf -notmatch 'actions/upload-artifact@v[1-5]\b') 'upload-artifact 는 v6 이상 (v5 는 아직 Node 20)'
     Assert ($wf -match 'actions/checkout@v\d+') 'checkout 사용'
 }
 It '-HideName: PC 이름을 같은 PC 면 같은 코드로 가리고 보고서·요약에 원래 이름이 남지 않음' {
