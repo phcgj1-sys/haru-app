@@ -936,6 +936,13 @@ It '무인 실행 결과: 파일 경로와 점수·등급·1순위 원인을 돌
     $c = New-Scenario @{}; $r2 = Save-Results -Data $c -Dx (Get-Diagnosis -Data $c) -Dir (Join-Path $OutDir ('sl2_' + [guid]::NewGuid().ToString('N')))
     Assert-Eq $r2.TopCause '' '정상 PC 는 원인 없음'; Assert-Eq $r2.Health 100 '100점'
 }
+It '자동 테스트 종료 예상 시각 표시 (영어 번역)' {
+    $now = Get-Date '2026-11-14T14:00:00'
+    Assert-Eq (Get-EtaText 1920 $now) '약 14:32 종료' '32분 뒤'
+    Assert-Eq (Get-EtaText -30 $now) '약 14:00 종료' '음수는 0'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { Assert-Eq (Tr (Get-EtaText 600 $now)) 'ends ~14:10' '영어' } finally { $script:UiLang = $lg }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
