@@ -329,6 +329,13 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(pw.join('/') === '-/info/warn', '전원 관리: 7950X3D 균형 정상·고성능 참고, 7800X3D 균형 경고 (' + pw.join('/') + ')');
   }
 
+  // 모니터가 내장 그래픽 단자에 연결: 외장 그래픽이 있으면 '고칠 것', 내장 그래픽만 있는 PC 는 아님
+  {
+    const ig = await page.evaluate(() => { const P = window.__pcbang; const run = (gpus, adapter) => P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: { hz: 60, monitorMaxHz: 60, gpus, displays: [{ name: 'M', res: '1920x1080', hz: 60, maxHz: 60, primary: true, adapter }] } }).some(x => x.id === 'igport');
+      return [run([{ name: 'NVIDIA GeForce RTX 4060' }, { name: 'Intel(R) UHD Graphics 730' }], 'Intel(R) UHD Graphics 730'), run([{ name: 'NVIDIA GeForce RTX 4060' }], 'NVIDIA GeForce RTX 4060'), run([{ name: 'Intel(R) UHD Graphics 730' }], 'Intel(R) UHD Graphics 730')]; });
+    ok(ig.join() === 'true,false,false', '모니터 단자: 외장 그래픽 있는데 내장 단자면 경고, 정상 연결·내장만 있는 PC 는 아님 (' + ig.join() + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],

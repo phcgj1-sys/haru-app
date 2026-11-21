@@ -345,7 +345,7 @@ try {
     $mid = $f[8].ToUpper()
     foreach ($mo in $mons) { if ($mo.key -and $mid.Contains($mo.key)) { $nm = $mo.name; break } }
     if (-not $nm -and $f[9] -and $f[9] -notmatch 'Generic|PnP|일반') { $nm = $f[9] }
-    $o = [ordered]@{ name = $nm; res = ("{0}x{1}" -f $f[2], $f[3]); hz = $cur; maxHz = $null; primary = ($f[7] -eq '1') }
+    $o = [ordered]@{ name = $nm; res = ("{0}x{1}" -f $f[2], $f[3]); hz = $cur; maxHz = $null; primary = ($f[7] -eq '1'); adapter = $f[1].Trim() }
     if ($mx -gt 0) { $o.maxHz = $mx }
     $displays += $o
   }
@@ -355,6 +355,12 @@ $prim = $null
 foreach ($d in $displays) { if ($d.primary) { $prim = $d; break } }
 if (-not $prim -and $displays.Count) { $prim = $displays[0] }
 if ($prim -and $prim.hz -gt 1) { $hz = [int]$prim.hz }
+# 주 모니터가 내장 그래픽(메인보드 단자)에 연결됐는지: 외장 그래픽(NVIDIA·Radeon RX·Arc)이 있는데 주 모니터 어댑터가 인텔 UHD/HD·AMD Radeon(TM) Graphics 면
+$result.monitorOnIgpu = $false
+try {
+  $dgpu = @(Get-CimInstance Win32_VideoController -OperationTimeoutSec 5 | Where-Object { $_.Name -match 'NVIDIA|Radeon RX|Radeon Pro|Arc\(TM\) A|Arc\(TM\) B|Intel\(R\) Arc' -and $_.Name -notmatch 'Virtual|Parsec|Basic|Remote' })
+  if ($prim -and $prim.adapter -and $dgpu.Count -and $prim.adapter -match 'Intel\(R\) (UHD|HD|Iris)|Intel\(R\) Graphics|AMD Radeon\(TM\) Graphics|Radeon\(TM\) Graphics|Radeon Vega' -and $prim.adapter -notmatch 'Arc') { $result.monitorOnIgpu = $true }
+} catch {}
 if ($prim -and $prim.maxHz) { $result.monitorMaxHz = [int]$prim.maxHz }
 if (-not $result.Contains('monitorMaxHz') -and $displays.Count -le 1) {
   # 대체 방법 (관리자 권한이 필요할 수 있음: 안 되면 건너뜀)
@@ -732,6 +738,7 @@ try {
     }
   }
   if (-not $hzChecked -and $result.hz) {
+    if ($result.monitorOnIgpu) { [void]$warns.Add('모니터가 메인보드(내장 그래픽) 단자에 연결됨 - 그래픽카드 단자로 옮기기(게임이 내장 그래픽으로 돌고 주사율이 60Hz로 묶일 수 있음)') }
     if ($result.monitorMaxHz -and $result.monitorMaxHz -ge 100 -and $result.hz -lt ($result.monitorMaxHz - 5)) { [void]$warns.Add(("모니터 {0}Hz로 설정됨 (최대 {1}Hz 가능)" -f $result.hz, $result.monitorMaxHz)) }
     else { [void]$oks.Add(("모니터 {0}Hz" -f $result.hz)) }
   }
