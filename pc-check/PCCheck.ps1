@@ -1524,6 +1524,20 @@ function Add-History($Data, $Dx) {
     }
 }
 
+function Invoke-SafeDiagnosis($Data, [string]$Dir) {
+    # 분석 중 예상 못한 오류가 나도 수집한 원자료는 남겨 둠 (-FromJson 으로 다시 분석 가능)
+    try { return (Get-Diagnosis -Data $Data) }
+    catch {
+        $msg = $_.Exception.Message; Write-PCLog "diagnosis failed: $msg"
+        $p = ''
+        try {
+            if (-not (Test-Path $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
+            $p = Join-Path $Dir ("{0}_{1:yyyyMMdd_HHmmss}.json" -f (Get-OutputPrefix), (Get-Date))
+            [IO.File]::WriteAllText($p, (ConvertTo-Json -InputObject $Data -Depth 6), (New-Object System.Text.UTF8Encoding($true)))
+        } catch { $p = '' }
+        throw "보고서를 만들지 못했습니다 (원자료는 저장됨: $p): $msg"
+    }
+}
 function Save-Results {
     param($Data, $Dx, [string]$Dir, [switch]$Track)
     if (-not (Test-Path $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
@@ -2560,9 +2574,10 @@ function Show-Gui {
             $status.Text = Tr '분석 중...'
             if ($noteBox.Text.Trim()) { $data.Meta.Note = $noteBox.Text.Trim() }
             if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
-            $dx = Get-Diagnosis -Data $data
+            $rdir = Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)
+            $dx = Invoke-SafeDiagnosis $data $rdir
             $bar.Value = $bar.Maximum - 1
-            $state.Result = Save-Results -Data $data -Dx $dx -Dir (Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)) -Track
+            $state.Result = Save-Results -Data $data -Dx $dx -Dir $rdir -Track
             $state.Summary = Get-SummaryText $data $dx
             $bar.Value = $bar.Maximum
             $score.Text = "$($dx.Health)"
@@ -3174,8 +3189,9 @@ Write-TrHost "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분
 $data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, (Tr $name)) }
 if ($Note) { $data.Meta.Note = $Note.Trim() }
 if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
-$dx = Get-Diagnosis -Data $data
-$res = Save-Results -Data $data -Dx $dx -Dir (Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)) -Track
+$rdir = Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)
+$dx = Invoke-SafeDiagnosis $data $rdir
+$res = Save-Results -Data $data -Dx $dx -Dir $rdir -Track
 Write-ConsoleResult $dx $res
 if ($Mode -eq 'Silent') { Write-Output $res; return }
 if (-not $NoOpen) { Start-Process $res.Html }

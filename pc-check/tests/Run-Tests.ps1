@@ -870,6 +870,18 @@ It '저장: 보고서 생성이 실패해도 원자료(JSON)는 남아 -FromJson
     $j = ConvertFrom-PCJson (Get-Content -Raw -Encoding UTF8 (Get-ChildItem $dir -Filter '*.json')[0].FullName)
     Assert ((New-HtmlReport -Data $j -Dx (Get-Diagnosis -Data $j)) -match '<html') 'JSON 으로 다시 생성'
 }
+It '분석 실패: 예상 못한 오류가 나도 원자료(JSON)는 저장' {
+    $dir = Join-Path $OutDir ('dg_' + [guid]::NewGuid().ToString('N'))
+    $d = New-Scenario @{}
+    Assert-Eq (Invoke-SafeDiagnosis $d $dir).Grade '양호' '정상일 때는 그대로'
+    $orig = ${function:Get-Diagnosis}
+    try {
+        Set-Item function:script:Get-Diagnosis { param($Data) throw 'boom' }
+        $err = $null; try { [void](Invoke-SafeDiagnosis $d $dir) } catch { $err = $_.Exception.Message }
+        Assert ($err -match '원자료는 저장됨: .+\.json') "안내: $err"
+        Assert (@(Get-ChildItem $dir -Filter '*.json').Count -eq 1) 'JSON 저장'
+    } finally { Set-Item function:script:Get-Diagnosis $orig }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
