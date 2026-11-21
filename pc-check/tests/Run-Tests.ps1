@@ -234,6 +234,15 @@ It '화면 분석 기간 목록: 명령줄 -Days 값을 그대로 포함 (60 →
     $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
     Assert ($src -match [regex]::Escape('$daysBox.SelectedItem = "$($Days)일"')) '선택값 = 받은 값'
 }
+It '다음 정밀 검사 추천: 보고서·요약에 표시 (원인 없으면 표시 안 함, 영어 번역)' {
+    $d = New-Scenario $scenarios['VRAM 불량: Xid 48/63 + TDR 블루스크린'].Data; $dx = Get-Diagnosis -Data $d
+    Assert-Eq (Get-RecommendedToolLabel $dx) '그래픽카드 VRAM 검사' '라벨'
+    Assert ((New-HtmlReport -Data $d -Dx $dx) -match '다음 정밀 검사 추천: 그래픽카드 VRAM 검사') '보고서'
+    Assert ((Get-SummaryText $d $dx) -match '다음 정밀 검사 추천: 그래픽카드 VRAM 검사') '요약'
+    $c = New-Scenario @{}; Assert ((New-HtmlReport -Data $c -Dx (Get-Diagnosis -Data $c)) -notmatch '다음 정밀 검사 추천') '정상 PC 는 없음'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { $e = New-HtmlReport -Data $d -Dx $dx; Assert ($e -match 'Recommended next test: ') '영어'; Assert ($e -notmatch '다음 정밀') '한글 없음' } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
