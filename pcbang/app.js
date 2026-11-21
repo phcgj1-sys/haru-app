@@ -271,39 +271,44 @@ function spec(st) {
   var o = { src: {} };
   var nat = st.native || {};
   o.nat = nat;
-  // GPU: 직접 입력 > 점검 프로그램 > 자동 감지
+  // 우선순위: 점검 프로그램(윈도우가 읽은 실제 부품) > 직접 입력(브라우저가 못 읽는 부품 보충용) > 자동 감지
+  // 점검 프로그램 값이 있어 직접 입력을 안 쓰면 manualIgnored 에 남겨 화면에 알림
+  o.manualIgnored = [];
   var gm = null;
-  if (st.manual.gpu) { gm = matchGpu(st.manual.gpu); o.src.gpu = '직접 입력'; }
-  if (!gm && nat.gpus && nat.gpus.length) {
+  if (nat.gpus && nat.gpus.length) {
     // 윈도우는 RTX 3060 8GB/12GB 를 같은 이름으로 보여 주므로 VRAM 을 붙여 변형을 고름(그런 변형이 표에 있을 때만 바뀜)
     var cands = nat.gpus.map(function (g) { var m = matchGpu(g.name + (g.vram >= 1 ? ' ' + Math.round(g.vram) + 'GB' : '')) || matchGpu(g.name); if (m && g.vram) m.vramReal = g.vram; return m; }).filter(Boolean).sort(function (a, b) { return b.score - a.score; });
     if (cands.length) { gm = cands[0]; o.src.gpu = '점검 프로그램'; }
   }
+  if (gm && st.manual.gpu) { var mg = matchGpu(st.manual.gpu); if (!mg || mg.name !== gm.name) o.manualIgnored.push('그래픽 ' + (mg ? mg.name : st.manual.gpu)); }
+  if (!gm && st.manual.gpu) { gm = matchGpu(st.manual.gpu); if (gm) o.src.gpu = '직접 입력'; }
   if (!gm && st.det.renderer) { gm = matchGpu(st.det.renderer); if (gm) o.src.gpu = '자동 감지'; }
   // 'AMD Radeon(TM) Graphics'처럼 이름 없는 AMD 내장 그래픽은 CPU 모델로 추정
   if (!gm) {
-    var rawG = st.manual.gpu || (nat.gpus || []).map(function (x) { return x.name; }).join(' ') || st.det.renderer || '';
-    var cpuN = st.manual.cpu || nat.cpu || '';
+    var rawG = (nat.gpus || []).map(function (x) { return x.name; }).join(' ') || st.manual.gpu || st.det.renderer || '';
+    var cpuN = nat.cpu || st.manual.cpu || '';
     if ((/radeon(\(tm\))? graphics|radeon\(tm\) graphics/i.test(rawG) || /intel(\(r\))? (uhd )?graphics\s*$/i.test(rawG)) && cpuN) { gm = igpuFromCpu(cpuN); if (gm) o.src.gpu = 'CPU 내장 그래픽 추정'; }
   }
   o.gpu = gm;
-  o.gpuRaw = st.manual.gpu || (nat.gpus && nat.gpus[0] && nat.gpus[0].name) || st.det.renderer || '';
+  o.gpuRaw = (nat.gpus && nat.gpus[0] && nat.gpus[0].name) || st.manual.gpu || st.det.renderer || '';
   // 내장 그래픽은 시스템 메모리를 나눠 쓰므로 보고된 전용 메모리(0.1~0.5GB)로 VRAM 판정을 하지 않음
   o.igpu = !!gm && isIgpu(gm.name);
   o.vram = o.igpu ? null : (gm && (gm.vramReal || gm.vram) || null);
   // CPU
   var cm = null;
-  if (st.manual.cpu) { cm = matchCpu(st.manual.cpu); o.src.cpu = '직접 입력'; }
-  if (!cm && nat.cpu) { cm = matchCpu(nat.cpu); if (cm) o.src.cpu = '점검 프로그램'; }
+  if (nat.cpu) { cm = matchCpu(nat.cpu); if (cm) o.src.cpu = '점검 프로그램'; }
+  if (cm && st.manual.cpu) { var mc = matchCpu(st.manual.cpu); if (!mc || mc.name !== cm.name) o.manualIgnored.push('CPU ' + (mc ? mc.name : st.manual.cpu)); }
+  if (!cm && st.manual.cpu) { cm = matchCpu(st.manual.cpu); if (cm) o.src.cpu = '직접 입력'; }
   if (!cm && st.bench.cpuSingle) { // 브라우저 측정값으로 대략 추정
     cm = { name: '측정 기반 추정', single: Math.round(st.bench.cpuSingle * BENCH_TO_ST), multi: Math.round((st.bench.cpuMulti || st.bench.cpuSingle) * BENCH_TO_ST * 0.75), estimated: true };
     o.src.cpu = '벤치마크 추정';
   }
   o.cpu = cm;
-  o.cpuRaw = st.manual.cpu || nat.cpu || '';
+  o.cpuRaw = nat.cpu || st.manual.cpu || '';
   // RAM
-  o.ram = st.manual.ram ? +st.manual.ram : nat.ramGB ? Math.round(nat.ramGB) : null;
-  o.src.ram = st.manual.ram ? '직접 입력' : nat.ramGB ? '점검 프로그램' : null;
+  o.ram = nat.ramGB ? Math.round(nat.ramGB) : st.manual.ram ? +st.manual.ram : null;
+  o.src.ram = nat.ramGB ? '점검 프로그램' : st.manual.ram ? '직접 입력' : null;
+  if (nat.ramGB && st.manual.ram && +st.manual.ram !== Math.round(nat.ramGB)) o.manualIgnored.push('RAM ' + st.manual.ram + 'GB');
   if (!o.ram && st.det.memGB) { o.ramAtLeast = st.det.memGB; }
   // OS
   o.os = st.manual.os || nat.os || st.det.win || null;
@@ -496,6 +501,7 @@ function renderSpec() {
   if (/firefox/i.test(navigator.userAgent)) w.push('<div class="note">파이어폭스는 그래픽카드 이름을 비슷한 모델로 바꿔서 알려 줘요. 정확한 판정은 크롬이나 엣지에서 하세요.</div>');
   if (sp.hz && S.det.screen && sp.hz <= 61 && S.dev.hzMax && S.dev.hzMax > 61) w.push('');
   if (nat && nat.power && /절전|power saver|balanced|균형/i.test(nat.power)) w.push('<div class="warnbox">전원 관리 옵션이 \'' + esc(nat.power) + '\'예요. PC방은 \'고성능\'으로 두는 게 좋아요.</div>');
+  if (sp.manualIgnored && sp.manualIgnored.length) w.push('<div class="note">직접 입력한 ' + esc(sp.manualIgnored.join(', ')) + '은(는) 판정에 쓰지 않아요. 윈도우 점검 프로그램이 읽은 실제 부품을 우선해요. 필요 없으면 아래 직접 입력 칸을 비우세요.</div>');
   $('#detWarn').innerHTML = w.join('');
   $('#cpuIn').value = S.manual.cpu || ''; $('#gpuIn').value = S.manual.gpu || ''; $('#ramIn').value = S.manual.ram || ''; $('#osIn').value = S.manual.os || '';
   showMatch();

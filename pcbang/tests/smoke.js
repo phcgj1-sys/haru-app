@@ -278,6 +278,14 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     await p9.context().close();
   }
 
+  // 부품 우선순위: 점검 프로그램 값이 직접 입력보다 우선, 무시된 직접 입력은 알림
+  {
+    const sp = await page.evaluate(() => { const P = window.__pcbang, S = P.S; const base = { det: {}, dev: {}, bench: {}, opt: S.opt, manual: { gpu: 'RTX 3060', ram: '8' } };
+      const a = P.spec(Object.assign({}, base, { native: {} })), b = P.spec(Object.assign({}, base, { native: { gpus: [{ name: 'NVIDIA GeForce RTX 4060', vram: 8 }], ramGB: 16 } }));
+      return [a.gpu && a.gpu.name, a.ram, b.gpu && b.gpu.name, b.ram, b.manualIgnored.length]; });
+    ok(sp.join() === 'RTX 3060,8,RTX 4060,16,2', '부품 우선순위: 점검 프로그램 > 직접 입력, 무시된 직접 입력 알림 (' + sp.join() + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
