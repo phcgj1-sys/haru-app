@@ -392,6 +392,17 @@ It 'NVIDIA Xid 표: 설명이 모두 영어로 번역되고 흔한 코드 등록
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { foreach ($k in $script:XidDb.Keys) { $dd = $script:XidDb[$k].D; Assert ((Tr $dd) -notmatch '[가-힣]') "Xid $k 번역 없음: $dd" } } finally { $script:UiLang = $lg }
 }
+It '영어: 내장 표(블루스크린·해결 순서·원인·정밀 검사·단계 이름)가 모두 번역됨' {
+    $lg = $script:UiLang; $script:UiLang = 'en'; $miss = @()
+    try {
+        foreach ($k in $script:BugDb.Keys) { if ((Tr $script:BugDb[$k].D) -match '[가-힣]') { $miss += "BUG $k" } }
+        foreach ($k in $script:Playbook.Keys) { foreach ($st in $script:Playbook[$k]) { if ((Tr $st) -match '[가-힣]') { $miss += "PB $k" } } }
+        foreach ($k in $script:Causes.Keys) { foreach ($t in @($script:Causes[$k].Values)) { if ($t -is [string] -and (Tr $t) -match '[가-힣]') { $miss += "CAUSE $k" } } }
+        foreach ($t in $script:ExternalTools) { foreach ($x in $t.Label, $t.Desc, $t.Help) { if ($x -and (Tr $x) -match '[가-힣]') { $miss += "TOOL $($t.Key)" } } }
+        foreach ($p in $script:StagePlan) { if ((Tr $p.Name) -match '[가-힣]') { $miss += "STAGE $($p.Key)" } }
+        Assert ($miss.Count -eq 0) "번역 없음: $(($miss | Select-Object -Unique) -join ', ')"
+    } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
