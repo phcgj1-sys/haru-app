@@ -387,6 +387,11 @@ It '블루스크린 코드표: 흔한 코드가 모두 등록되고 설명은 �
     $dx = Get-Diagnosis -Data (New-Scenario @{ BugChecks = @([ordered]@{ T = (T 1); Code = '0x113' }, [ordered]@{ T = (T 2); Code = '0x113' }) })
     Assert-Eq @($dx.Causes)[0].Key 'GPU_DRIVER' '0x113 → 그래픽 드라이버'
 }
+It 'NVIDIA Xid 표: 설명이 모두 영어로 번역되고 흔한 코드 등록' {
+    foreach ($x in 8, 13, 31, 32, 43, 48, 61, 62, 63, 64, 79, 94, 95, 119, 120, 154) { Assert ($script:XidDb.ContainsKey($x)) "Xid $x 미등록" }
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { foreach ($k in $script:XidDb.Keys) { $dd = $script:XidDb[$k].D; Assert ((Tr $dd) -notmatch '[가-힣]') "Xid $k 번역 없음: $dd" } } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

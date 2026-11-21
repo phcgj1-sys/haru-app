@@ -157,6 +157,8 @@ function Get-BugInfo([string]$code) {
 
 # NVIDIA Xid (드라이버 오류 번호)
 $script:XidDb = @{
+    8  = @{ D = 'GPU 작업 시간 초과 (드라이버 멈춤)';     W = @{ GPU_DRIVER = 4; GPU_HW = 2 } }
+    32 = @{ D = 'GPU 명령 전달 오류 (PCIe·전원 불안정 가능)'; W = @{ GPU_HW = 6; PSU = 4 } }
     13 = @{ D = '그래픽 엔진 예외 (주로 앱/드라이버)';  W = @{ GPU_DRIVER = 3 } }
     31 = @{ D = 'GPU 메모리 페이지 오류 (주로 앱/드라이버)'; W = @{ GPU_DRIVER = 3 } }
     43 = @{ D = 'GPU 작업 중단 (앱 오류)';            W = @{ GPU_DRIVER = 2 } }
@@ -172,6 +174,8 @@ $script:XidDb = @{
     94 = @{ D = 'VRAM 오류 격리됨';                     W = @{ GPU_HW = 25 } }
     95 = @{ D = 'VRAM 오류 격리 실패';                  W = @{ GPU_HW = 30 } }
     119 = @{ D = 'GSP 응답 시간 초과';                  W = @{ GPU_DRIVER = 10; GPU_HW = 4 } }
+    120 = @{ D = 'GSP 내부 오류';                       W = @{ GPU_DRIVER = 10; GPU_HW = 4 } }
+    154 = @{ D = 'GPU 복구 필요 (재부팅·리셋 요구)';        W = @{ GPU_HW = 10; GPU_DRIVER = 6 } }
 }
 $script:VramXids = @(48, 63, 64, 92, 94, 95)
 
@@ -2807,7 +2811,7 @@ $script:EnPairs = @(
     @('드라이버 또는 SSD 펌웨어 응답 지연', 'Driver or SSD firmware not responding in time'), @('디스크에서 데이터를 읽지 못함', 'Could not read data from disk'), @('디스크 읽기 오류', 'Disk read error'),
     @('핵심 프로세스 종료 (디스크 문제에서 흔함)', 'Critical process terminated (common with disk problems)'), @('핵심 시스템 프로세스 종료', 'Critical system process died'),
     @('부팅 디스크 접근 불가', 'Boot disk inaccessible'), @('저장소 관리 예외', 'Storage management exception'), @('CPU 예외 (하드웨어·RAM·오버클럭)', 'CPU exception (hardware, RAM, overclock)'), @('커널 데이터 손상 (RAM·드라이버)', 'Kernel data corruption (RAM, driver)'), @('커널 메모리 손상 (드라이버·RAM)', 'Kernel memory corruption (driver, RAM)'), @('보안 커널 오류 (드라이버·가상화 기반 보안)', 'Secure kernel error (driver, virtualization-based security)'), @('파일 시스템(NTFS) 오류', 'File system (NTFS) error'), @('Windows 핵심 프로세스 종료 (시스템 파일·디스크)', 'Critical Windows process terminated (system files, disk)'), @('그래픽 커널 치명 오류', 'Fatal graphics kernel error'), @('장치 드라이버(WDF) 규칙 위반', 'Device driver (WDF) rule violation'), @('USB 3 장치·드라이버 오류', 'USB 3 device/driver error'), @('절전(모던 스탠바이) 중 드라이버 응답 없음', 'Driver unresponsive during sleep (modern standby)'), @('시스템 전체 응답 없음 (하드웨어·드라이버)', 'Whole system unresponsive (hardware, driver)'), @('BlueScreenView 로 원인 드라이버 확인 권장', 'Check the faulting driver with BlueScreenView'),
-    @('그래픽 엔진 예외 (주로 앱/드라이버)', 'Graphics engine exception (usually app/driver)'), @('GPU 메모리 페이지 오류 (주로 앱/드라이버)', 'GPU memory page fault (usually app/driver)'),
+    @('그래픽 엔진 예외 (주로 앱/드라이버)', 'Graphics engine exception (usually app/driver)'), @('GPU 작업 시간 초과 (드라이버 멈춤)', 'GPU work timeout (driver hang)'), @('GPU 명령 전달 오류 (PCIe·전원 불안정 가능)', 'GPU command delivery error (possible PCIe/power instability)'), @('GSP 내부 오류', 'GSP internal error'), @('GPU 복구 필요 (재부팅·리셋 요구)', 'GPU recovery required (reboot/reset needed)'), @('GPU 메모리 페이지 오류 (주로 앱/드라이버)', 'GPU memory page fault (usually app/driver)'),
     @('GPU 작업 중단 (앱 오류)', 'GPU stopped processing (app error)'), @('작업 강제 종료', 'Work forcibly terminated'), @('VRAM 더블비트 ECC 오류', 'VRAM double-bit ECC error'),
     @('내부 마이크로컨트롤러 정지', 'Internal microcontroller halt'), @('VRAM 페이지 퇴출(ECC)', 'VRAM page retirement (ECC)'), @('VRAM 페이지 퇴출 실패', 'VRAM page retirement failure'),
     @('NVLink 오류', 'NVLink error'), @('그래픽카드가 PCIe 버스에서 떨어짐', 'Graphics card fell off the PCIe bus'), @('높은 단일비트 ECC 오류율', 'High single-bit ECC error rate'),
