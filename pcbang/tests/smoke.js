@@ -317,6 +317,12 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     await pB.context().close();
   }
 
+  // XMP: 메모리 오버클럭이 막힌 칩셋(H610M·B460M)은 경고 대신 참고, B760 은 그대로 경고
+  {
+    const xm = await page.evaluate(() => { const P = window.__pcbang; const run = board => P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: { board, ramXmpOff: true, ramSpeed: 2666, ramRated: 3200 } }).filter(x => /^xmp/.test(x.id)).map(x => x.id).join(); return [run('ASUS PRIME H610M-E D4'), run('MSI B460M PRO'), run('ASUS PRIME B760M-K')]; });
+    ok(xm.join('/') === 'xmplock/xmplock/xmp', 'XMP: H610M·B460M 은 참고, B760 은 경고 (' + xm.join('/') + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],

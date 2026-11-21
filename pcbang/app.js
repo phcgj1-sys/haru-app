@@ -513,7 +513,7 @@ function devKv(nat, kv) {
   if (nat.displays && nat.displays.length) kv('· 모니터', nat.displays.map(function (d) { return esc(d.name || '모니터') + ' ' + esc(d.res) + ' ' + (d.hz || '-') + 'Hz' + (d.maxHz ? ' / 최대 ' + d.maxHz + 'Hz' : '') + (d.primary ? ' (주 모니터)' : ''); }).join('<br>'));
   else if (nat.monitors && nat.monitors.length) kv('· 모니터', nat.monitors.map(esc).join(', ') + (nat.monitorMaxHz ? ' · 최대 ' + nat.monitorMaxHz + 'Hz' : ''));
   if (nat.gpuLive) { var g = nat.gpuLive; kv('· 그래픽 상태', (g.tempC != null ? g.tempC + '°C' : '') + (g.util != null ? ' · 사용률 ' + g.util + '%' : '') + (g.powerW != null ? ' · ' + fmt(g.powerW, 0) + '/' + fmt(g.powerLimitW, 0) + 'W' : '') + (g.pcieGen ? ' · PCIe ' + g.pcieGen + '.0' + (g.pcieWidth ? ' x' + g.pcieWidth : '') + (g.pcieWidthMax ? '(최대 x' + g.pcieWidthMax + ')' : '') : '') + (g.fanPct != null ? ' · 팬 ' + g.fanPct + '%' : '')); }
-  if (nat.ramRated) kv('· 램 정격', nat.ramRated + 'MT/s' + (nat.ramXmpOff ? ' <span class="pill warn">XMP 꺼짐 의심</span>' : ''));
+  if (nat.ramRated) kv('· 램 정격', nat.ramRated + 'MT/s' + (nat.ramXmpLocked || (nat.ramXmpOff && /\b(H310|B360|B365|H370|H410|B460|H470|H510|H610)M?\b/i.test(nat.board || '')) ? ' <span class="pill">보드가 XMP 미지원(정상)</span>' : nat.ramXmpOff ? ' <span class="pill warn">XMP 꺼짐 의심</span>' : ''));
   if (nat.memUsedPct != null) kv('· 메모리 사용', nat.memUsedPct + '%');
   if (nat.physDisks && nat.physDisks.length) kv('· 디스크', nat.physDisks.map(function (d) { return esc(d.name) + ' ' + esc(d.media) + '/' + esc(d.bus) + ' ' + (d.sizeGB || '') + 'GB · ' + esc(d.health || '-'); }).join('<br>') + (nat.diskless ? '<br><span class="pill info">노하드 환경</span>' : ''));
   if (nat.mice && nat.mice.length) kv('· 마우스', nat.mice.map(esc).join(', ') + (nat.mouseSens ? ' · 포인터 속도 ' + nat.mouseSens + '/20' : '') + (nat.mouseAccel ? ' · 가속 켜짐' : ''));
@@ -560,7 +560,7 @@ function sanitizeNative(o) {
   ['cores', 'threads', 'ramGB', 'ramSpeed', 'ramSticks', 'hz', 'osBuild', 'cpuMHz', 'cpuLoad', 'uptimeH', 'monitorMaxHz', 'ramRated', 'memUsedPct', 'sysFreePct', 'mouseSens', 'v'].forEach(function (k) { if (k in o) o[k] = num(o[k]); });
   ['cpu', 'board', 'os', 'osName', 'power', 'adapter', 'time', 'secureBoot', 'tpm', 'computer', 'disklessWhy', 'hvci', 'vgc', 'vgk', 'wuService', 'gameMode', 'hags', 'diskTypes'].forEach(function (k) { if (k in o) o[k] = str(o[k]); });
   if ('seat' in o) o.seat = o.seat == null ? null : String(o.seat).slice(0, 20);
-  ['ramXmpOff', 'lowDisk', 'diskless', 'rebootPending', 'mouseAccel'].forEach(function (k) { if (k in o) o[k] = o[k] === true; });
+  ['ramXmpOff', 'ramXmpLocked', 'lowDisk', 'diskless', 'rebootPending', 'mouseAccel'].forEach(function (k) { if (k in o) o[k] = o[k] === true; });
   var strArr = function (a) { return (Array.isArray(a) ? a : a == null ? [] : [a]).slice(0, 20).map(str).filter(Boolean); };
   ['monitors', 'mice', 'keyboards', 'audio', 'warns'].forEach(function (k) { if (k in o) o[k] = strArr(o[k]); });
   var arr = function (a) { return Array.isArray(a) ? a.filter(function (x) { return x && typeof x === 'object'; }) : []; };
@@ -575,7 +575,7 @@ function sanitizeNative(o) {
   o.tcp = arr(o.tcp).map(function (t) { return { name: str(t.name), host: str(t.host), port: num(t.port), ok: t.ok === true, n: num(t.n) || 0, fail: num(t.fail) || 0, avg: num(t.avg), min: num(t.min) }; });
   // 배열은 길이를 제한(저장 공간 보호)
   [['pings', 20], ['tcp', 20], ['disks', 20], ['gpus', 8], ['physDisks', 12], ['displays', 6]].forEach(function (x) { o[x[0]] = (Array.isArray(o[x[0]]) ? o[x[0]] : []).slice(0, x[1]); });
-  var KEEP = ['v', 'seat', 'computer', 'time', 'cpu', 'board', 'cores', 'threads', 'cpuMHz', 'cpuLoad', 'gpus', 'gpuLive', 'hz', 'monitorMaxHz', 'displays', 'monitors', 'ramGB', 'ramSpeed', 'ramSticks', 'ramRated', 'ramXmpOff', 'memUsedPct', 'os', 'osBuild', 'osName', 'uptimeH', 'power', 'secureBoot', 'tpm', 'disks', 'diskTypes', 'physDisks', 'diskless', 'disklessWhy', 'sysFreePct', 'lowDisk', 'adapter', 'pings', 'tcp', 'hvci', 'vgc', 'vgk', 'wuService', 'rebootPending', 'gameMode', 'hags', 'mouseAccel', 'mouseSens', 'mice', 'keyboards', 'audio', 'topProcs', 'warns'];
+  var KEEP = ['v', 'seat', 'computer', 'time', 'cpu', 'board', 'cores', 'threads', 'cpuMHz', 'cpuLoad', 'gpus', 'gpuLive', 'hz', 'monitorMaxHz', 'displays', 'monitors', 'ramGB', 'ramSpeed', 'ramSticks', 'ramRated', 'ramXmpOff', 'ramXmpLocked', 'memUsedPct', 'os', 'osBuild', 'osName', 'uptimeH', 'power', 'secureBoot', 'tpm', 'disks', 'diskTypes', 'physDisks', 'diskless', 'disklessWhy', 'sysFreePct', 'lowDisk', 'adapter', 'pings', 'tcp', 'hvci', 'vgc', 'vgk', 'wuService', 'rebootPending', 'gameMode', 'hags', 'mouseAccel', 'mouseSens', 'mice', 'keyboards', 'audio', 'topProcs', 'warns'];
   var out = {}; KEEP.forEach(function (k) { if (o[k] !== undefined) out[k] = o[k]; });
   return out;
 }
@@ -1187,7 +1187,10 @@ function problems(st) {
   if (nat.osBuild && nat.osBuild < 19041) add('build', 'bad', 'Windows 10 빌드 ' + nat.osBuild + ' — 롤·발로란트 실행 불가(VAN 9004)', '윈도우 업데이트로 최신 버전(22H2 이상)으로 올리세요.', '윈도우 구버전');
   if (nat.os === 'win10-32') add('os32', 'bad', '32비트 윈도우', '인기 게임은 모두 64비트 전용이에요. 64비트 윈도우를 새로 설치해야 해요.', '32비트 윈도우');
   if (nat.cpu && nat.board && /i[579]-1[234]\d{3}f?\b/i.test(nat.cpu) && !/i[579]-1[234]\d{3}kf?\b/i.test(nat.cpu) && /\b[bh][67]\d0/i.test(nat.board)) add('pl1', 'info', 'K 없는 인텔 CPU + ' + nat.board.replace(/^.*?\b([BH][67]\d0)/i, '$1') + ' 보드: 장기 전력(PL1)이 65W로 묶였을 수 있어요', 'HWiNFO의 "CPU 전력 제한 PL1"이 65W면 BIOS(ASUS: Ai Tweaker → Internal CPU Power Management → Long Duration Package Power Limit)에서 쿨러에 맞게 95~150W로 올리세요. 실전 테스트의 "CPU 클럭 저하"로도 확인할 수 있어요.', 'PL1 65W 의심');
-  if (nat.ramXmpOff) add('xmp', 'warn', '램이 정격 속도보다 느리게 동작 (XMP/EXPO 꺼짐 의심)', 'BIOS에서 XMP(인텔)/EXPO(AMD) 프로필을 켜면 CPU 병목 게임(롤·발로란트·서든)의 프레임이 올라요.', 'XMP 꺼짐');
+  // XMP 가 막힌 인텔 칩셋 보드는 켤 수 없으므로 경고 대신 참고 (예전 점검 프로그램 결과도 보드 이름으로 거름)
+  var xmpLocked = nat.ramXmpLocked || (nat.ramXmpOff && /\b(H310|B360|B365|H370|H410|B460|H470|H510|H610)M?\b/i.test(nat.board || ''));
+  if (xmpLocked) add('xmplock', 'info', '램이 기본 속도로 동작 (' + (nat.board || '').replace(/^.*?\b(H310|B360|B365|H370|H410|B460|H470|H510|H610)M?\b.*$/i, '$1') + ' 보드는 XMP 미지원)', '이 칩셋은 메모리 오버클럭을 지원하지 않아 정상이에요. 더 빠른 램 속도가 필요하면 B·Z 계열 보드가 필요해요.', '램 기본 속도');
+  else if (nat.ramXmpOff) add('xmp', 'warn', '램이 정격 속도보다 느리게 동작 (XMP/EXPO 꺼짐 의심)', 'BIOS에서 XMP(인텔)/EXPO(AMD) 프로필을 켜면 CPU 병목 게임(롤·발로란트·서든)의 프레임이 올라요.', 'XMP 꺼짐');
   // DDR5 기본 속도(4800 이하)인데 그래픽이 강하면 CPU 병목 게임(배그 교전·롤·발로란트)에서 램 속도가 1% 최저 프레임을 깎음
   else if (nat.ramSpeed >= 4000 && nat.ramSpeed <= 4800 && sp.gpu && sp.gpu.score >= 20000) add('ram48', 'info', '램이 DDR5-' + nat.ramSpeed + '(기본 속도)로 동작', '그래픽이 강한 PC는 교전처럼 CPU 부담이 큰 장면에서 램 속도가 1% 최저 프레임을 깎아요. 램이 6000 지원이면 BIOS에서 XMP를 켜고, 4800 램이면 DDR5-6000 CL30~32로 바꾸는 걸 검토하세요.', 'DDR5 기본 속도');
   if (nat.rebootPending) add('reboot', 'warn', '재부팅 대기 중인 업데이트가 있음', '영업 전 재부팅하세요. 게임 중 업데이트 재시작을 막을 수 있어요.', '재부팅 필요');

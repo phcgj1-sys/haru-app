@@ -409,6 +409,8 @@ try {
     # DDR4-3200을 1600, DDR5-6000을 3000처럼 보고하는 보드도 있음: 두 배가 정격과 3% 안쪽이면 절반 보고로 봄(실제로 정격의 절반으로 도는 DDR4·DDR5는 없음)
     if (($cfgSp -lt 1400 -and ($cfgSp * 2) -ge ($rated * 0.97)) -or ($cfgSp -lt ($rated * 0.6) -and [math]::Abs($cfgSp * 2 - $rated) -le ($rated * 0.03))) { $cfgSp = $cfgSp * 2; $result.ramSpeed = $cfgSp }
     $result.ramXmpOff = ($cfgSp -lt ($rated * 0.97))
+    # 이 칩셋 보드는 BIOS 에 XMP 가 없고 메모리가 기본 속도(2666/2933 등)로 고정됨 → 켤 수 없으니 경고하지 않음
+    if ($result.board -match '\b(H310|B360|B365|H370|H410|B460|H470|H510|H610)M?\b') { if ($result.ramXmpOff) { $result.ramXmpLocked = $true }; $result.ramXmpOff = $null }
   }
 } catch {}
 $spdTxt = ''; if ($result.ramSpeed) { $spdTxt = (", {0}MT/s" -f $result.ramSpeed) }
@@ -743,6 +745,7 @@ try {
   # XMP
   if ($result.ramXmpOff -eq $true) { [void]$warns.Add(("메모리가 정격보다 느리게 동작 ({0} / 정격 {1}MT/s) - BIOS에서 XMP/EXPO 켜기 확인" -f $result.ramSpeed, $result.ramRated)) }
   elseif ($result.ramXmpOff -eq $false) { [void]$oks.Add(("메모리 속도 정상 ({0}MT/s)" -f $result.ramSpeed)) }
+  elseif ($result.ramXmpLocked) { [void]$oks.Add(("메모리 {0}MT/s - 이 보드 칩셋은 메모리 오버클럭(XMP)을 지원하지 않아 기본 속도로 동작(정상)" -f $result.ramSpeed)) }
   # 재부팅 대기
   if ($result.rebootPending) { [void]$warns.Add('윈도우 업데이트 후 재부팅 대기 중') }
   # 디스크 여유 공간
