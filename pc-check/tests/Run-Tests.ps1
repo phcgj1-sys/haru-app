@@ -185,6 +185,14 @@ It '화면 실패 → 콘솔 재실행: 저장 위치·언어·메모를 그대�
     $b = Get-ConsoleRelaunchArgs -Path 'C:\x.ps1' -Days 30 -OutDir '' -Lang 'ko' -Note ''
     Assert (($b -join ' ') -notmatch '-Note|-OutDir') '빈 값은 넘기지 않음'
 }
+It '디스크 상태: Unknown 은 고장으로 보지 않음, Warning 은 주의, Unhealthy 는 심각' {
+    $mk = { param($h) Get-Diagnosis -Data (New-Scenario @{ Disks = @([ordered]@{ Name = 'D1'; Media = 'SSD'; Bus = 'NVMe'; SizeGB = 500; Health = $h }) }) }
+    foreach ($h in 'Unknown', '5', 'Healthy') { Assert (@((& $mk $h).Findings | Where-Object { $_.Category -eq 'DISK' }).Count -eq 0) "$h 는 문제 아님" }
+    $w = @((& $mk 'Warning').Findings | Where-Object { $_.Category -eq 'DISK' }); Assert-Eq $w[0].Level 'warn' 'Warning → 주의'
+    $b = @((& $mk 'Unhealthy').Findings | Where-Object { $_.Category -eq 'DISK' }); Assert-Eq $b[0].Level 'bad' 'Unhealthy → 심각'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $e = Tr ("$($w[0].Title) $($w[0].Detail)"); Assert ($e -notmatch '[가-힣]') "영어: $e" } finally { $script:UiLang = $old }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

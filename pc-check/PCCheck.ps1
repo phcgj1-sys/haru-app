@@ -778,7 +778,11 @@ function Get-Diagnosis {
     # ---- 9) 디스크
     foreach ($dk in $disks) {
         $h = [string](Get-Prop $dk 'Health')
-        if ($h -and $h -ne 'Healthy' -and $h -ne '0') {
+        # 'Unknown'(5)은 고장이 아니라 상태를 알려 주지 않는 디스크(iSCSI·가상·일부 USB) — 경고하지 않음
+        if ($h -match '^(Warning|1)$') {
+            & $add 'DISK' 25 "디스크 상태 경고: $(Get-Prop $dk 'Name')"
+            & $find 'warn' 'DISK' "디스크 상태 경고: $(Get-Prop $dk 'Name')" "상태: $h — 백업해 두고 SMART 를 확인하세요." 15
+        } elseif ($h -and $h -notmatch '^(Healthy|0|Unknown|5)$') {
             & $add 'DISK' 50 "디스크 상태 이상: $(Get-Prop $dk 'Name')"
             & $find 'bad' 'DISK' "디스크 상태 이상: $(Get-Prop $dk 'Name')" "상태: $h — 즉시 백업하세요." 30
         }
@@ -2477,6 +2481,8 @@ $script:EnPairs = @(
     @('RE:하드웨어 오류\(WHEA\) (\d+) 건', 'Hardware errors (WHEA): $1'),
     @('RE:디스크 상태 이상: ', 'Disk health problem: '),
     @('RE:상태: (\S+) — 즉시 백업하세요\.', 'Status: $1 — back up now.'),
+    @('RE:디스크 상태 경고: ', 'Disk health warning: '),
+    @('RE:상태: (\S+) — 백업해 두고 SMART 를 확인하세요\.', 'Status: $1 — back up your data and check SMART.'),
     @('RE:SSD 수명 소진 \((.+?) (\d+)%\)', 'SSD worn out ($1 $2%)'),
     @('RE:복구 불가 읽기 오류 (\d+)', 'Uncorrectable read errors: $1'),
     @('RE:디스크 읽기 오류 \((.+?)\)', 'Disk read errors ($1)'),
