@@ -1956,7 +1956,8 @@ function Hide-ComputerName($Data, [string]$UserName = $env:USERNAME) {
     if (-not $n -or $n -match '^PC-[0-9a-f]{6}$') { return $Data }
     $code = Get-AnonName $n
     $json = ConvertTo-Json -InputObject $Data -Depth 8
-    $json = [regex]::Replace($json, [regex]::Escape($n), $code, 'IgnoreCase')
+    # 이름 전체만 바꿈 (짧은 이름 'PC'·'GAMER' 등이 'PCIe'·'PCCheck' 같은 낱말 속에서 바뀌지 않도록 앞뒤가 영문·숫자·- 가 아닐 때만)
+    $json = [regex]::Replace($json, '(?<![A-Za-z0-9-])' + [regex]::Escape($n) + '(?![A-Za-z0-9-])', $code, 'IgnoreCase')
     if ($UserName -and $UserName.Length -ge 2) { $json = [regex]::Replace($json, '(?<=[\\/])' + [regex]::Escape($UserName) + '(?=[\\/"])', 'user', 'IgnoreCase') }
     return (ConvertFrom-PCJson $json)
 }

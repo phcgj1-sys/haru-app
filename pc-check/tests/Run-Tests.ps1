@@ -435,6 +435,16 @@ It '-HideName: PC 이름을 같은 PC 면 같은 코드로 가리고 보고서·
     foreach ($t in @((New-HtmlReport -Data $d -Dx $dx), (Get-SummaryText $d $dx), (ConvertTo-Json -InputObject $d -Depth 6))) { Assert ($t -notmatch 'HONGGILDONG') '원래 이름 없음' }
     Assert ((Get-ConsoleRelaunchArgs -Path 'x.ps1' -Days 30 -HideName) -contains '-HideName') '콘솔 재실행에도 전달'
 }
+It '-HideName: 짧은 PC 이름(PC)이 다른 낱말(PCIe·PCCheck) 속에서는 바뀌지 않음' {
+    $d = New-Scenario @{ Whea = @([ordered]@{ T = (T 1); Id = 17; Level = 3; Comp = 'PCI Express Root Port'; Msg = 'PCIe corrected error' }) }
+    $d.Meta.Computer = 'PC'
+    $d.Blackbox = @([ordered]@{ File = 'PCCheck_blackbox_PC_20261114_100000.csv'; Level = 'ok'; Title = 'x'; Detail = 'y' })
+    $x = Hide-ComputerName $d
+    $all = ConvertTo-Json -InputObject $x -Depth 8
+    Assert ($all -match 'PCIe corrected error') 'PCIe 유지'; Assert ($all -match 'PCI Express') 'PCI 유지'
+    Assert ($all -match 'PCCheck_blackbox_PC-[0-9a-f]{6}_2026') '파일 이름 속 PC 이름만 바뀜'
+    Assert ($x.Meta.Computer -match '^PC-[0-9a-f]{6}$') '이름 바뀜'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
