@@ -764,6 +764,17 @@ It '블랙박스: USB 안 하위 폴더에 기록한 것도 (기억이 지워진
         Assert (@($found | Where-Object { $_.File -eq 'PCCheck_blackbox_PC_20990101_000000.csv' }).Count -eq 1) "하위 폴더 기록 찾음 ($($found.Count))"
     } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
 }
+It '노하드 + 블랙박스 기록 없음: 기록이 비어도 양호라고 하지 않고 판단 보류' {
+    $dl = New-Scenario @{ Disks = @([ordered]@{ Name = 'iSCSI'; DeviceId = '0'; Bus = 'iSCSI'; Health = 'Healthy' }) }
+    $dx = Get-Diagnosis -Data $dl
+    Assert ($dx.Grade -match '판단 보류') "등급 $($dx.Grade)"
+    $bb = Read-BlackboxAnalysis (New-Bb2File 'bb_hold.csv' (Rep 5 @('pulse', 50, 99, 60, 90, 200, '', 0, '')) -Stop)
+    $dl2 = New-Scenario @{ Disks = $dl.Disks; Blackbox = @($bb) }
+    Assert ((Get-Diagnosis -Data $dl2).Grade -notmatch '판단 보류') '블랙박스가 있으면 정상 판정'
+    Assert-Eq (Get-Diagnosis -Data (New-Scenario @{})).Grade '양호' '일반 PC 는 그대로'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { Assert ((Tr "상태: $($dx.Grade)") -notmatch '[가-힣]') "영어: $(Tr $dx.Grade)" } finally { $script:UiLang = $lg }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
