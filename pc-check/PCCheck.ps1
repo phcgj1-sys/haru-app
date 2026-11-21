@@ -754,9 +754,11 @@ function Get-Diagnosis {
         & $find 'info' 'RAM' 'Windows 메모리 진단 오류 (이후 검사 통과)' "예전 검사에서 오류가 있었지만 $($memPassT.ToString('yyyy-MM-dd HH:mm', [Globalization.CultureInfo]::InvariantCulture)) 검사는 오류 없이 통과했습니다." 0
     }
     $xmp = $false
+    # DDR5 기본(JEDEC) 최고 속도: Core Ultra 200S 는 6400, 그 외 5600 — 기본 속도를 XMP 로 오판하지 않도록
+    $ddr5Std = $(if ([string](Get-Prop $sys 'CPU') -match 'Ultra [579] 2\d{2}') { 6400 } else { 5600 })
     foreach ($m in $dimms) {
         $cfg = [int](Get-Prop $m 'ConfiguredMHz'); $ddr = [string](Get-Prop $m 'DDR')
-        if (($ddr -eq 'DDR4' -and $cfg -gt 3200) -or ($ddr -eq 'DDR5' -and $cfg -gt 5600) -or ($ddr -eq '' -and $cfg -gt 3200 -and $cfg -lt 4400)) { $xmp = $true }
+        if (($ddr -eq 'DDR4' -and $cfg -gt 3200) -or ($ddr -eq 'DDR5' -and $cfg -gt $ddr5Std) -or ($ddr -eq '' -and $cfg -gt 3200 -and $cfg -lt 4400)) { $xmp = $true }
     }
     if ($xmp) {
         $memish = $score['RAM'] -gt 0

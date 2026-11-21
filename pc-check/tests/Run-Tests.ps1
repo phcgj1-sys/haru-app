@@ -203,6 +203,14 @@ It 'Windows 메모리 진단: 최근 통과보다 오래된 실패는 해결된 
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $e = Tr "$($f[0].Title) $($f[0].Detail)"; Assert ($e -notmatch '[가-힣]') "영어: $e" } finally { $script:UiLang = $lg }
 }
+It 'XMP 판정: Core Ultra 200S 의 기본 DDR5-6400 은 XMP 아님, 다른 CPU 는 5600 초과면 XMP' {
+    $mk = { param($cpu, $mhz) $d = New-Scenario @{ Dimms = @([ordered]@{ Slot = 'A2'; SizeGB = 16; ConfiguredMHz = $mhz; RatedMHz = 4800; Maker = 'X'; Part = 'P'; DDR = 'DDR5' }) }; $d.System.CPU = $cpu
+        @((Get-Diagnosis -Data $d).Findings | Where-Object { $_.Title -match 'XMP' }).Count }
+    Assert-Eq (& $mk 'Intel(R) Core(TM) Ultra 9 285K' 6400) 0 'Arrow Lake 6400 은 기본'
+    Assert-Eq (& $mk 'Intel(R) Core(TM) Ultra 9 285K' 8000) 1 'Arrow Lake 8000 은 XMP'
+    Assert-Eq (& $mk 'AMD Ryzen 7 9800X3D' 6000) 1 'Ryzen 6000 은 EXPO'
+    Assert-Eq (& $mk 'AMD Ryzen 7 9800X3D' 5600) 0 'Ryzen 5600 은 기본'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
