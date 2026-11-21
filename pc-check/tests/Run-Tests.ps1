@@ -403,6 +403,17 @@ It '영어: 내장 표(블루스크린·해결 순서·원인·정밀 검사·�
         Assert ($miss.Count -eq 0) "번역 없음: $(($miss | Select-Object -Unique) -join ', ')"
     } finally { $script:UiLang = $lg }
 }
+It '검사 소요 시간: 보고서 하단에 총 시간과 느린 단계 표시 (JSON 재분석 후에도, 영어 번역)' {
+    $d = New-Scenario @{}; $d.Meta.ScanSec = 12.3; $d.Meta.StepSec = [ordered]@{ '시스템 정보' = 1.2; 'Windows 안정성 지수' = 8.4 }
+    $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)
+    Assert ($h -match '검사 소요 12.3초 \(가장 오래 걸린 단계: Windows 안정성 지수 8.4초\)') '표시'
+    $j = RoundTrip $d; Assert ((New-HtmlReport -Data $j -Dx (Get-Diagnosis -Data $j)) -match '검사 소요 12.3초') 'JSON 재분석 후에도'
+    $d.Meta.StepSec = [ordered]@{ 'a' = 1 }; Assert ((New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)) -notmatch '가장 오래') '5초 미만이면 단계 표시 안 함'
+    Assert ((New-HtmlReport -Data (New-Scenario @{}) -Dx (Get-Diagnosis -Data (New-Scenario @{}))) -notmatch '검사 소요') '정보 없으면 표시 안 함'
+    $d.Meta.StepSec = [ordered]@{ 'Windows 안정성 지수' = 8.4 }
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { Assert ((New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)) -match 'Scan took 12.3 s \(slowest step: Windows stability index 8.4 s\)') '영어' } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

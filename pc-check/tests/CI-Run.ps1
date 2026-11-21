@@ -27,6 +27,7 @@ if (-not $r -or -not (Test-Path $r.Html)) { throw 'HTML 보고서 없음' }
 $j = Get-Content -Raw -Encoding UTF8 $r.Json | ConvertFrom-Json
 Write-Host "GPU $(@($j.Gpus).Count) · 디스크 $(@($j.Disks).Count) · RAM $(@($j.Dimms).Count) · 종료기록 $(@($j.Shutdowns).Count) · 그래픽오류 $(@($j.GpuEvents).Count) · WHEA $(@($j.Whea).Count)"
 if (-not $j.System.OS) { throw '시스템 정보 수집 실패' }
+if ($j.Meta.StepSec) { Write-Host ('단계별 소요: ' + (($j.Meta.StepSec.PSObject.Properties | Sort-Object { - [double]$_.Value } | Select-Object -First 4 | ForEach-Object { "$($_.Name) $($_.Value)s" }) -join ' · ')) }
 . $script -LoadOnly
 Write-Host "GPU 센서(D3DKMT): $(@(Get-GpuSensors).Count) 개 (가상 머신에서는 0 이 정상)"
 
