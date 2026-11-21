@@ -1780,9 +1780,11 @@ function Start-Blackbox {
     if (-not $Dir) { $Dir = (Get-BlackboxDefaultDir).Dir }
     New-Item -ItemType Directory -Force -Path $Dir | Out-Null
     Add-BlackboxDirMemory $Dir
-    $path = Join-Path $Dir ("PCCheck_blackbox_{0}_{1:yyyyMMdd_HHmmss}.csv" -f $env:COMPUTERNAME, (Get-Date))
+    # -HideName 이면 USB 에 남는 기록 파일 이름·머리말에도 실제 PC 이름 대신 코드
+    $pcName = $(if ($script:HideName) { Get-AnonName $env:COMPUTERNAME } else { $env:COMPUTERNAME })
+    $path = Join-Path $Dir ("PCCheck_blackbox_{0}_{1:yyyyMMdd_HHmmss}.csv" -f $pcName, (Get-Date))
     $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; Stage = ''; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0; GpuLog = ''; GpuSeen = ''; Pending = ''; Warn = '' })
-    Write-DurableLine $path ("# PCCheck blackbox,v2,{0},{1},{2}" -f $env:COMPUTERNAME, (Format-T (Get-Date)), $script:AppVersion)
+    Write-DurableLine $path ("# PCCheck blackbox,v2,{0},{1},{2}" -f $pcName, (Format-T (Get-Date)), $script:AppVersion)
     Write-DurableLine $path $script:BlackboxCols
     $rs = New-PCRunspace
     $rs.SessionStateProxy.SetVariable('sync', $sync)

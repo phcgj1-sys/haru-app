@@ -964,6 +964,20 @@ It '자동 테스트 완료: 기록을 바로 분석해 판정을 보여 줌 (�
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $e = Tr (Get-BlackboxDoneText $ok); Assert ($e -notmatch '[가-힣]') "영어: $e" } finally { $script:UiLang = $lg }
 }
+It '-HideName: 새 블랙박스 기록 파일 이름·머리말에도 실제 PC 이름 대신 코드' {
+    $old = $script:HideName; $oldEnv = $env:COMPUTERNAME; $env:COMPUTERNAME = 'HONGGILDONG-PC'
+    try {
+        $script:HideName = $true
+        $job = Start-Blackbox -Dir (Join-Path $OutDir ('bbh_' + [guid]::NewGuid().ToString('N'))) -IntervalSec 0.2 -NoEvents
+        $sw = [Diagnostics.Stopwatch]::StartNew(); while ($job.Sync.Rows -lt 1 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
+        Stop-Blackbox $job
+        Assert ((Split-Path $job.Path -Leaf) -match '^PCCheck_blackbox_PC-[0-9a-f]{6}_') "파일 이름 $(Split-Path $job.Path -Leaf)"
+        Assert ([IO.File]::ReadAllText($job.Path) -notmatch 'HONGGILDONG') '파일 내용에 실제 이름 없음'
+        $script:HideName = $false
+        $job2 = Start-Blackbox -Dir (Join-Path $OutDir ('bbh2_' + [guid]::NewGuid().ToString('N'))) -IntervalSec 0.2 -NoEvents; Stop-Blackbox $job2
+        Assert ((Split-Path $job2.Path -Leaf) -match 'HONGGILDONG-PC') '기본은 실제 이름'
+    } finally { $script:HideName = $old; $env:COMPUTERNAME = $oldEnv }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
