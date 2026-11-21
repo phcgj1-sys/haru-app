@@ -11,6 +11,7 @@
 .PARAMETER FromJson 저장된 진단 데이터(JSON)로 보고서를 다시 생성 (원격 상담용)
 .PARAMETER Note     보고서에 넣을 증상·고객 메모 (PC 안에만 저장)
 .PARAMETER Lang     보고서·화면 언어: auto(기본, Windows 언어) · ko · en
+.PARAMETER ExitCode Silent 일 때 결과를 종료 코드로: 0 양호 · 1 주의(판단 보류 포함) · 2 문제 · 3 실행 불가
 .PARAMETER LoadOnly 함수만 불러오고 실행하지 않음 (테스트용)
 #>
 [CmdletBinding()]
@@ -23,6 +24,7 @@ param(
     [string]$Shop,
     [switch]$HideName,
     [switch]$NoOpen,
+    [switch]$ExitCode,
     [switch]$GuiSmokeTest,
     [ValidateSet('auto', 'ko', 'en')][string]$Lang = 'auto',
     [switch]$LoadOnly
@@ -1932,6 +1934,10 @@ function Get-DayChoices([int]$Days) {
     # 화면의 분석 기간 목록: 기본 7·30·90·180일 + 명령줄로 받은 값 (오름차순)
     return @(@(7, 30, 90, 180) + @($Days) | Where-Object { $_ -ge 1 -and $_ -le 365 } | Sort-Object -Unique)
 }
+function Get-ResultExitCode($Dx) {
+    # 배치·원격 관리 도구에서 여러 PC 를 분류할 때 쓰는 종료 코드 (-ExitCode)
+    switch (Get-GradeClass $Dx) { 'ok' { return 0 } 'warn' { return 1 } default { return 2 } }
+}
 function Get-GradeClass($Dx) {
     # 점수 색: 판단 보류(노하드 기록 없음)는 점수가 높아도 초록(양호)으로 보이지 않게 주의 색
     if ([string]$Dx.Grade -match '판단 보류') { return 'warn' }
@@ -3223,17 +3229,17 @@ $script:LogFile = Join-Path $script:WorkDir ("logs\{0}.log" -f (Get-FileStamp (G
 Write-PCLog "$($script:AppName) v$($script:AppVersion) mode=$Mode days=$Days ps=$($PSVersionTable.PSVersion)"
 
 if ($FromJson) {
-    $data = ConvertFrom-PCJson (Get-Content -Raw -Encoding UTF8 -Path $FromJson)
+    $data = ConvertFrom-PCJson (Get-Content -LiteralPath $FromJson -Raw -Encoding UTF8)
     $dx = Get-Diagnosis -Data $data
     $res = Save-Results -Data $data -Dx $dx -Dir $OutDir
     Write-ConsoleResult $dx $res
-    if ($Mode -eq 'Silent') { Write-Output $res; return }
+    if ($Mode -eq 'Silent') { Write-Output $res; if ($ExitCode) { exit (Get-ResultExitCode $dx) }; return }
     if (-not $NoOpen) { Start-Process $res.Html }
     return
 
 }
 
-if (-not $script:IsWin) { Write-Error 'Windows 에서만 검사할 수 있습니다. (-FromJson 으로 보고서 재생성은 가능)'; exit 2 }
+if (-not $script:IsWin) { Write-Error 'Windows 에서만 검사할 수 있습니다. (-FromJson 으로 보고서 재생성은 가능)'; exit 3 }
 
 if ($Mode -eq 'Gui') {
     try {
@@ -3267,6 +3273,6 @@ $rdir = Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)
 $dx = Invoke-SafeDiagnosis $data $rdir
 $res = Save-Results -Data $data -Dx $dx -Dir $rdir -Track
 Write-ConsoleResult $dx $res
-if ($Mode -eq 'Silent') { Write-Output $res; return }
+if ($Mode -eq 'Silent') { Write-Output $res; if ($ExitCode) { exit (Get-ResultExitCode $dx) }; return }
 if (-not $NoOpen) { Start-Process $res.Html }
 Start-ConsoleMenu $res

@@ -85,6 +85,7 @@ powershell -ExecutionPolicy Bypass -File PCCheck.ps1 -FromJson "PC진단_내PC_2
 | `-OutDir D:\reports` | 저장 위치 |
 | `-FromJson file.json` | 저장된 진단 데이터로 보고서 재생성 |
 | `-NoOpen` | 보고서 자동 열기 끔 |
+| `-ExitCode` | `-Mode Silent` 와 함께: 결과를 종료 코드로 돌려줌 — `0` 양호 · `1` 주의(판단 보류 포함) · `2` 문제 · `3` 실행 불가. 배치 파일(`if errorlevel 2 ...`)·원격 관리 도구로 여러 PC 를 나눌 때 |
 | `-Note "홍길동 / 게임 중 꺼짐"` | 증상·고객 메모를 보고서 상단과 상담용 요약에 표시 (화면에서는 '메모' 칸) |
 | `-Shop "OO컴퓨터 · 010-0000-0000"` | 매장(점검자) 이름·연락처를 보고서 상단·하단과 요약에 표시. 매번 쓰기 번거로우면 프로그램 옆 `shop.txt` 첫 줄에 적어 두면 자동 적용 |
 | `-HideName` | 보고서·요약·JSON 에서 PC 이름을 `PC-1a2b3c` 같은 코드로 바꿈 (인터넷에 보고서를 올릴 때. 같은 PC 는 늘 같은 코드라 지난 검사 대비는 유지) |

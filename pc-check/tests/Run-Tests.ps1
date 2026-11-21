@@ -227,6 +227,23 @@ It 'JSON 재분석(-FromJson): PowerShell 7 에서도 날짜가 원래 형식 �
     $arr = ConvertFrom-PCJson '[{"Created":"2026-11-10T09:00:00","Health":60},{"Created":"2026-11-14T09:00:00","Health":80}]'
     Assert-Eq @($arr).Count 2 '배열 그대로'; Assert-Eq @($arr)[1].Created '2026-11-14T09:00:00' '배열 안 날짜'
 }
+It '-ExitCode: 무인 실행 결과를 종료 코드로 (0 양호 · 1 주의 · 2 문제), 지정 안 하면 0' {
+    Assert-Eq (Get-ResultExitCode @{ Health = 95; Grade = '양호' }) 0 '양호'
+    Assert-Eq (Get-ResultExitCode @{ Health = 75; Grade = '주의' }) 1 '주의'
+    Assert-Eq (Get-ResultExitCode @{ Health = 95; Grade = '판단 보류' }) 1 '판단 보류는 양호 아님'
+    Assert-Eq (Get-ResultExitCode @{ Health = 40; Grade = '위험' }) 2 '문제'
+    $d = New-Scenario @{ Shutdowns = @(1..4 | ForEach-Object { [ordered]@{ T = (T $_); Code = '0x116'; PowerButton = $false } }) }
+    $want = Get-ResultExitCode (Get-Diagnosis -Data $d)
+    [void][IO.Directory]::CreateDirectory($OutDir)
+    $jp = Join-Path $OutDir ('ec_' + [guid]::NewGuid().ToString('N') + '.json')
+    [IO.File]::WriteAllText($jp, (ConvertTo-Json -InputObject $d -Depth 6), (New-Object Text.UTF8Encoding($true)))
+    $exe = $(if ($PSVersionTable.PSEdition -eq 'Desktop') { 'powershell.exe' } else { 'pwsh' }); $ps1 = Join-Path $root 'PCCheck.ps1'
+    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $jp -OutDir (Join-Path $OutDir 'ec1') -NoOpen -Lang ko -ExitCode 2>&1
+    Assert-Eq $LASTEXITCODE $want "종료 코드 (기대 $want)"
+    Assert ($want -ge 1) '문제 시나리오는 0 아님'
+    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $jp -OutDir (Join-Path $OutDir 'ec2') -NoOpen -Lang ko 2>&1
+    Assert-Eq $LASTEXITCODE 0 '-ExitCode 없으면 0'
+}
 It '화면 분석 기간 목록: 명령줄 -Days 값을 그대로 포함 (60 → 90 으로 바뀌지 않음)' {
     Assert-Eq ((Get-DayChoices 30) -join ',') '7,30,90,180' '기본'
     Assert-Eq ((Get-DayChoices 60) -join ',') '7,30,60,90,180' '60 추가'
