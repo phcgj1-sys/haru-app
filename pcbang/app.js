@@ -988,11 +988,11 @@ async function timeFetch(url, mode) {
 }
 async function pingTarget(t, n, onEach) {
   var warm = await timeFetch(t.url, t.mode); // 첫 연결(DNS·TLS) 제외
-  var rs = [], fail = 0;
+  var rs = [], fail = 0, streak = warm == null ? 1 : 0;
   for (var i = 0; i < n; i++) {
-    var ms = await timeFetch(t.url, t.mode); if (ms == null) fail++; else rs.push(ms); if (onEach) onEach();
-    // 응답 없이 버려지는 대상은 한 번에 3초씩 기다리므로, 예열 포함 처음 3번이 모두 실패하면 나머지는 건너뜀
-    if (warm == null && i === 1 && !rs.length) { for (var k = i + 1; k < n; k++) { fail++; if (onEach) onEach(); } break; }
+    var ms = await timeFetch(t.url, t.mode); if (ms == null) { fail++; streak++; } else { rs.push(ms); streak = 0; } if (onEach) onEach();
+    // 응답 없이 버려지는 대상은 한 번에 3초씩 기다리므로, 3번 연속 실패하면(예열 포함, 중간에 끊긴 경우도) 나머지는 실패로 치고 넘어감
+    if (streak >= 3) { for (var k = i + 1; k < n; k++) { fail++; if (onEach) onEach(); } break; }
     await sleep(60);
   }
   var med = rs.length ? median(rs) : null, jit = 0;
