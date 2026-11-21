@@ -738,7 +738,9 @@ try {
   # 전원 관리
   if ($result.power) {
     # 복제한 고성능·최고의 성능(새 GUID, 영문 이름)도 정상으로. 절전·균형만 경고, 그 밖의 사용자 지정은 확인 안내
-    if ($result.power -match '고성능|최고|High performance|Ultimate') { [void]$oks.Add(("전원 관리: {0}" -f $result.power)) }
+    if ($result.cpu -match '(7900|7950|9900|9950)X3D' -and $result.power -match '균형|Balanced') { [void]$oks.Add(("전원 관리: {0} (듀얼 CCD X3D 는 균형 조정이 맞음 - AMD 코어 파킹)" -f $result.power)) }
+    elseif ($result.cpu -match '(7900|7950|9900|9950)X3D' -and $result.power -match '고성능|최고|High performance|Ultimate') { [void]$warns.Add(("전원 관리 [{0}] - 듀얼 CCD X3D CPU 는 균형 조정이어야 게임이 캐시 코어로 가요(AMD 칩셋 드라이버)" -f $result.power)) }
+    elseif ($result.power -match '고성능|최고|High performance|Ultimate') { [void]$oks.Add(("전원 관리: {0}" -f $result.power)) }
     elseif ($result.power -match '절전|균형|Power saver|Balanced') { [void]$warns.Add(("전원 관리가 [{0}] - 고성능으로 바꾸면 좋아요" -f $result.power)) }
     else { [void]$oks.Add(("전원 관리: {0} (사용자 지정 - 고성능 계열인지 확인)" -f $result.power)) }
   }

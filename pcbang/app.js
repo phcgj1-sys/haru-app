@@ -1180,7 +1180,11 @@ function problems(st) {
   }
   // 전원 관리: 고성능·최고의 성능(복제본이나 영문 이름 포함)은 정상, 절전·균형은 경고, 그 밖의 사용자 지정 계획은 참고
   var pwGood = /고성능|최고|high performance|ultimate/i, pwBad = /절전|균형|power saver|balanced/i;
-  if (nat.power && pwBad.test(nat.power)) add('power', 'warn', '전원 관리 옵션: ' + nat.power, '제어판 → 전원 옵션 → 고성능을 고르세요. 명령 프롬프트: powercfg /setactive SCHEME_MIN', '전원 ' + nat.power);
+  // 듀얼 CCD X3D 는 AMD 칩셋 드라이버의 코어 파킹(게임을 캐시 많은 코어로)이 '균형 조정'에서만 동작 → 균형이 정상, 고성능이면 오히려 손해
+  var dualX3d = /(7900|7950|9900|9950)X3D/i.test(nat.cpu || '');
+  if (dualX3d && nat.power && /균형|balanced/i.test(nat.power)) { /* 정상 */ }
+  else if (dualX3d && nat.power && pwGood.test(nat.power)) add('power', 'info', '전원 관리 ' + nat.power + ' — 이 CPU(듀얼 CCD X3D)는 균형 조정 권장', 'AMD 칩셋 드라이버의 코어 파킹이 균형 조정에서 게임을 3D V-Cache 코어로 보내요. 고성능이면 이 기능이 꺼져 게임 프레임이 떨어질 수 있어요. AMD 칩셋 드라이버 설치·Xbox Game Bar 최신 버전도 확인하세요.', '전원(X3D)');
+  else if (nat.power && pwBad.test(nat.power)) add('power', 'warn', '전원 관리 옵션: ' + nat.power, '제어판 → 전원 옵션 → 고성능을 고르세요. 명령 프롬프트: powercfg /setactive SCHEME_MIN', '전원 ' + nat.power);
   else if (nat.power && !pwGood.test(nat.power)) add('power', 'info', '사용자 지정 전원 관리: ' + nat.power, '매장 관리 프로그램이 만든 전원 계획일 수 있어요. 제어판 → 전원 옵션에서 고성능 계열인지 확인하세요(최소 프로세서 상태 100%).', '전원 ' + nat.power);
   if (nat.os === 'win11' && /꺼짐/.test(nat.secureBoot || '')) add('sb', 'bad', '보안 부팅 꺼짐 — 롤·발로란트 실행 불가(VAN9003)', 'BIOS(부팅 때 Del/F2) → Boot → Secure Boot 켜기. CSM이 켜져 있으면 끄고 UEFI 모드로 바꿔야 해요.', '보안 부팅 꺼짐');
   if (nat.os === 'win11' && /없음/.test(nat.tpm || '')) add('tpm', 'bad', 'TPM 2.0 없음/꺼짐 — 롤·발로란트 실행 불가(VAN9001)', 'BIOS에서 인텔은 PTT, AMD는 fTPM을 켜세요.', 'TPM 꺼짐');

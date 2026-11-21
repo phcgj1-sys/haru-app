@@ -323,6 +323,12 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(xm.join('/') === 'xmplock/xmplock/xmp', 'XMP: H610M·B460M 은 참고, B760 은 경고 (' + xm.join('/') + ')');
   }
 
+  // 전원 관리: 듀얼 CCD X3D 는 균형 조정이 정상, 일반 CPU 는 균형 조정 경고
+  {
+    const pw = await page.evaluate(() => { const P = window.__pcbang; const run = (cpu, power) => P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: { cpu, power } }).filter(x => x.id === 'power').map(x => x.lv).join() || '-'; return [run('AMD Ryzen 9 7950X3D 16-Core Processor', '균형 조정'), run('AMD Ryzen 9 7950X3D 16-Core Processor', '고성능'), run('AMD Ryzen 7 7800X3D 8-Core Processor', '균형 조정')]; });
+    ok(pw.join('/') === '-/info/warn', '전원 관리: 7950X3D 균형 정상·고성능 참고, 7800X3D 균형 경고 (' + pw.join('/') + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
