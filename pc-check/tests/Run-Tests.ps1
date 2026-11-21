@@ -256,6 +256,11 @@ It '권장 파워 용량: Ti·SUPER·XT 변형은 기본 모델보다 먼저, �
         Assert-Eq (Get-PsuEstimate $d).GpuW $c[1] $c[0]
     }
 }
+It '권장 파워 용량: Intel Core Ultra CPU 전력 반영' {
+    foreach ($c in @(@('Intel(R) Core(TM) Ultra 9 285K', 253), @('Intel(R) Core(TM) Ultra 7 265KF', 253), @('Intel(R) Core(TM) Ultra 5 245K', 160), @('Intel(R) Core(TM) Ultra 7 155H', 125), @('Intel(R) Core(TM) Ultra 5 125U', 95), @('AMD Ryzen 7 9800X3D 8-Core Processor', 120))) {
+        $d = New-Scenario @{}; $d.System.CPU = $c[0]; Assert-Eq (Get-PsuEstimate $d).CpuW $c[1] $c[0]
+    }
+}
 It '권장 파워 용량: 측정값 우선, 모델 대표값, 파워 의심 시 경고' {
     $d = New-Scenario @{}; $d.System.CPU = 'Intel(R) Core(TM) i9-14900K'; $d.Gpus = @([ordered]@{ Name = 'NVIDIA GeForce RTX 4090'; Vendor = 'NVIDIA' })
     $e = Get-PsuEstimate $d; Assert-Eq $e.GpuW 450 'RTX 4090 대표값'; Assert-Eq $e.CpuW 253 'i9 K'; Assert-Eq $e.RecommendW 1050 '(450+253+75)×1.3=1011 → 1050'

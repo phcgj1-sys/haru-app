@@ -548,7 +548,10 @@ function Get-PsuEstimate($Data) {
     }
     $cpu = [string](Get-Prop (Get-Prop $Data 'System') 'CPU')
     $cpuW = 95.0
-    if ($cpu -match 'i9-1[2-4]\d{3}K|i7-1[3-4]\d{3}K') { $cpuW = 253 }
+    if ($cpu -match 'i9-1[2-4]\d{3}K|i7-1[3-4]\d{3}K|Ultra [79] 2\d{2}K') { $cpuW = 253 }   # Core Ultra 200S K: 최대 250W
+    elseif ($cpu -match 'Ultra 5 2\d{2}K') { $cpuW = 160 }
+    elseif ($cpu -match 'Ultra [79] ') { $cpuW = 125 }
+    elseif ($cpu -match 'Ultra 5 ') { $cpuW = 95 }
     elseif ($cpu -match 'i[579]-1[2-4]\d{3}K|Ryzen 9 [579]9\d{2}X') { $cpuW = 180 }
     elseif ($cpu -match 'Ryzen 9') { $cpuW = 142 }
     elseif ($cpu -match 'Ryzen 7 \d{4}X3D') { $cpuW = 120 }
