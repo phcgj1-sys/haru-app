@@ -1612,6 +1612,7 @@ function Start-Blackbox {
     param([string]$Dir, [double]$IntervalSec = 1, [switch]$NoEvents)
     if (-not $Dir) { $Dir = (Get-BlackboxDefaultDir).Dir }
     New-Item -ItemType Directory -Force -Path $Dir | Out-Null
+    Add-BlackboxDirMemory $Dir
     $path = Join-Path $Dir ("PCCheck_blackbox_{0}_{1:yyyyMMdd_HHmmss}.csv" -f $env:COMPUTERNAME, (Get-Date))
     $sync = [hashtable]::Synchronized(@{ Stop = $false; Path = $path; Rows = 0; Last = $null; Stage = ''; CpuStress = $false; GpuStress = $false; Error = $null; Done = $false; Events = 0; GpuLog = ''; GpuSeen = ''; Pending = ''; Warn = '' })
     Write-DurableLine $path ("# PCCheck blackbox,v2,{0},{1},{2}" -f $env:COMPUTERNAME, (Format-T (Get-Date)), $script:AppVersion)
@@ -1913,11 +1914,27 @@ function Read-BlackboxAnalysis([string]$Path) {
     return $res
 }
 
+function Get-BlackboxDirMemoryPath { return (Join-Path $script:WorkDir 'blackbox-dirs.txt') }
+function Get-BlackboxDirMemory {
+    $p = Get-BlackboxDirMemoryPath
+    if (-not (Test-Path $p)) { return @() }
+    try { return @(Get-Content -Encoding UTF8 $p | Where-Object { $_.Trim() }) } catch { return @() }
+}
+function Add-BlackboxDirMemory([string]$Dir) {
+    # 기록한 폴더를 기억해 두었다가 검사할 때 찾아 봄 (최근 10개)
+    try {
+        $l = @(@($Dir) + @(Get-BlackboxDirMemory | Where-Object { $_ -ne $Dir }) | Select-Object -First 10)
+        New-Item -ItemType Directory -Force -Path $script:WorkDir | Out-Null
+        [IO.File]::WriteAllLines((Get-BlackboxDirMemoryPath), [string[]]$l, (New-Object System.Text.UTF8Encoding($true)))
+    } catch { Write-PCLog "blackbox dir memory: $($_.Exception.Message)" }
+}
 function Find-BlackboxFiles([int]$Days = 30) {
     # USB·바탕화면에서 최근 블랙박스 기록 찾기
     $dirs = @()
     try { $dirs += @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { Join-Path ($_.DeviceID + '\') 'PCCheck_blackbox' }) } catch {}
     $desk = [Environment]::GetFolderPath('Desktop'); if ($desk) { $dirs += (Join-Path $desk 'PCCheck_blackbox') }
+    $dirs += @(Get-BlackboxDirMemory)   # '찾아보기'로 직접 고른 폴더
+    $dirs = @($dirs | Where-Object { $_ } | Sort-Object -Unique)
     $since = (Get-Date).AddDays(-$Days)
     $files = @($dirs | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { Get-ChildItem $_ -Filter 'PCCheck_blackbox_*.csv' -ErrorAction SilentlyContinue } | Where-Object { $_.LastWriteTime -ge $since } | Sort-Object LastWriteTime -Descending | Select-Object -First 5)
     return @($files | ForEach-Object { try { Read-BlackboxAnalysis $_.FullName } catch {} })

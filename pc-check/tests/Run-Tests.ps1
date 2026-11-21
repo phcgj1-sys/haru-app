@@ -613,6 +613,19 @@ It '노하드: 저장 위치를 정하지 않았고 USB 가 있으면 보고서�
     Assert-Eq (Get-ReportDir $dl 'C:\Desk\PC진단' $true '') 'C:\Desk\PC진단' 'USB 없으면 그대로'
     Assert-Eq (Get-ReportDir $nm 'C:\Desk\PC진단' $true 'E:\') 'C:\Desk\PC진단' '일반 PC 는 그대로'
 }
+It '블랙박스: 직접 고른 폴더에 기록해도 다음 검사에서 찾음' {
+    $oldWd = $script:WorkDir; $script:WorkDir = Join-Path $OutDir ('wdbb_' + [guid]::NewGuid().ToString('N'))
+    try {
+        $dir = Join-Path $OutDir ('custom_' + [guid]::NewGuid().ToString('N'))
+        $job = Start-Blackbox -Dir $dir -IntervalSec 0.2 -NoEvents
+        $sw = [Diagnostics.Stopwatch]::StartNew(); while ($job.Sync.Rows -lt 2 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
+        Stop-Blackbox $job
+        Assert (@(Get-BlackboxDirMemory) -contains $dir) '폴더 기억'
+        $found = @(Find-BlackboxFiles 30)
+        Assert (@($found | Where-Object { $_.File -eq [IO.Path]::GetFileName($job.Path) }).Count -eq 1) "찾음 ($($found.Count))"
+        foreach ($i in 1..12) { Add-BlackboxDirMemory "X$i" }; Assert-Eq @(Get-BlackboxDirMemory).Count 10 '최근 10개만'
+    } finally { $script:WorkDir = $oldWd }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
