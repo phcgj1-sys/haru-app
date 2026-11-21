@@ -266,6 +266,17 @@ It '매장 정보(-Shop·shop.txt): 보고서 상단·하단·요약에 표시, 
     try { Assert ((New-HtmlReport -Data $d -Dx $dx) -match 'Checked by: A&amp;B &lt;컴퓨터&gt;') '영어: 원문 유지' } finally { $script:UiLang = $lg }
     Assert ((Get-ConsoleRelaunchArgs -Path 'x.ps1' -Days 30 -Shop 'S 1') -join ' ') -match '-Shop "S 1"' '콘솔 재실행에도 전달'
 }
+It '영어: 시스템 정보가 비어 있어도(수집 실패) 한글이 남지 않음' {
+    $d = [ordered]@{ Meta = [ordered]@{ Created = '2026-11-15T10:00:00'; Computer = 'X'; Days = 30; IsAdmin = $true }; System = [ordered]@{} }
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try {
+        $dx = Get-Diagnosis -Data $d
+        foreach ($t in @((New-HtmlReport -Data $d -Dx $dx), (Get-SummaryText $d $dx))) {
+            $m = [regex]::Matches($t, '[^<>"]{0,20}[가-힣]+[^<>"]{0,20}'); Assert ($m.Count -eq 0) "한글 남음: $(($m | Select-Object -First 3 | ForEach-Object Value) -join ' | ')"
+        }
+        Assert-Eq (Tr '(빌드 26100.2314)') '(build 26100.2314)' '소수점 빌드'
+    } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

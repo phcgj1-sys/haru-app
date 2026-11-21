@@ -2640,7 +2640,7 @@ $script:EnPairs = @(
     @('RE:상태 점수: (\d+)/100 \((.+?)\)', 'Health score: $1/100 ($2)'),
     @('RE:최근 (\d+) ?일 분석', 'last $1 days analyzed'),
     @('RE: · 최근 (\d+)일', ' · last $1 days'),
-    @('RE:\(빌드 (\d+)\)', '(build $1)'),
+    @('RE:\(빌드 ([\w.]*)\)', '(build $1)'),
     @('RE:(\d+)코어 / (\d+)스레드', '$1 cores / $2 threads'),
     @('RE:(\d+)점\(가능성 ', '$1 pts (likelihood '),
     @('RE:지금 할 일: ', 'Do this now: '),
