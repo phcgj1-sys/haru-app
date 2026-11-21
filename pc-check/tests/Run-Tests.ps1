@@ -419,6 +419,16 @@ It 'CI: 지원 종료 예정(Node 20) 액션 버전을 쓰지 않음' {
     Assert ($wf -notmatch 'actions/(checkout|upload-artifact)@v[1-4]\b') 'checkout·upload-artifact 는 v5 이상'
     Assert ($wf -match 'actions/checkout@v\d+') 'checkout 사용'
 }
+It '-HideName: PC 이름을 같은 PC 면 같은 코드로 가리고 보고서·요약에 원래 이름이 남지 않음' {
+    $d = New-Scenario @{}; $d.Meta.Computer = 'HONGGILDONG-PC'
+    Hide-ComputerName $d
+    Assert ($d.Meta.Computer -match '^PC-[0-9a-f]{6}$') "코드 $($d.Meta.Computer)"
+    $c1 = $d.Meta.Computer; Hide-ComputerName $d; Assert-Eq $d.Meta.Computer $c1 '두 번 적용해도 그대로'
+    $e = New-Scenario @{}; $e.Meta.Computer = 'honggildong-pc'; Hide-ComputerName $e; Assert-Eq $e.Meta.Computer $c1 '같은 PC 는 같은 코드 (대소문자 무관)'
+    $dx = Get-Diagnosis -Data $d
+    foreach ($t in @((New-HtmlReport -Data $d -Dx $dx), (Get-SummaryText $d $dx), (ConvertTo-Json -InputObject $d -Depth 6))) { Assert ($t -notmatch 'HONGGILDONG') '원래 이름 없음' }
+    Assert ((Get-ConsoleRelaunchArgs -Path 'x.ps1' -Days 30 -HideName) -contains '-HideName') '콘솔 재실행에도 전달'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

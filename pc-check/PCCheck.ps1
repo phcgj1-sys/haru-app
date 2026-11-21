@@ -21,6 +21,7 @@ param(
     [string]$FromJson,
     [string]$Note,
     [string]$Shop,
+    [switch]$HideName,
     [switch]$NoOpen,
     [switch]$GuiSmokeTest,
     [ValidateSet('auto', 'ko', 'en')][string]$Lang = 'auto',
@@ -1929,6 +1930,12 @@ function Get-ScanTimeText($Meta) {
     }
     return "$txt<br>"
 }
+function Hide-ComputerName($Data) {
+    # 보고서를 인터넷 커뮤니티 등에 올릴 때: PC 이름(사람 이름이 들어가는 경우가 많음)을 같은 PC 면 늘 같은 코드로 바꿈 (지난 검사 대비는 그대로 동작)
+    $m = Get-Prop $Data 'Meta'; $n = [string](Get-Prop $m 'Computer')
+    if (-not $n -or $n -match '^PC-[0-9a-f]{6}$') { return }
+    $m.Computer = 'PC-' + (Get-ShortHash "name|$($n.ToUpperInvariant())").Substring(0, 6)
+}
 function Get-WindowTitle([string]$Shop) {
     # 창 제목: 프로그램 이름·버전 + 매장 이름 (매장 이름은 번역하지 않음)
     $t = "$($script:AppName) v$($script:AppVersion)"
@@ -2574,6 +2581,7 @@ function Show-Gui {
             $status.Text = Tr '분석 중...'
             if ($noteBox.Text.Trim()) { $data.Meta.Note = $noteBox.Text.Trim() }
             if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
+            if ($script:HideName) { Hide-ComputerName $data }
             $rdir = Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)
             $dx = Invoke-SafeDiagnosis $data $rdir
             $bar.Value = $bar.Maximum - 1
@@ -2768,7 +2776,7 @@ function Write-ConsoleResult($Dx, $Res) {
     Write-TrHost "`n보고서: $($Res.Html)" -ForegroundColor Green
 }
 
-function Get-ConsoleRelaunchArgs([string]$Path, [int]$Days, [string]$OutDir, [string]$Lang, [string]$Note, [string]$Shop) {
+function Get-ConsoleRelaunchArgs([string]$Path, [int]$Days, [string]$OutDir, [string]$Lang, [string]$Note, [string]$Shop, [switch]$HideName) {
     # 화면을 못 띄워 콘솔로 다시 실행할 때 사용자가 고른 저장 위치·언어·메모를 그대로 넘김
     $q = { param([string]$v) '"' + ($v -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"' }
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', (& $q $Path), '-Mode', 'Console', '-Days', "$Days")
@@ -2776,6 +2784,7 @@ function Get-ConsoleRelaunchArgs([string]$Path, [int]$Days, [string]$OutDir, [st
     if ($Lang) { $a += @('-Lang', $Lang) }
     if ($Note) { $a += @('-Note', (& $q $Note)) }
     if ($Shop) { $a += @('-Shop', (& $q $Shop)) }
+    if ($HideName) { $a += '-HideName' }
     return $a
 }
 function Start-ConsoleMenu($Res) {
@@ -3140,6 +3149,7 @@ if ($Lang -eq 'auto') { $script:UiLang = Get-DefaultLang } else { $script:UiLang
 $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
 $script:ShopText = Get-ShopText $Shop
+$script:HideName = [bool]$HideName
 $script:OutDirDefault = -not $OutDir
 if (-not $OutDir) {
     $desk = [Environment]::GetFolderPath('Desktop'); if (-not $desk) { $desk = $HOME }
@@ -3180,7 +3190,7 @@ if ($Mode -eq 'Gui') {
             return
         }
 
-        Start-Process -FilePath 'powershell.exe' -ArgumentList (Get-ConsoleRelaunchArgs -Path $PSCommandPath -Days $Days -OutDir $OutDir -Lang $script:UiLang -Note $Note -Shop $Shop)
+        Start-Process -FilePath 'powershell.exe' -ArgumentList (Get-ConsoleRelaunchArgs -Path $PSCommandPath -Days $Days -OutDir $OutDir -Lang $script:UiLang -Note $Note -Shop $Shop -HideName:$HideName)
         return
     }
 }
@@ -3189,6 +3199,7 @@ Write-TrHost "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분
 $data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, (Tr $name)) }
 if ($Note) { $data.Meta.Note = $Note.Trim() }
 if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
+if ($script:HideName) { Hide-ComputerName $data }
 $rdir = Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)
 $dx = Invoke-SafeDiagnosis $data $rdir
 $res = Save-Results -Data $data -Dx $dx -Dir $rdir -Track

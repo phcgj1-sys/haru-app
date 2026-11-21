@@ -83,6 +83,7 @@ powershell -ExecutionPolicy Bypass -File PCCheck.ps1 -FromJson "PC진단_2026111
 | `-NoOpen` | 보고서 자동 열기 끔 |
 | `-Note "홍길동 / 게임 중 꺼짐"` | 증상·고객 메모를 보고서 상단과 상담용 요약에 표시 (화면에서는 '메모' 칸) |
 | `-Shop "OO컴퓨터 · 010-0000-0000"` | 매장(점검자) 이름·연락처를 보고서 상단·하단과 요약에 표시. 매번 쓰기 번거로우면 프로그램 옆 `shop.txt` 첫 줄에 적어 두면 자동 적용 |
+| `-HideName` | 보고서·요약·JSON 에서 PC 이름을 `PC-1a2b3c` 같은 코드로 바꿈 (인터넷에 보고서를 올릴 때. 같은 PC 는 늘 같은 코드라 지난 검사 대비는 유지) |
 | `-Lang en` | 영어 보고서·화면 (기본 `auto`: Windows 언어가 한국어면 한국어, 아니면 영어) |
 
 로그: `%LOCALAPPDATA%\PCCheck\logs` · 검사 이력: `%LOCALAPPDATA%\PCCheck\history.json`
