@@ -336,16 +336,21 @@ if ($nvT.Count) {
 $verd = New-Object System.Collections.ArrayList
 $bottle = '판단 어려움'
 $gu = $gpu.utilAvg; $ca = Avg $coreA
+# 게임 자체·드라이버 FPS 제한(서든 200 등)에 붙어 있는지: 흔한 상한값 ±2.5fps, 그래픽이 꽉 차지 않았을 때 (웹 앱 판정과 같은 기준)
+$capAt = $null
+if ($fps -and $fps.avg -and -not ($null -ne $gu -and $gu -ge 90)) { foreach ($c in @(60, 75, 100, 120, 144, 165, 200, 240, 300, $hz)) { if ($c -and [math]::Abs($fps.avg - $c) -lt 2.5) { $capAt = $c; break } } }
 if ($null -ne $gu) {
   if ($gu -ge 90) { $bottle = '그래픽' }
   elseif ($null -ne $ca -and $ca -ge 85) { $bottle = 'CPU' }
-  elseif ($gu -lt 75 -and $fps -and $fps.avg -and ($null -ne $hz) -and [math]::Abs($fps.avg - $hz) -lt 3) { $bottle = '프레임 제한(수직 동기화·FPS 제한)' }
+  elseif ($capAt) { $bottle = ('프레임 제한 {0}fps(게임·드라이버 FPS 제한 또는 수직 동기화)' -f $capAt) }
   elseif ($gu -lt 75) { $bottle = 'CPU 또는 게임 엔진' }
   else { $bottle = '여유 있음' }
 }
 if ($null -ne $gpuBusyRatio) { if ($gpuBusyRatio -ge 90) { $bottle = '그래픽' } elseif ($gpuBusyRatio -lt 70 -and $bottle -eq '그래픽') { $bottle = 'CPU 또는 게임 엔진' } }
 if ($fps) {
-  if ($hz -and $fps.avg -lt $hz * 0.9) { [void]$verd.Add(('평균 {0}fps로 모니터 {1}Hz보다 낮음 (병목: {2})' -f $fps.avg, $hz, $bottle)) }
+  if ($hz -and $fps.avg -lt $hz * 0.9 -and -not $capAt) { [void]$verd.Add(('평균 {0}fps로 모니터 {1}Hz보다 낮음 (병목: {2})' -f $fps.avg, $hz, $bottle)) }
+  # 60~165 에 묶이고 모니터가 더 빠르면 보통 게임 옵션의 FPS 제한·수직 동기화 설정 (200·240·300 은 게임 엔진 상한인 경우가 많아 알리지 않음)
+  if ($capAt -and $hz -and $capAt -lt $hz * 0.9 -and $capAt -le 165) { [void]$verd.Add(('FPS가 {0}에 묶여 있음(모니터 {1}Hz) - 게임 옵션의 FPS 제한·수직 동기화, 그래픽 드라이버의 최대 프레임 속도 설정 확인' -f $capAt, $hz)) }
   if ($fps.stutterPerMin -ge 6) { [void]$verd.Add(('끊김(스터터) 분당 {0}회 - 저장 장치·백그라운드 프로그램·램 확인' -f $fps.stutterPerMin)) }
   if ($fps.low1 -lt $fps.avg * 0.5) { [void]$verd.Add(('1% 최저 {0}fps가 평균의 절반 미만 - 순간 프레임 급락' -f $fps.low1)) }
 }
