@@ -851,7 +851,8 @@ function Get-Diagnosis {
     }
     $biosD = ConvertTo-Date (Get-Prop $sys 'BIOSDate')
     $cpuName = [string](Get-Prop $sys 'CPU')
-    if ($cpuName -match 'i[579]-1[34]\d{3}K?F?' ) {
+    # 불안정 이슈 대상: 데스크톱 13·14세대 i9·i7 과 i5-13600/14600 이상 (i5-13400 등 하위 모델·노트북 H/U/P 제외)
+    if ($cpuName -match '(i9-1[34]\d{3}|i7-1[34]\d{3}|i5-1[34][6-9]\d{2})(?![\dHUP])' ) {
         & $find 'info' 'CPU_OC' 'Intel 13·14세대 CPU' 'BIOS 를 최신(마이크로코드 0x12B 이상 포함)으로 업데이트하세요. 구버전 BIOS 는 CPU 불안정/열화 문제가 알려져 있습니다.' 0
         if ($crashes.Count -or $whea.Count) { & $add 'CPU_OC' 10 'Intel 13·14세대 CPU + 크래시 (알려진 불안정 이슈)' }
     }

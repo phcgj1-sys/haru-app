@@ -211,6 +211,11 @@ It 'XMP 판정: Core Ultra 200S 의 기본 DDR5-6400 은 XMP 아님, 다른 CPU 
     Assert-Eq (& $mk 'AMD Ryzen 7 9800X3D' 6000) 1 'Ryzen 6000 은 EXPO'
     Assert-Eq (& $mk 'AMD Ryzen 7 9800X3D' 5600) 0 'Ryzen 5600 은 기본'
 }
+It 'Intel 13·14세대 안내: 대상 데스크톱 모델만 (i5-13400·노트북 제외)' {
+    $mk = { param($cpu) $d = New-Scenario @{}; $d.System.CPU = $cpu; @((Get-Diagnosis -Data $d).Findings | Where-Object { $_.Title -match '13·14세대' }).Count }
+    foreach ($c in '13th Gen Intel(R) Core(TM) i9-13900K', '14th Gen Intel(R) Core(TM) i7-14700KF', '13th Gen Intel(R) Core(TM) i5-13600K', '14th Gen Intel(R) Core(TM) i9-14900') { Assert-Eq (& $mk $c) 1 $c }
+    foreach ($c in '13th Gen Intel(R) Core(TM) i5-13400F', '13th Gen Intel(R) Core(TM) i7-13700H', '13th Gen Intel(R) Core(TM) i5-1335U', 'Intel(R) Core(TM) i7-12700K') { Assert-Eq (& $mk $c) 0 $c }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
