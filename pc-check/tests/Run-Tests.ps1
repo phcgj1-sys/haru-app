@@ -248,6 +248,10 @@ It '문서: README 자주 묻는 질문 (외부 전송·100점인데 꺼짐·관
     Assert ($readme -match '## 자주 묻는 질문') '섹션'
     foreach ($k in '인터넷으로 내 정보가 나가나요', '100점인데', '관리자 권한', '경고를 띄워요', '보내려면', '효과를 확인') { Assert ($readme -match [regex]::Escape($k)) "질문: $k" }
 }
+It '문서: 판매 준비 체크리스트가 최신 기능(-HideName·shop.txt·Silent·블랙박스 실기 확인)을 다룸' {
+    $c = Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot '..\판매-준비-체크리스트.md')
+    foreach ($k in '-HideName', 'shop.txt', '-Mode Silent', '블랙박스', '코드 서명') { Assert ($c -match [regex]::Escape($k)) "항목: $k" }
+}
 It '문서: 사용자용 명령줄 옵션은 모두 README 에 설명됨' {
     $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
     $block = [regex]::Match($src, '(?s)\bparam\((.*?)\n\)').Groups[1].Value
