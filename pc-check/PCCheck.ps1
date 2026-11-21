@@ -2002,6 +2002,14 @@ function Test-OverheatGuard([hashtable]$State, $GpuTempC, [double]$LimitC = 95, 
     if ($null -ne $GpuTempC -and "$GpuTempC" -ne '' -and [double]$GpuTempC -ge $LimitC) { $State.Hot = 1 + [int]$State.Hot } else { $State.Hot = 0 }
     return ([int]$State.Hot -ge $Count)
 }
+function Get-GpuLogPath([string]$BoxPath) {
+    # 기록 옆에 GPU 도구 출력 저장. 폴더 이름에 [ ] 등이 있으면 Start-Process 가 와일드카드로 해석해 시작조차 못 하므로 작업 폴더에 저장
+    $p = [IO.Path]::ChangeExtension($BoxPath, '.gpu.log')
+    if (-not [Management.Automation.WildcardPattern]::ContainsWildcardCharacters($p)) { return $p }
+    $d = Join-Path $script:WorkDir 'gpulog'
+    try { [void][IO.Directory]::CreateDirectory($d) } catch {}
+    return (Join-Path $d (([IO.Path]::GetFileName($p)) -replace '[\[\]*?`]', '_'))
+}
 function Start-GpuLoad([string]$LogPath) {
     # memtest_vulkan (Windows 에서는 입력 없이 바로 시작). 출력은 파일로 받아 오류를 기록에 반영
     $p = Install-MemtestVulkan
@@ -2250,7 +2258,7 @@ function Show-BlackboxDialog {
         param([bool]$cpu, [bool]$gpu, [bool]$ram)
         if ($cpu) { if (-not $st.Cpu) { $st.Cpu = Start-CpuStress }; $st.Cpu.Sync.Pause = $false } elseif ($st.Cpu) { $st.Cpu.Sync.Pause = $true }
         if ($gpu -and -not $st.Gpu -and -not $st.GpuFailed) {
-            try { $gl = $null; if ($st.Box) { $gl = [IO.Path]::ChangeExtension($st.Box.Path, '.gpu.log'); $st.Box.Sync.GpuLog = $gl }; $st.Gpu = Start-GpuLoad -LogPath $gl }
+            try { $gl = $null; if ($st.Box) { $gl = Get-GpuLogPath $st.Box.Path; $st.Box.Sync.GpuLog = $gl }; $st.Gpu = Start-GpuLoad -LogPath $gl }
             catch {
                 # 다운로드·실행 실패: 기록에 남겨 'GPU 단계 미시험'으로 판정되게 함 (조용히 통과 처리 방지)
                 Write-PCLog "gpu load: $($_.Exception.Message)"; $st.Gpu = $null; $st.GpuFailed = $true

@@ -902,6 +902,20 @@ It '폴더 이름에 [ ] 가 있어도: shop.txt·USB 이력·보고서 파일�
     $bad = @([regex]::Matches($src, '(?m)(Test-Path|Get-ChildItem|Remove-Item) \$(Dir|f|d|p|exe|dir|file|zip|tmp|_)\b') | ForEach-Object { $_.Value })
     Assert-Eq $bad.Count 0 "와일드카드로 해석되는 경로: $($bad -join ', ')"
 }
+It 'GPU 도구 출력 경로: 기록 폴더에 [ ] 가 있으면 작업 폴더로 (Start-Process 시작 실패 방지)' {
+    $oldWd = $script:WorkDir
+    try {
+        $script:WorkDir = Join-Path $OutDir ('wdg_' + [guid]::NewGuid().ToString('N'))
+        $plain = Join-Path $OutDir 'PCCheck_blackbox/PCCheck_blackbox_PC_20990101_000000.csv'
+        Assert-Eq (Get-GpuLogPath $plain) ([IO.Path]::ChangeExtension($plain, '.gpu.log')) '일반 폴더는 기록 옆'
+        $br = Join-Path $OutDir 'usb[1]/PCCheck_blackbox/PCCheck_blackbox_PC_20990101_000000.csv'
+        $g = Get-GpuLogPath $br
+        Assert (-not [Management.Automation.WildcardPattern]::ContainsWildcardCharacters($g)) "와일드카드 문자 없음 ($g)"
+        Assert ($g.StartsWith($script:WorkDir)) '작업 폴더 안'
+        Assert ($g.EndsWith('PCCheck_blackbox_PC_20990101_000000.gpu.log')) '파일 이름 유지'
+        Assert ([IO.Directory]::Exists((Split-Path $g))) '폴더 만들어 둠'
+    } finally { $script:WorkDir = $oldWd }
+}
 It '블랙박스: USB 안 하위 폴더에 기록한 것도 (기억이 지워진 뒤에도) 찾음' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usbroot_' + [guid]::NewGuid().ToString('N'))
