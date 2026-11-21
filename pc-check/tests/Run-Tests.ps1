@@ -954,6 +954,16 @@ It '자동 테스트 종료 예상 시각 표시 (영어 번역)' {
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert-Eq (Tr (Get-EtaText 600 $now)) 'ends ~14:10' '영어' } finally { $script:UiLang = $lg }
 }
+It '자동 테스트 완료: 기록을 바로 분석해 판정을 보여 줌 (영어 번역)' {
+    $ok = New-Bb2File 'bb_done.csv' (Rep 5 @('pulse', 50, 99, 60, 90, 200, '', 0, '')) -Stop
+    $t = Get-BlackboxDoneText $ok
+    Assert ($t -match '결과: 블랙박스') "판정 $t"; Assert ($t -match '보고서에도 반영') '안내'
+    $ram = New-Bb2File 'bb_done2.csv' (Rep 5 @('ram', 50, 99, 40, 1, 20, '', 2, '')) -Stop
+    Assert ((Get-BlackboxDoneText $ram) -match 'RAM') '오류면 상세 포함'
+    Assert ((Get-BlackboxDoneText (Join-Path $OutDir 'none.csv')) -match '다시 검사하면') '파일 없으면 기본 안내'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { $e = Tr (Get-BlackboxDoneText $ok); Assert ($e -notmatch '[가-힣]') "영어: $e" } finally { $script:UiLang = $lg }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
