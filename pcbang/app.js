@@ -1508,7 +1508,7 @@ function shopRows() {
       seat: e.seat || e.computer || '-', at: e.at,
       cpu: sp.cpu ? sp.cpu.name : (sp.cpuRaw || (lastGame(e) && (matchCpu(lastGame(e).cpuName) || {}).name) || '-').slice(0, 40),
       gpu: sp.gpu ? sp.gpu.name : (!sp.gpuRaw && lastGame(e)) ? ((matchGpu(lastGame(e).gpuName) || {}).name || lastGame(e).gpuName || '-').slice(0, 40) : softwareRenderer(sp.gpuRaw) ? '그래픽 가속 꺼짐' : (cleanRenderer(sp.gpuRaw) || '-').slice(0, 40),
-      ram: sp.ram || (sp.ramAtLeast ? sp.ramAtLeast + '+' : null) || (lastGame(e) && lastGame(e).ramGB) || null, hz: sp.hz || (lastGame(e) && lastGame(e).hz) || null,
+      ram: sp.ram || (lastGame(e) && lastGame(e).ramGB) || (sp.ramAtLeast ? sp.ramAtLeast + '+' : null) || null, hz: sp.hz || (lastGame(e) && lastGame(e).hz) || null,
       gw: gw && gw.recv ? gw.avg : null, gwLoss: gw ? gw.loss : null,
       ext: ext.length ? median(ext.map(function (x) { return x.avg; })) : webOk.length ? median(webOk.map(function (t) { return t.med; })) : null,
       cpuB: st.bench.cpuSingle || null, gpuB: st.bench.gpu || null, game: (e.games || []).slice(-1)[0] || null,
@@ -1685,10 +1685,10 @@ $('#shopClear').addEventListener('click', function () { var n = Object.keys(shop
 $('#shopCsv').addEventListener('click', function () {
   var rows = shopRows();
   var head = ['좌석', '점검 시각', '상태', 'CPU', '그래픽', 'RAM(GB)', '주사율(Hz)', '게이트웨이(ms)', '게이트웨이 손실(%)', '외부 지연(ms)', 'CPU 점수', 'GPU 점수', '실전 게임', '실전 평균 FPS', '실전 1% 최저 FPS', '실전 끊김(회)', '실전 그래픽 최고 온도(°C)', '사양 부족 게임 수', '문제'];
-  var lines = [head].concat(rows.map(function (r) { return [r.seat, new Date(r.at || Date.now()).toLocaleString('ko-KR'), r.bad ? '고칠 것' : r.warn ? '확인' : '정상', r.cpu, r.gpu, r.ram, r.hz, r.gw, r.gwLoss, r.ext != null ? Math.round(r.ext) : '', r.cpuB, r.gpuB, r.game ? (gtExpect(r.game) ? gtExpect(r.game).game.name : r.game.app) : '', r.game && r.game.fps ? r.game.fps.avg : '', r.game && r.game.fps ? r.game.fps.low1 : '', r.game && r.game.fps ? r.game.fps.stutters : '', r.game ? r.game.gpu.tempMax : '', r.fails, r.pr.map(function (p) { return p.t; }).join(' / ')]; }));
+  var lines = [head].concat(rows.map(function (r) { return [r.seat, new Date(r.at || Date.now()).toLocaleString('ko-KR'), r.bad ? '고칠 것' : r.warn ? '확인' : '정상', r.cpu, r.gpu, r.ram, r.hz, r.gw != null ? Math.round(r.gw * 10) / 10 : '', r.gwLoss, r.ext != null ? Math.round(r.ext) : '', r.cpuB, r.gpuB, r.game ? (gtExpect(r.game) ? gtExpect(r.game).game.name : r.game.app) : '', r.game && r.game.fps ? r.game.fps.avg : '', r.game && r.game.fps ? r.game.fps.low1 : '', r.game && r.game.fps ? r.game.fps.stutters : '', r.game ? r.game.gpu.tempMax : '', r.fails, r.pr.map(function (p) { return p.t; }).join(' / ')]; }));
   downloadText('pc방-매장점검-' + new Date().toISOString().slice(0, 10) + '.csv', '﻿' + lines.map(function (l) { return l.map(csvCell).join(','); }).join('\r\n'), 'text/csv;charset=utf-8');
 });
-function csvCell(v) { v = v == null ? '' : String(v); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function csvCell(v) { v = v == null || v === '-' ? '' : String(v); if (/^\d+\+$/.test(v)) v = v.slice(0, -1) + ' 이상'; if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 function downloadText(name, text, type) {
   var blob = new Blob([text], { type: type || 'text/plain;charset=utf-8' });
   var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);

@@ -301,6 +301,22 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     await pA.context().close();
   }
 
+  // 매장 현황 CSV·RAM: 빈 값은 빈 칸('- 아님), 게이트웨이 0.1 단위, 브라우저 '8+'보다 실전 테스트의 정확한 RAM 우선
+  {
+    const pB = await (await browser.newContext({ acceptDownloads: true })).newPage(); pB.on('pageerror', e => errs.push(e.message));
+    await pB.goto(URL); await pB.waitForTimeout(200);
+    const web = 'PCBANGW1:' + b64({ v: 1, seat: '81', at: Date.now(), det: { renderer: '', threads: 8, memGB: 8 }, manual: {}, bench: {}, dev: {} });
+    const game = 'PCBANGG1:' + b64({ v: 1, kind: 'game', seat: 81, time: '2026-11-21 12:00', app: 'TslGame.exe', ramGB: 16, fps: { avg: 100, low1: 70 }, cpu: {}, gpu: {}, tl: {} });
+    const nat = 'PCBANG1:' + b64({ v: 2, time: '2026-11-21 10:00', seat: 82, cpu: 'Intel(R) Core(TM) i5-12400F', gpus: [{ name: 'NVIDIA GeForce RTX 4060', vram: 8 }], ramGB: 16, os: 'win11', pings: [{ name: 'gw', isGateway: true, avg: 1.234, loss: 0, recv: 20 }] });
+    await pB.evaluate(t => { document.querySelector('#shopPaste').value = t; document.querySelector('#shopImportBtn').click(); }, [web, game, nat].join('\n')); await pB.waitForTimeout(300);
+    await pB.click('[data-tab="log"]'); await pB.waitForTimeout(150);
+    const [dl] = await Promise.all([pB.waitForEvent('download'), pB.click('#shopCsv')]);
+    const csv = require('fs').readFileSync(await dl.path(), 'utf8').split('\r\n');
+    const r81 = csv.find(l => l.startsWith('81,')) || '', r82 = csv.find(l => l.startsWith('82,')) || '';
+    ok(!/'-/.test(r81) && r81.split(',')[5] === '16' && r82.split(',')[7] === '1.2', 'CSV: 빈 칸·RAM 16(실전 테스트 우선)·게이트웨이 1.2 (' + r81.split(',').slice(3, 6).join('|') + ' / ' + r82.split(',')[7] + ')');
+    await pB.context().close();
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
