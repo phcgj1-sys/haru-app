@@ -878,6 +878,20 @@ It '블랙박스: 직접 고른 폴더에 기록해도 다음 검사에서 찾�
         foreach ($i in 1..12) { Add-BlackboxDirMemory "X$i" }; Assert-Eq @(Get-BlackboxDirMemory).Count 10 '최근 10개만'
     } finally { $script:WorkDir = $oldWd }
 }
+It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드카드로 해석하지 않음)' {
+    $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
+    $usb = Join-Path $OutDir ('usb[1]_' + [guid]::NewGuid().ToString('N'))
+    try {
+        $script:WorkDir = Join-Path $OutDir ('wdb_' + [guid]::NewGuid().ToString('N'))
+        $sub = Join-Path $usb 'PCCheck_blackbox'; New-Item -ItemType Directory -Force -Path $sub | Out-Null
+        $f = Join-Path $sub 'PCCheck_blackbox_PC_20990102_000000.csv'
+        [IO.File]::Copy((New-Bb2File 'bb_br.csv' (Rep 5 @('idle', 5, 99, 40, 1, 20, '', 0, ''))), $f)
+        [IO.File]::SetLastWriteTime($f, (Get-Date))
+        $script:BlackboxSearchRoots = @($usb)
+        $found = @(Find-BlackboxFiles 30)
+        Assert (@($found | Where-Object { $_.File -eq 'PCCheck_blackbox_PC_20990102_000000.csv' }).Count -eq 1) "대괄호 폴더 기록 찾음 ($($found.Count))"
+    } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
+}
 It '블랙박스: USB 안 하위 폴더에 기록한 것도 (기억이 지워진 뒤에도) 찾음' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usbroot_' + [guid]::NewGuid().ToString('N'))

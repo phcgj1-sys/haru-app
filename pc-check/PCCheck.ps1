@@ -1463,9 +1463,9 @@ function Read-History {
     # 여러 위치의 기록을 합쳐 시간순으로 (같은 검사는 한 번만)
     $all = @{}
     foreach ($p in (Get-HistoryPaths)) {
-        if (-not (Test-Path $p)) { continue }
+        if (-not (Test-Path -LiteralPath $p)) { continue }
         # 5.1 의 ConvertFrom-Json 은 JSON 배열을 통째로 하나의 개체로 내보내므로 직접 풀어서 사용
-        try { $j = ConvertFrom-PCJson (Get-Content -Raw -Encoding UTF8 $p); foreach ($x in $j) { if ($x) { $all["$(Get-Prop $x 'Computer')|$(Get-Prop $x 'Created')"] = $x } } } catch { }
+        try { $j = ConvertFrom-PCJson (Get-Content -LiteralPath $p -Raw -Encoding UTF8); foreach ($x in $j) { if ($x) { $all["$(Get-Prop $x 'Computer')|$(Get-Prop $x 'Created')"] = $x } } } catch { }
     }
     foreach ($k in ($all.Keys | Sort-Object { [string]($_ -split '\|', 2)[1] })) { $all[$k] }
 }
@@ -2027,7 +2027,7 @@ function Stop-GpuLoad($Proc) { if ($Proc) { try { if (-not $Proc.HasExited) { $P
 
 function Read-BlackboxAnalysis([string]$Path) {
     # 블랙박스 기록 분석 (순수 함수) — 마지막 상태와 '어느 단계'에서 끊겼는지로 원인 추정
-    $lines = @(Get-Content -Path $Path -Encoding UTF8 -ErrorAction Stop)
+    $lines = @(Get-Content -LiteralPath $Path -Encoding UTF8 -ErrorAction Stop)
     $cols = $script:BlackboxColsV1 -split ','
     foreach ($l in $lines) { if ($l -and $l.StartsWith('Time,')) { $cols = $l.Trim() -split ','; break } }
     # 긴 기록(수 시간 = 수만 줄)에서 배열 += 는 줄 수의 제곱으로 느려지므로 List 에 모은 뒤 배열로 변환
@@ -2206,7 +2206,7 @@ function Find-BlackboxFiles([int]$Days = 30) {
     $dirs += @(Get-BlackboxDirMemory)   # '찾아보기'로 직접 고른 폴더
     $dirs = @($dirs | Where-Object { $_ } | Sort-Object -Unique)
     $since = (Get-Date).AddDays(-$Days)
-    $files = @($dirs | Where-Object { $_ -and (Test-Path $_) } | ForEach-Object { Get-ChildItem $_ -Filter 'PCCheck_blackbox_*.csv' -ErrorAction SilentlyContinue } | Where-Object { $_.LastWriteTime -ge $since } | Sort-Object LastWriteTime -Descending | Select-Object -First 5)
+    $files = @($dirs | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter 'PCCheck_blackbox_*.csv' -ErrorAction SilentlyContinue } | Where-Object { $_.LastWriteTime -ge $since } | Sort-Object LastWriteTime -Descending | Select-Object -First 5)
     return @($files | ForEach-Object { try { Read-BlackboxAnalysis $_.FullName } catch {} })
 }
 
