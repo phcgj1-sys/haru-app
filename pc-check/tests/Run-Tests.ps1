@@ -884,6 +884,19 @@ It '기록 중 창 닫기: 확인 질문 (기록 중일 때만, 영어 번역)' 
     $old = $script:UiLang; $script:UiLang = 'en'
     try { $e = Tr $q; Assert ($e -notmatch '[가-힣]') "영어: $e"; Assert ($e -match '42 rows') '줄 수 유지' } finally { $script:UiLang = $old }
 }
+It 'CPU 부하: 컴파일된 고부하 연산으로 동작, 일시정지(출렁임)·중지' {
+    $c = Start-CpuStress -Threads 2
+    try {
+        Assert $c.Native '컴파일된 부하 사용'
+        $sw = [Diagnostics.Stopwatch]::StartNew(); while ($c.Sync.Loops -lt 2 -and $sw.Elapsed.TotalSeconds -lt 20) { Start-Sleep -Milliseconds 50 }
+        Assert ($c.Sync.Loops -ge 2) "연산 진행 ($($c.Sync.Loops))"
+        $c.Sync.Pause = $true; Start-Sleep -Milliseconds 800; $p0 = $c.Sync.Loops; Start-Sleep -Milliseconds 800
+        Assert ($c.Sync.Loops - $p0 -le 2) "일시정지 중 거의 멈춤 ($($c.Sync.Loops - $p0))"
+        $c.Sync.Pause = $false; $p1 = $c.Sync.Loops; $sw.Restart(); while ($c.Sync.Loops -le $p1 -and $sw.Elapsed.TotalSeconds -lt 20) { Start-Sleep -Milliseconds 50 }
+        Assert ($c.Sync.Loops -gt $p1) '다시 시작'
+    } finally { Stop-CpuStress $c }
+    $s0 = $c.Sync.Loops; Start-Sleep -Milliseconds 500; Assert-Eq $c.Sync.Loops $s0 '중지 후 멈춤'
+}
 It '기록 화면: 쓰기 재시도 중이면 경고 문구 (영어 번역 포함)' {
     Assert-Eq (Get-BlackboxWarnText @{ Warn = '' }) '' '정상이면 없음'
     Assert-Eq (Get-BlackboxWarnText $null) '' 'null 안전'

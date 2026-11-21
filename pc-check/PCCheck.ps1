@@ -1682,10 +1682,47 @@ function Stop-Blackbox($Job, [int]$TimeoutSec = 10) {
     try { $Job.PS.Dispose(); $Job.Runspace.Dispose() } catch {}
 }
 
+$script:CpuStressSource = @'
+using System;
+using System.Threading;
+// 컴파일된 부동소수점 연산으로 모든 코어에 실제 고부하 (PowerShell 반복문보다 전력 소비가 커서 파워 시험에 적합)
+public class PCCheckCpuStress {
+    public volatile bool Stop;
+    public volatile bool Pause;
+    public long Loops;
+    Thread[] threads;
+    public void Start(int n) {
+        threads = new Thread[n];
+        for (int t = 0; t < n; t++) {
+            threads[t] = new Thread(Work); threads[t].IsBackground = true; threads[t].Priority = ThreadPriority.BelowNormal; threads[t].Start(t);
+        }
+    }
+    void Work(object o) {
+        double a0 = 1.0001 + (int)o, a1 = 1.0002, a2 = 1.0003, a3 = 1.0004, a4 = 0.9999, a5 = 0.9998, a6 = 0.9997, a7 = 0.9996;
+        const double m = 0.999999, c = 0.000001;
+        while (!Stop) {
+            if (Pause) { Thread.Sleep(20); continue; }
+            for (int k = 0; k < 2000000; k++) {   // 독립 누산기 8개 — 연산 장치를 가득 채움
+                a0 = a0 * m + c; a1 = a1 * m + c; a2 = a2 * m + c; a3 = a3 * m + c;
+                a4 = a4 * m + c; a5 = a5 * m + c; a6 = a6 * m + c; a7 = a7 * m + c;
+            }
+            if (a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 == 42.0) Console.Write("");   // 최적화로 사라지지 않게
+            Interlocked.Increment(ref Loops);
+        }
+    }
+    public void Join(int ms) { if (threads == null) return; foreach (var t in threads) t.Join(ms); }
+}
+'@
 function Start-CpuStress {
     # 모든 CPU 스레드에 계산 부하. Pause 로 순간적으로 껐다 켤 수 있음 (전력 출렁임 시험)
     param([int]$Threads = 0)
     if ($Threads -le 0) { $Threads = [Environment]::ProcessorCount }
+    try {
+        if (-not ('PCCheckCpuStress' -as [type])) { Add-Type -TypeDefinition $script:CpuStressSource -ErrorAction Stop }
+        $o = New-Object PCCheckCpuStress; $o.Start($Threads)
+        return [pscustomobject]@{ Sync = $o; Native = $true; Threads = $Threads }
+    } catch { Write-PCLog "native cpu stress unavailable: $($_.Exception.Message)" }
+    # 컴파일이 안 되는 환경: PowerShell 반복문 (부하는 약함)
     $sync = [hashtable]::Synchronized(@{ Stop = $false; Pause = $false })
     $pool = [runspacefactory]::CreateRunspacePool(1, $Threads); $pool.Open()
     $jobs = @()
@@ -1694,11 +1731,12 @@ function Start-CpuStress {
         [void]$ps.AddScript({ param($sync) while (-not $sync.Stop) { if ($sync.Pause) { Start-Sleep -Milliseconds 50; continue }; $x = 0.0; for ($k = 1; $k -lt 100000; $k++) { $x += [math]::Sqrt($k) * [math]::Sin($k) } } }).AddArgument($sync)
         $jobs += [pscustomobject]@{ PS = $ps; Handle = $ps.BeginInvoke() }
     }
-    return [pscustomobject]@{ Sync = $sync; Pool = $pool; Jobs = $jobs; Threads = $Threads }
+    return [pscustomobject]@{ Sync = $sync; Pool = $pool; Jobs = $jobs; Threads = $Threads; Native = $false }
 }
 function Stop-CpuStress($Job) {
     if (-not $Job) { return }
     $Job.Sync.Stop = $true
+    if ($Job.Native) { try { $Job.Sync.Join(5000) } catch {}; return }
     foreach ($j in $Job.Jobs) { try { [void]$j.PS.EndInvoke($j.Handle) } catch {}; try { $j.PS.Dispose() } catch {} }
     try { $Job.Pool.Dispose() } catch {}
 }
