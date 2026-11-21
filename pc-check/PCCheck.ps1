@@ -1063,6 +1063,11 @@ function Get-SummaryText($Data, $Dx) {
     [void]$L.Add("기록: 갑자기꺼짐 $($c.PowerLoss) · 블루스크린 $($c.Bsod) · 그래픽오류 $($c.Gpu) · WHEA $($c.Whea) · 디스크 $($c.Disk)")
     $top = @($Dx.Causes) | Select-Object -First 1
     if ($top -and $top.Score -ge 30) { [void]$L.Add("지금 할 일: $(@($top.Steps)[0])") }
+    # 노하드는 Windows 기록이 비어 있으므로 블랙박스 판정과 지난 검사 대비 결과를 함께 적음
+    $bb = @(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1
+    if ($bb -and (Get-Prop $bb 'Title')) { [void]$L.Add("블랙박스(최근): $(Get-Prop $bb 'Title')") }
+    $pv = $Dx.Previous
+    if ($pv) { [void]$L.Add($(if ([int]$pv.NewTotal) { "지난 검사($($pv.Created.Replace('T', ' '))) 이후 새 문제 $($pv.NewTotal) 건" } else { "지난 검사($($pv.Created.Replace('T', ' '))) 이후 새 문제 없음" })) }
     if ($Dx.CrashCodes.Count) { [void]$L.Add("블루스크린 코드: $((($Dx.CrashCodes.Keys | ForEach-Object { "$_ x$($Dx.CrashCodes[$_])" }) -join ', '))") }
     if (@($Dx.Causes).Count) {
         [void]$L.Add('의심 원인:')
@@ -2492,6 +2497,8 @@ $script:EnPairs = @(
     @('RE:최근 (\d+) ?일간 심각한 문제 기록 없음', 'No serious problems recorded in the last $1 days'),
     @('RE:지난 검사\(([\d\- :]+) · (\d+)점\) 이후 새로 생긴 문제 없음 ✓', 'No new problems since the last scan ($1 · score $2) ✓'),
     @('RE:지난 검사\(([\d\- :]+) · (\d+)점\) 이후 새 문제 (\d+) 건', '$3 new problem(s) since the last scan ($1 · score $2)'),
+    @('RE:지난 검사\(([\d\- :]+)\) 이후 새 문제 (\d+) 건', '$2 new problem(s) since the last scan ($1)'),
+    @('RE:지난 검사\(([\d\- :]+)\) 이후 새 문제 없음', 'No new problems since the last scan ($1)'),
     @('RE:상태 점수: (\d+)/100 \((.+?)\)', 'Health score: $1/100 ($2)'),
     @('RE:최근 (\d+) ?일 분석', 'last $1 days analyzed'),
     @('RE: · 최근 (\d+)일', ' · last $1 days'),
@@ -2691,7 +2698,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),

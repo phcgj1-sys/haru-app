@@ -482,6 +482,16 @@ It '블랙박스: 긴 기록(2만 줄)도 빠르게 분석, 한 줄 기록도 �
     $one = New-Bb2File 'bb_one.csv' @(, @('cpu', 90, 99, 60, 10, 100, '', 0, ''))
     $b = Read-BlackboxAnalysis $one; Assert-Eq $b.Rows 1 '한 줄'; Assert-Eq $b.LastStage 'cpu' '한 줄 단계'
 }
+It '상담용 요약: 블랙박스 판정·지난 검사 대비 포함 (영어 번역)' {
+    $bbp = New-Bb2File 'bb_sum.csv' (Rep 10 @('full', 95, 99, 80, 99, 300, '', 0, ''))
+    $d = New-Scenario @{ Blackbox = @(Read-BlackboxAnalysis $bbp) }; $dx = Get-Diagnosis -Data $d
+    $dx.Previous = [ordered]@{ Created = '2026-11-10T09:00:00'; Health = 60; New = @{}; NewTotal = 2 }
+    $t = Get-SummaryText $d $dx
+    Assert ($t -match '블랙박스\(최근\): ') "블랙박스 줄: $t"; Assert ($t -match '지난 검사\(2026-11-10 09:00:00\) 이후 새 문제 2 건') '대비 줄'
+    $dx.Previous.NewTotal = 0; Assert ((Get-SummaryText $d $dx) -match '이후 새 문제 없음') '없음'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $e = Get-SummaryText $d $dx; Assert ($e -notmatch '[가-힣]') "영어 한글 남음: $(([regex]::Matches($e, '.{0,15}[가-힣]+.{0,15}') | Select-Object -First 3 | ForEach-Object Value) -join ' | ')"; Assert ($e -match 'No new problems since the last scan') '영문' } finally { $script:UiLang = $old }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
