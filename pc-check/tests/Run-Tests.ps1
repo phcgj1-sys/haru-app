@@ -307,6 +307,11 @@ It '영어 콘솔 모드: 결과 출력에 한글이 남지 않음 (점수 단�
         }
     } finally { $script:UiLang = $lg }
 }
+It '메인 화면: Enter 키로 검사 시작 (기본 단추), GUI 자동 검사에서도 확인' {
+    $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
+    Assert ($src -match [regex]::Escape('$f.AcceptButton = $start')) '기본 단추 지정'
+    Assert ($src -match [regex]::Escape('$f.AcceptButton -ne $start')) 'CI GUI 흐름 검사에 포함'
+}
 It '창 제목: 매장 이름 표시 (없으면 프로그램 이름·버전만)' {
     Assert-Eq (Get-WindowTitle '') "$($script:AppName) v$($script:AppVersion)" '기본'
     Assert-Eq (Get-WindowTitle 'OO컴퓨터') "$($script:AppName) v$($script:AppVersion) — OO컴퓨터" '매장'

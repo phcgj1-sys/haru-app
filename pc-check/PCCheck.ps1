@@ -2709,6 +2709,7 @@ function Show-Gui {
     $f.Add_FormClosing({ if ($state.Job) { try { $state.Job.PS.Stop() } catch {} } })
 
     $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $noteLbl, $noteBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $copyB, $grp))
+    $f.AcceptButton = $start   # Enter 키로 검사 시작 (메모 입력 후 바로 Enter)
     if ($script:UiLang -eq 'en') {
         # 화면 글자 번역 (컨트롤 · 목록 머리글 · 기간 선택)
         $f.Text = (Tr "$($script:AppName) v$($script:AppVersion)") + $(if ($script:ShopText) { " — $($script:ShopText)" })
@@ -2781,6 +2782,7 @@ function Show-Gui {
             elseif (-not $state.Result -or -not (Test-Path $state.Result.Html)) { $issues += '검사 흐름: 180초 안에 보고서가 만들어지지 않음' }
             elseif ($list.Items.Count -lt 1) { $issues += '검사 흐름: 결과 목록이 비어 있음' }
             elseif (-not $copyB.Enabled -or -not $state.Summary) { $issues += '검사 흐름: 요약 복사 준비 안 됨' }
+            elseif ($f.AcceptButton -ne $start) { $issues += '검사 흐름: Enter 키 기본 단추가 검사 시작이 아님' }
             else { Write-Output "GUI E2E OK: $([int]$sw.Elapsed.TotalSeconds)s, 점수 $($score.Text), 목록 $($list.Items.Count)개, 상태줄 '$($status.Text)'" }
             foreach ($i in $issues) { Write-Output "GUI ISSUE: $i" }
         }
