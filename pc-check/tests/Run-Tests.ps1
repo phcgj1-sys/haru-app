@@ -308,6 +308,24 @@ It '창 제목: 매장 이름 표시 (없으면 프로그램 이름·버전만)'
     $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
     Assert ($src -match [regex]::Escape('$f.Text = Get-WindowTitle $script:ShopText')) '메인 창에서 사용'
 }
+It '디스크 오류: USB·카드 리더에서 난 오류는 PC 내부 디스크 문제로 세지 않음' {
+    Assert-Eq (Get-EventDiskNumber 'The device, \Device\Harddisk2\DR2, has a bad block.') 2 '번호 읽기'
+    Assert ($null -eq (Get-EventDiskNumber 'no disk here')) '없으면 null'
+    $disks = @([ordered]@{ Name = 'Samsung SSD'; DeviceId = '0'; Bus = 'NVMe'; Health = 'Healthy' }, [ordered]@{ Name = 'Card Reader'; DeviceId = '2'; Bus = 'USB'; Health = 'Healthy' })
+    $ev = @(1..6 | ForEach-Object { [ordered]@{ T = (T $_); Source = 'disk'; Id = 11; DiskNum = 2; Msg = 'x' } })
+    $dx = Get-Diagnosis -Data (New-Scenario @{ Disks = $disks; DiskEvents = $ev })
+    Assert (-not (@($dx.Findings) | Where-Object { $_.Title -match '^디스크 오류 기록' })) '내부 디스크 오류로 안 셈'
+    Assert-Eq @($dx.Findings | Where-Object { $_.Title -match 'USB·카드 리더 디스크 오류 6 건' }).Count 1 '참고로 표시'
+    Assert-Eq $dx.Counts.Disk 0 '디스크 오류 수 0'
+    $ev2 = @(1..6 | ForEach-Object { [ordered]@{ T = (T $_); Source = 'disk'; Id = 11; DiskNum = 0; Msg = 'x' } })
+    Assert-Eq (Get-Diagnosis -Data (New-Scenario @{ Disks = $disks; DiskEvents = $ev2 })).Counts.Disk 6 '내부 디스크는 그대로'
+    $ev3 = @(1..3 | ForEach-Object { [ordered]@{ T = (T $_); Source = 'disk'; Id = 153; DiskNum = 5; Msg = 'x' } })
+    Assert-Eq (Get-Diagnosis -Data (New-Scenario @{ Disks = $disks; DiskEvents = $ev3 })).Counts.Disk 0 '목록에 없는 디스크(빈 카드 리더)도 외부'
+    $ev4 = @([ordered]@{ T = (T 1); Source = 'disk'; Id = 7; DiskNum = $null; Msg = 'x' })
+    Assert-Eq (Get-Diagnosis -Data (New-Scenario @{ Disks = $disks; DiskEvents = $ev4 })).Counts.Disk 1 '번호 모르면 내부로 (보수적)'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { $f = @($dx.Findings | Where-Object { $_.Title -match 'USB' })[0]; Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') '영어' } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

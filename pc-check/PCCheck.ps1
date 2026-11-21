@@ -463,10 +463,10 @@ function Invoke-Collect {
             $ev += Get-EventsSafe 'System' 55 'Ntfs' $since
             $ev += Get-EventsSafe 'System' @(129, 153) 'stornvme' $since
             $ev += Get-EventsSafe 'System' @(129) 'storahci' $since
-            $D.DiskEvents = @($ev | Sort-Object TimeCreated -Descending | Select-Object -First 200 | ForEach-Object { [ordered]@{ T = (Format-T $_.TimeCreated); Source = $_.ProviderName; Id = $_.Id; Msg = (Get-FirstLine (Get-EventText $_)) } })
+            $D.DiskEvents = @($ev | Sort-Object TimeCreated -Descending | Select-Object -First 200 | ForEach-Object { $tx = Get-EventText $_; [ordered]@{ T = (Format-T $_.TimeCreated); Source = $_.ProviderName; Id = $_.Id; DiskNum = (Get-EventDiskNumber $tx); Msg = (Get-FirstLine $tx) } })
             $D.Disks = @(Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
                 $r = $_ | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue
-                [ordered]@{ Name = $_.FriendlyName; Media = [string]$_.MediaType; Bus = [string]$_.BusType; SizeGB = [math]::Round($_.Size / 1GB); Health = [string]$_.HealthStatus; TempC = $r.Temperature; WearPct = $r.Wear; ReadErr = $r.ReadErrorsUncorrected; PowerOnHours = $r.PowerOnHours }
+                [ordered]@{ Name = $_.FriendlyName; DeviceId = [string]$_.DeviceId; Media = [string]$_.MediaType; Bus = [string]$_.BusType; SizeGB = [math]::Round($_.Size / 1GB); Health = [string]$_.HealthStatus; TempC = $r.Temperature; WearPct = $r.Wear; ReadErr = $r.ReadErrorsUncorrected; PowerOnHours = $r.PowerOnHours }
             })
         } }
         @{ Name = '메모리 진단 결과';        Run = {
@@ -543,6 +543,20 @@ function Get-Prop($o, [string]$n) {
     $p = $o.PSObject.Properties[$n]; if ($p) { return $p.Value }; return $null
 }
 
+function Get-EventDiskNumber([string]$Text) {
+    # 디스크 이벤트 본문의 '\Device\Harddisk2\DR2' 에서 디스크 번호
+    if ($Text -match 'Harddisk(\d+)') { return [int]$Matches[1] }
+    return $null
+}
+function Split-DiskEvents($Data) {
+    # USB·SD 카드(리더) 디스크의 오류는 PC 내부 디스크 문제와 따로 셈 (빈 카드 리더·불량 USB 메모리 때문에 오판하지 않도록)
+    # 내부 디스크 번호 목록. 이벤트의 디스크 번호가 여기 없으면(USB·빈 카드 리더는 목록에 없는 경우가 많음) 외부 장치로 봄
+    $inner = @{}
+    foreach ($d in @(Get-Arr (Get-Prop $Data 'Disks'))) { if ([string](Get-Prop $d 'Bus') -notmatch '(?i)^(USB|SD|MMC)$' -and "$(Get-Prop $d 'DeviceId')" -ne '') { $inner["$(Get-Prop $d 'DeviceId')"] = 1 } }
+    $int = @(); $usb = @()
+    foreach ($e in @(Get-Arr (Get-Prop $Data 'DiskEvents'))) { $n = Get-Prop $e 'DiskNum'; if ($null -ne $n -and $inner.Count -and -not $inner.ContainsKey("$n")) { $usb += $e } else { $int += $e } }
+    return [pscustomobject]@{ Internal = $int; External = $usb }
+}
 function Test-Diskless($Data) {
     # 노하드(네트워크 부팅): 디스크가 iSCSI·가상(파일) 디스크뿐 (가상 머신 제외)
     if ([bool](Get-Prop (Get-Prop $Data 'System') 'IsVM')) { return $false }
@@ -620,7 +634,8 @@ function Get-Diagnosis {
     $dumps = @(Get-Arr (Get-Prop $Data 'Dumps'))
     $gpuEv = @(Get-Arr (Get-Prop $Data 'GpuEvents'))
     $whea = @(Get-Arr (Get-Prop $Data 'Whea'))
-    $diskEv = @(Get-Arr (Get-Prop $Data 'DiskEvents'))
+    $dsplit = Split-DiskEvents $Data
+    $diskEv = @($dsplit.Internal); $extDiskEv = @($dsplit.External)
     $disks = @(Get-Arr (Get-Prop $Data 'Disks'))
     $memDiag = @(Get-Arr (Get-Prop $Data 'MemDiag'))
     $nv = @(Get-Arr (Get-Prop $Data 'NvSmi'))
@@ -842,6 +857,9 @@ function Get-Diagnosis {
         if ($null -ne $re -and [int64]$re -gt 0) { & $add 'DISK' 15 "복구 불가 읽기 오류 $re"; & $find 'warn' 'DISK' "디스크 읽기 오류 ($(Get-Prop $dk 'Name'))" "복구되지 않은 읽기 오류 $re 회." 8 }
         $tc = Get-Prop $dk 'TempC'
         if ($null -ne $tc -and [int]$tc -ge 70) { & $add 'THERMAL' 6 'SSD 고온'; & $find 'warn' 'DISK' "SSD 온도 높음 ($tc °C)" 'NVMe 방열판/공기 흐름을 확인하세요.' 3 }
+    }
+    if ($extDiskEv.Count) {
+        & $find 'info' 'DISK' "USB·카드 리더 디스크 오류 $($extDiskEv.Count) 건" 'PC 내부 디스크가 아니라 USB 메모리·외장 디스크·카드 리더에서 난 오류입니다. 해당 장치를 빼거나 바꿔 보세요 (PC 고장 원인으로 보지 않음).' 0
     }
     if ($diskEv.Count) {
         & $add 'DISK' ([math]::Min(30, 3 * $diskEv.Count)) "디스크 오류 기록 $($diskEv.Count) 건"
@@ -1346,7 +1364,7 @@ function Get-NewSince($Data, [datetime]$Since) {
     if ($bsodEv -gt $n.Bsod) { $n.Bsod = $bsodEv }
     $n.Gpu = @(@(Get-Arr (Get-Prop $Data 'GpuEvents')) | Where-Object { & $after $_ }).Count
     $n.Whea = @(@(Get-Arr (Get-Prop $Data 'Whea')) | Where-Object { & $after $_ }).Count
-    $n.Disk = @(@(Get-Arr (Get-Prop $Data 'DiskEvents')) | Where-Object { & $after $_ }).Count
+    $n.Disk = @(@((Split-DiskEvents $Data).Internal) | Where-Object { & $after $_ }).Count   # USB·카드 리더 오류 제외
     # 노하드는 Windows 기록이 없으므로 지난 검사 이후 끝난 블랙박스 기록 중 이상(bad·warn) 판정도 셈
     $n.Blackbox = @(@(Get-Arr (Get-Prop $Data 'Blackbox')) | Where-Object { $e = ConvertTo-Date (Get-Prop $_ 'End'); $null -ne $e -and $e -gt $Since -and [string](Get-Prop $_ 'Level') -in 'bad', 'warn' }).Count
     return $n
@@ -2884,7 +2902,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:과열 보호: (?:그래픽카드|Graphics card) ([\d.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'), @('예상하지 못한 오류가 발생했습니다.', 'An unexpected error occurred.'), @('점검: ', 'Checked by: '), @('블랙박스 이상', 'Blackbox failure'), @('다음 정밀 검사 추천: ', 'Recommended next test: '), @("프로그램의 '정밀 검사'에서 실행해 원인을 확인하세요.", "Run it from 'Detailed tests' in the program to confirm the cause."), @('RE:블랙박스: RAM 검사 오류 (\d+) 건 뒤 꺼짐 \(RAM 불량 의심\)', 'Blackbox: shut down after $1 RAM test error(s) (faulty RAM suspected)'), @('RE:블랙박스: VRAM 검사 오류 (\d+) 건 뒤 꺼짐 \(그래픽카드 불량 의심\)', 'Blackbox: shut down after $1 VRAM test error(s) (faulty graphics card suspected)'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:USB·카드 리더 디스크 오류 (\d+) 건', 'USB / card-reader disk errors: $1'), @('PC 내부 디스크가 아니라 USB 메모리·외장 디스크·카드 리더에서 난 오류입니다. 해당 장치를 빼거나 바꿔 보세요 (PC 고장 원인으로 보지 않음).', 'These errors came from a USB stick, external disk or card reader, not an internal disk. Unplug or replace that device (not treated as a PC fault).'), @('RE:과열 보호: (?:그래픽카드|Graphics card) ([\d.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'), @('예상하지 못한 오류가 발생했습니다.', 'An unexpected error occurred.'), @('점검: ', 'Checked by: '), @('블랙박스 이상', 'Blackbox failure'), @('다음 정밀 검사 추천: ', 'Recommended next test: '), @("프로그램의 '정밀 검사'에서 실행해 원인을 확인하세요.", "Run it from 'Detailed tests' in the program to confirm the cause."), @('RE:블랙박스: RAM 검사 오류 (\d+) 건 뒤 꺼짐 \(RAM 불량 의심\)', 'Blackbox: shut down after $1 RAM test error(s) (faulty RAM suspected)'), @('RE:블랙박스: VRAM 검사 오류 (\d+) 건 뒤 꺼짐 \(그래픽카드 불량 의심\)', 'Blackbox: shut down after $1 VRAM test error(s) (faulty graphics card suspected)'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
