@@ -164,6 +164,17 @@ It 'Windows 안정성 지수: 요약·낮으면 안내·보고서 표시 (영어
     try { $he = New-HtmlReport -Data $d -Dx $dx; Assert ($he -match 'Low Windows stability index \(2.1/10\)') '영어 제목'; Assert ($he -match 'latest 2.1 / 10') '영어 표'
         $m = [regex]::Matches($he, '[^<>"]{0,20}[가-힣]+[^<>"]{0,20}'); Assert ($m.Count -eq 0) "한글 남음: $(($m | Select-Object -First 3 | ForEach-Object Value) -join ' | ')" } finally { $script:UiLang = $old }
 }
+It '요약 복사 버튼: 화면 문구 영어 번역, 요약은 비어 있지 않음' {
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try {
+        Assert-Eq (Tr '요약 복사') 'Copy summary' '버튼'
+        Assert ((Tr '요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)') -notmatch '[가-힣]') '상태 문구'
+        Assert ((Tr '복사하지 못했습니다: Access denied') -notmatch '[가-힣]') '실패 문구'
+    } finally { $script:UiLang = $old }
+    $d = New-Scenario @{}; Assert ((Get-SummaryText $d (Get-Diagnosis -Data $d)).Length -gt 20) '요약 내용'
+    $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
+    Assert ($src -match '\$copyB\.SetBounds') '배치 계산에 포함 (레이아웃 검사 대상)'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

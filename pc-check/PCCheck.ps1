@@ -2187,6 +2187,7 @@ function Show-Gui {
 
     $report = New-Object Windows.Forms.Button; $report.Text = '보고서 열기'; $report.Enabled = $false
     $folder = New-Object Windows.Forms.Button; $folder.Text = '저장 폴더 열기'; $folder.Enabled = $false
+    $copyB = New-Object Windows.Forms.Button; $copyB.Text = '요약 복사'; $copyB.Enabled = $false
 
     $grp = New-Object Windows.Forms.GroupBox; $grp.Text = '정밀 검사 (공식 출처에서 받아 실행)'
     $toolBtns = New-Object System.Collections.ArrayList
@@ -2214,6 +2215,8 @@ function Show-Gui {
     }
     $report.Add_Click({ if ($state.Result) { Start-Process $state.Result.Html } })
     $folder.Add_Click({ if ($state.Result) { Start-Process 'explorer.exe' "/select,`"$($state.Result.Html)`"" } })
+    # 메신저 상담용 요약을 클립보드로 (이 PC 안에서만 — 외부 전송 없음)
+    $copyB.Add_Click({ try { if ($state.Summary) { [Windows.Forms.Clipboard]::SetText($state.Summary); $status.Text = Tr '요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)' } } catch { $status.Text = Tr "복사하지 못했습니다: $($_.Exception.Message)" } })
     # 수집이 끝난 뒤(화면 스레드) 분석·저장·표시
     $finish = {
         param($data)
@@ -2223,6 +2226,7 @@ function Show-Gui {
             $dx = Get-Diagnosis -Data $data
             $bar.Value = $bar.Maximum - 1
             $state.Result = Save-Results -Data $data -Dx $dx -Dir $OutDir -Track
+            $state.Summary = Get-SummaryText $data $dx
             $bar.Value = $bar.Maximum
             $score.Text = "$($dx.Health)"
             $score.ForeColor = $(if ($dx.Health -ge 90) { [Drawing.Color]::SeaGreen } elseif ($dx.Health -ge 70) { [Drawing.Color]::DarkOrange } else { [Drawing.Color]::Firebrick })
@@ -2240,7 +2244,7 @@ function Show-Gui {
                 $it.ToolTipText = (Tr $x.Detail); [void]$list.Items.Add($it)
             }
             $list.ShowItemToolTips = $true
-            $report.Enabled = $true; $folder.Enabled = $true
+            $report.Enabled = $true; $folder.Enabled = $true; $copyB.Enabled = $true
             $status.Text = (Tr '완료 — 보고서: ') + $state.Result.Html
             # 다음에 할 정밀 검사 버튼 강조
             $recKey = Get-RecommendedTool $dx
@@ -2303,7 +2307,7 @@ function Show-Gui {
     })
     $f.Add_FormClosing({ if ($state.Job) { try { $state.Job.PS.Stop() } catch {} } })
 
-    $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $noteLbl, $noteBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $grp))
+    $f.Controls.AddRange(@($title, $desc, $daysLbl, $daysBox, $noteLbl, $noteBox, $start, $bar, $status, $score, $grade, $list, $report, $folder, $copyB, $grp))
     if ($script:UiLang -eq 'en') {
         # 화면 글자 번역 (컨트롤 · 목록 머리글 · 기간 선택)
         $f.Text = Tr $f.Text
@@ -2334,8 +2338,9 @@ function Show-Gui {
         $top = & $u 184; $leftW = & $u 150
         $score.SetBounds($m, $top, $leftW, (& $u 56))
         $grade.SetBounds($m + (& $u 2), $top + (& $u 58), $leftW, (& $u 26))
-        $report.SetBounds($m, $top + (& $u 92), $leftW, (& $u 36))
-        $folder.SetBounds($m, $top + (& $u 134), $leftW, (& $u 36))
+        $report.SetBounds($m, $top + (& $u 90), $leftW, (& $u 32))
+        $folder.SetBounds($m, $top + (& $u 128), $leftW, (& $u 32))
+        $copyB.SetBounds($m, $top + (& $u 166), $leftW, (& $u 32))
         $lx = $m + $leftW + (& $u 10)
         $list.SetBounds($lx, $top, $W - $m - $lx, [math]::Max((& $u 80), $grpTop - (& $u 10) - $top))
         $list.Columns[0].Width = [math]::Max((& $u 120), $list.ClientSize.Width - $list.Columns[1].Width - $list.Columns[2].Width - 4)
@@ -2374,6 +2379,7 @@ function Show-Gui {
             if ($state.Failed) { $issues += "검사 흐름 오류: $($state.Failed)" }
             elseif (-not $state.Result -or -not (Test-Path $state.Result.Html)) { $issues += '검사 흐름: 180초 안에 보고서가 만들어지지 않음' }
             elseif ($list.Items.Count -lt 1) { $issues += '검사 흐름: 결과 목록이 비어 있음' }
+            elseif (-not $copyB.Enabled -or -not $state.Summary) { $issues += '검사 흐름: 요약 복사 준비 안 됨' }
             else { Write-Output "GUI E2E OK: $([int]$sw.Elapsed.TotalSeconds)s, 점수 $($score.Text), 목록 $($list.Items.Count)개, 상태줄 '$($status.Text)'" }
             foreach ($i in $issues) { Write-Output "GUI ISSUE: $i" }
         }
@@ -2676,7 +2682,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
