@@ -1238,6 +1238,10 @@ It 'Measure-Object -Property 미사용 (5.1 은 해시 테이블 키를 못 읽�
         Assert ($bad.Count -eq 0) "$(Split-Path $f -Leaf) 줄 $(($bad | ForEach-Object LineNumber) -join ',')"
     }
 }
+It 'Where-Object 축약형(Where-Object Key -eq ...) 미사용 — 5.1 에서 해시 테이블 항목은 조용히 빠짐' {
+    $bad = @(Select-String -Path (Join-Path $PSScriptRoot '..\PCCheck.ps1') -Pattern 'Where-Object\s+[A-Za-z]\w*\s+-(eq|ne|match|like|gt|lt|ge|le|in|contains)\b')
+    Assert ($bad.Count -eq 0) "줄 $(($bad | ForEach-Object LineNumber) -join ',') — 스크립트 블록 { `$_.Key -eq ... } 사용"
+}
 It '정수 리터럴 [math]::Min/Max 함정 없음 (소수가 정수로 잘림)' {
     # [math]::Min(1, 0.39) 은 정수 버전이 골라져 0 이 됨 → 소수가 섞이는 식에는 1.0 처럼 실수 리터럴을 써야 함
     $src = [IO.File]::ReadAllLines((Join-Path $root 'PCCheck.ps1'))
