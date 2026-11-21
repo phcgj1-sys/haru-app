@@ -20,6 +20,7 @@ param(
     [string]$OutDir,
     [string]$FromJson,
     [string]$Note,
+    [string]$Shop,
     [switch]$NoOpen,
     [switch]$GuiSmokeTest,
     [ValidateSet('auto', 'ko', 'en')][string]$Lang = 'auto',
@@ -1109,6 +1110,7 @@ function Get-SummaryText($Data, $Dx) {
     $s = Get-Prop $Data 'System'; $m = Get-Prop $Data 'Meta'
     $L = New-Object System.Collections.ArrayList
     [void]$L.Add("[$($script:AppName) v$($script:AppVersion)] $(([string](Get-Prop $m 'Created')).Replace('T',' ')) · 최근 $(Get-Prop $m 'Days')일")
+    if (Get-Prop $m 'Shop') { [void]$L.Add('점검: %%PCSHOP%%') }
     if (Get-Prop $m 'Note') { [void]$L.Add('메모: %%PCNOTE%%') }
     [void]$L.Add("상태 점수: $($Dx.Health)/100 ($($Dx.Grade))")
     [void]$L.Add("PC: $(Get-Prop $s 'CPU') / RAM $(Get-Prop $s 'RamGB')GB / $((@(Get-Arr (Get-Prop $Data 'Gpus')) | ForEach-Object { Get-Prop $_ 'Name' }) -join ', ')")
@@ -1128,7 +1130,7 @@ function Get-SummaryText($Data, $Dx) {
         [void]$L.Add('의심 원인:')
         $i = 0; foreach ($x in $Dx.Causes | Select-Object -First 3) { $i++; [void]$L.Add("  $i. $($x.Name) — $($x.Score)점(가능성 $($x.Confidence)): $(@($x.Reasons | Select-Object -First 2) -join '; ')") }
     }
-    return (Tr ($L -join "`r`n")).Replace('%%PCNOTE%%', [string](Get-Prop $m 'Note'))
+    return (Tr ($L -join "`r`n")).Replace('%%PCNOTE%%', [string](Get-Prop $m 'Note')).Replace('%%PCSHOP%%', [string](Get-Prop $m 'Shop'))
 }
 
 function New-HtmlReport {
@@ -1255,6 +1257,7 @@ function openAll(v){document.querySelectorAll('details').forEach(function(d){d.o
  <div class="ring $gradeCls"><svg width="128" height="128" viewBox="0 0 128 128"><circle class="bg" cx="64" cy="64" r="52"/><circle class="fg" cx="64" cy="64" r="52" stroke-dasharray="$dash $circS"/></svg><b>$($Dx.Health)</b><small>/ 100</small></div>
  <div class="hd"><h1>PC 진단 보고서</h1><div class="grade">상태: $(HtmlEnc $Dx.Grade)</div>
  $nextHtml
+ $(if (Get-Prop $m 'Shop') { "<p class='note'>점검: %%PCSHOP%%</p>" })
  $(if (Get-Prop $m 'Note') { "<p class='note'>메모: %%PCNOTE%%</p>" })
  <p class="sub">$(HtmlEnc (Get-Prop $m 'Computer')) · $(HtmlEnc ([string](Get-Prop $m 'Created')).Replace('T',' ')) · 최근 $(Get-Prop $m 'Days')일 분석 · v$(HtmlEnc (Get-Prop $m 'Version'))</p>
  <p class="sub">$(HtmlEnc (Get-Prop $s 'CPU')) · RAM $(HtmlEnc (Get-Prop $s 'RamGB'))GB · $(HtmlEnc ((@(Get-Arr (Get-Prop $Data 'Gpus')) | ForEach-Object { Get-Prop $_ 'Name' }) -join ', '))</p></div>
@@ -1324,13 +1327,13 @@ $(ConvertTo-HtmlTable (Get-Prop $Data 'DriverInstalls') @('T','Msg') @('시간',
 <h4>자주 충돌한 프로그램</h4>$(ConvertTo-HtmlTable (Get-Prop $Data 'AppCrashes') @('App','Count') @('프로그램','횟수'))</div></details>
 
 <div class="sign"><div><span>점검일</span><i></i></div><div><span>점검자 서명</span><i></i></div><div><span>고객 확인 서명</span><i></i></div></div>
-<footer>$(HtmlEnc $script:AppName) v$(HtmlEnc $script:AppVersion) · 이 보고서는 PC 안에서만 생성되었으며 어떤 정보도 외부로 전송되지 않았습니다.<br>
+<footer>$(if (Get-Prop $m 'Shop') { "점검: %%PCSHOP%%<br>" })$(HtmlEnc $script:AppName) v$(HtmlEnc $script:AppVersion) · 이 보고서는 PC 안에서만 생성되었으며 어떤 정보도 외부로 전송되지 않았습니다.<br>
 진단은 Windows 기록에 기반한 추정입니다. 하드웨어 교체 전에 정밀 검사(VRAM·RAM·부하 테스트)로 확인하세요.</footer>
 </main><script>$js</script></body></html>
 "@
     if ($script:UiLang -eq 'en') { $html = (Tr $html).Replace('<html lang="ko">', '<html lang="en">') }
     # 사용자가 쓴 메모는 번역하지 않고 그대로 (번역 후에 끼워 넣음)
-    $html = $html.Replace('%%PCNOTE%%', [System.Net.WebUtility]::HtmlEncode([string](Get-Prop $m 'Note')))
+    $html = $html.Replace('%%PCNOTE%%', [System.Net.WebUtility]::HtmlEncode([string](Get-Prop $m 'Note'))).Replace('%%PCSHOP%%', [System.Net.WebUtility]::HtmlEncode([string](Get-Prop $m 'Shop')))
     return $html
 }
 
@@ -1723,6 +1726,18 @@ function Get-StabilitySummary($Values) {
 function Get-DayChoices([int]$Days) {
     # 화면의 분석 기간 목록: 기본 7·30·90·180일 + 명령줄로 받은 값 (오름차순)
     return @(@(7, 30, 90, 180) + @($Days) | Where-Object { $_ -ge 1 -and $_ -le 365 } | Sort-Object -Unique)
+}
+function Get-ShopText([string]$Shop, [string]$Dir) {
+    # 매장(점검자) 이름·연락처: -Shop 값, 없으면 프로그램 옆 shop.txt 첫 줄 (보고서·요약에 표시, 최대 100자)
+    $t = $Shop
+    if (-not $t) {
+        if (-not $Dir) { $Dir = $(if ($PSScriptRoot) { $PSScriptRoot } else { [AppDomain]::CurrentDomain.BaseDirectory }) }
+        $f = Join-Path $Dir 'shop.txt'
+        if (Test-Path $f) { try { $t = @(Get-Content -Encoding UTF8 $f | Where-Object { $_.Trim() })[0] } catch {} }
+    }
+    $t = ([string]$t).Trim()
+    if ($t.Length -gt 100) { $t = $t.Substring(0, 100) }
+    return $t
 }
 function Get-BlackboxCloseQuestion($State) {
     # 기록 중 창을 닫으려 할 때 물어볼 문구 (기록 중이 아니면 빈 값)
@@ -2347,6 +2362,7 @@ function Show-Gui {
         try {
             $status.Text = Tr '분석 중...'
             if ($noteBox.Text.Trim()) { $data.Meta.Note = $noteBox.Text.Trim() }
+            if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
             $dx = Get-Diagnosis -Data $data
             $bar.Value = $bar.Maximum - 1
             $state.Result = Save-Results -Data $data -Dx $dx -Dir (Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)) -Track
@@ -2540,13 +2556,14 @@ function Write-ConsoleResult($Dx, $Res) {
     Write-TrHost "`n보고서: $($Res.Html)" -ForegroundColor Green
 }
 
-function Get-ConsoleRelaunchArgs([string]$Path, [int]$Days, [string]$OutDir, [string]$Lang, [string]$Note) {
+function Get-ConsoleRelaunchArgs([string]$Path, [int]$Days, [string]$OutDir, [string]$Lang, [string]$Note, [string]$Shop) {
     # 화면을 못 띄워 콘솔로 다시 실행할 때 사용자가 고른 저장 위치·언어·메모를 그대로 넘김
     $q = { param([string]$v) '"' + ($v -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"' }
     $a = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-NoExit', '-File', (& $q $Path), '-Mode', 'Console', '-Days', "$Days")
     if ($OutDir) { $a += @('-OutDir', (& $q $OutDir)) }
     if ($Lang) { $a += @('-Lang', $Lang) }
     if ($Note) { $a += @('-Note', (& $q $Note)) }
+    if ($Shop) { $a += @('-Shop', (& $q $Shop)) }
     return $a
 }
 function Start-ConsoleMenu($Res) {
@@ -2819,7 +2836,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('블랙박스 이상', 'Blackbox failure'), @('다음 정밀 검사 추천: ', 'Recommended next test: '), @("프로그램의 '정밀 검사'에서 실행해 원인을 확인하세요.", "Run it from 'Detailed tests' in the program to confirm the cause."), @('RE:블랙박스: RAM 검사 오류 (\d+) 건 뒤 꺼짐 \(RAM 불량 의심\)', 'Blackbox: shut down after $1 RAM test error(s) (faulty RAM suspected)'), @('RE:블랙박스: VRAM 검사 오류 (\d+) 건 뒤 꺼짐 \(그래픽카드 불량 의심\)', 'Blackbox: shut down after $1 VRAM test error(s) (faulty graphics card suspected)'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('점검: ', 'Checked by: '), @('블랙박스 이상', 'Blackbox failure'), @('다음 정밀 검사 추천: ', 'Recommended next test: '), @("프로그램의 '정밀 검사'에서 실행해 원인을 확인하세요.", "Run it from 'Detailed tests' in the program to confirm the cause."), @('RE:블랙박스: RAM 검사 오류 (\d+) 건 뒤 꺼짐 \(RAM 불량 의심\)', 'Blackbox: shut down after $1 RAM test error(s) (faulty RAM suspected)'), @('RE:블랙박스: VRAM 검사 오류 (\d+) 건 뒤 꺼짐 \(그래픽카드 불량 의심\)', 'Blackbox: shut down after $1 VRAM test error(s) (faulty graphics card suspected)'), @('점수 변화: ', 'Score history: '), @('RE: → 지금 (\d+)', ' → now $1'), @('Windows 메모리 진단 오류 (이후 검사 통과)', 'Windows Memory Diagnostic errors (passed a later test)'), @('RE:예전 검사에서 오류가 있었지만 ([\d\- :]+) 검사는 오류 없이 통과했습니다\.', 'An earlier test found errors, but the test on $1 passed with no errors.'), @('블랙박스(최근): ', 'Blackbox (latest): '), @('요약 복사', 'Copy summary'), @('요약을 복사했습니다 — 메신저 대화창에 붙여 넣으세요 (Ctrl+V)', 'Summary copied - paste it into your chat (Ctrl+V)'), @('복사하지 못했습니다: ', 'Could not copy: '), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
@@ -2907,6 +2924,7 @@ if ($Lang -eq 'auto') { $script:UiLang = Get-DefaultLang } else { $script:UiLang
 
 $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch {}
+$script:ShopText = Get-ShopText $Shop
 $script:OutDirDefault = -not $OutDir
 if (-not $OutDir) {
     $desk = [Environment]::GetFolderPath('Desktop'); if (-not $desk) { $desk = $HOME }
@@ -2947,7 +2965,7 @@ if ($Mode -eq 'Gui') {
             return
         }
 
-        Start-Process -FilePath 'powershell.exe' -ArgumentList (Get-ConsoleRelaunchArgs -Path $PSCommandPath -Days $Days -OutDir $OutDir -Lang $script:UiLang -Note $Note)
+        Start-Process -FilePath 'powershell.exe' -ArgumentList (Get-ConsoleRelaunchArgs -Path $PSCommandPath -Days $Days -OutDir $OutDir -Lang $script:UiLang -Note $Note -Shop $Shop)
         return
     }
 }
@@ -2955,6 +2973,7 @@ if ($Mode -eq 'Gui') {
 Write-TrHost "$($script:AppName) v$($script:AppVersion) — 최근 $Days 일 분석" -ForegroundColor Cyan
 $data = Invoke-Collect -Days $Days -Progress { param($i, $n, $name) Write-Host ("[{0}/{1}] {2}" -f $i, $n, (Tr $name)) }
 if ($Note) { $data.Meta.Note = $Note.Trim() }
+if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
 $dx = Get-Diagnosis -Data $data
 $res = Save-Results -Data $data -Dx $dx -Dir (Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)) -Track
 Write-ConsoleResult $dx $res

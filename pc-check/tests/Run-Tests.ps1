@@ -251,6 +251,21 @@ It '문서: 사용자용 명령줄 옵션은 모두 README 에 설명됨' {
     $readme = Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot '..\README.md')
     foreach ($n in $names) { Assert ($readme -match "-$n\b") "README 에 -$n 설명 없음" }
 }
+It '매장 정보(-Shop·shop.txt): 보고서 상단·하단·요약에 표시, HTML 안전, 영어에서도 원문 유지' {
+    $dir = Join-Path $OutDir ('shop_' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $dir | Out-Null
+    Assert-Eq (Get-ShopText '' $dir) '' '없으면 빈 값'
+    [IO.File]::WriteAllText((Join-Path $dir 'shop.txt'), "`r`n  OO컴퓨터 · 010-1234-5678  `r`n둘째 줄", (New-Object System.Text.UTF8Encoding($true)))
+    Assert-Eq (Get-ShopText '' $dir) 'OO컴퓨터 · 010-1234-5678' 'shop.txt 첫 줄'
+    Assert-Eq (Get-ShopText '직접 입력' $dir) '직접 입력' '-Shop 우선'
+    Assert-Eq (Get-ShopText ('가' * 150) $dir).Length 100 '100자 제한'
+    $d = New-Scenario @{}; $d.Meta.Shop = 'A&B <컴퓨터>'; $dx = Get-Diagnosis -Data $d
+    $h = New-HtmlReport -Data $d -Dx $dx
+    Assert ([regex]::Matches($h, '점검: A&amp;B &lt;컴퓨터&gt;').Count -ge 3) '상단·상담 요약·하단, HTML 인코딩'; Assert ($h -match '<footer>점검: ') '하단'
+    Assert ((Get-SummaryText $d $dx) -match '점검: A&B <컴퓨터>') '요약'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { Assert ((New-HtmlReport -Data $d -Dx $dx) -match 'Checked by: A&amp;B &lt;컴퓨터&gt;') '영어: 원문 유지' } finally { $script:UiLang = $lg }
+    Assert ((Get-ConsoleRelaunchArgs -Path 'x.ps1' -Days 30 -Shop 'S 1') -join ' ') -match '-Shop "S 1"' '콘솔 재실행에도 전달'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
