@@ -366,6 +366,17 @@ It '날짜별 차트: 진단 집계와 같은 기준 (블루스크린 41·그래
     Assert-Eq @($sr['갑자기 꺼짐'].T).Count 1 '블루스크린 41 제외'
     Assert ((Get-TimelineSvg $d) -match '<svg') '차트 생성'
 }
+It '그래픽 오류 직후 전원 버튼 강제 종료는 파워 부족 패턴으로 보지 않음' {
+    $t0 = (Get-Date).AddDays(-2)
+    $gpu = @([ordered]@{ T = (Format-T $t0); Source = 'Display'; Id = 4101; Xid = $null; Msg = 'x' })
+    $btn = Get-Diagnosis -Data (New-Scenario @{ GpuEvents = $gpu; Shutdowns = @([ordered]@{ T = (Format-T $t0.AddMinutes(3)); Code = ''; PowerButton = $true }) })
+    Assert (-not (@($btn.Findings) | Where-Object { $_.Title -match '^그래픽 오류 직후 꺼짐' })) '파워 패턴 아님'
+    Assert-Eq @($btn.Findings | Where-Object { $_.Title -match '강제 종료 1 회' }).Count 1 '멈춤 후 강제 종료로 표시'
+    $real = Get-Diagnosis -Data (New-Scenario @{ GpuEvents = $gpu; Shutdowns = @([ordered]@{ T = (Format-T $t0.AddMinutes(3)); Code = ''; PowerButton = $false }) })
+    Assert-Eq @($real.Findings | Where-Object { $_.Title -match '^그래픽 오류 직후 꺼짐' }).Count 1 '진짜 전원 차단은 그대로'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { $f = @($btn.Findings | Where-Object { $_.Title -match '강제 종료' })[0]; Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') '영어' } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
