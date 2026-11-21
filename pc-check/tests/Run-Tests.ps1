@@ -559,6 +559,14 @@ It '상담용 요약: 블랙박스 판정·지난 검사 대비 포함 (영어 �
     $old = $script:UiLang; $script:UiLang = 'en'
     try { $e = Get-SummaryText $d $dx; Assert ($e -notmatch '[가-힣]') "영어 한글 남음: $(([regex]::Matches($e, '.{0,15}[가-힣]+.{0,15}') | Select-Object -First 3 | ForEach-Object Value) -join ' | ')"; Assert ($e -match 'No new problems since the last scan') '영문' } finally { $script:UiLang = $old }
 }
+It '블랙박스: 메모리 검사 오류 뒤 꺼지면 원인과 제목이 일치 (RAM·VRAM)' {
+    $a = Read-BlackboxAnalysis (New-Bb2File 'bb_ramerr.csv' (Rep 10 @('full', 95, 99, 70, 99, 300, '', 3, '')))
+    Assert-Eq $a.Cause 'RAM' 'RAM 원인'; Assert ($a.Title -match 'RAM 검사 오류 3 건 뒤 꺼짐') "제목 $($a.Title)"
+    $g = Read-BlackboxAnalysis (New-Bb2File 'bb_vramerr.csv' (Rep 10 @('gpu', 10, 99, 70, 99, 250, '', 0, '', 5)))
+    Assert-Eq $g.Cause 'GPU_HW' 'VRAM 원인'; Assert ($g.Title -match 'VRAM 검사 오류 5 건 뒤 꺼짐') "제목 $($g.Title)"
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { foreach ($t in $a.Title, $g.Title) { Assert ((Tr $t) -notmatch '[가-힣]') "영어: $(Tr $t)" } } finally { $script:UiLang = $lg }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
