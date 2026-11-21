@@ -550,7 +550,9 @@ function Get-ProblemTrend($Data, [int]$RecentDays = 7) {
     $days = [int](Get-Prop $m 'Days'); if ($days -le $RecentDays) { return $null }
     $cut = $now.AddDays(-$RecentDays)
     $ts = @()
-    foreach ($k in 'Shutdowns', 'BugChecks', 'Whea') { $ts += @(@(Get-Arr (Get-Prop $Data $k)) | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') }) }
+    # 블루스크린은 BugCheck 와 코드가 있는 Kernel-Power 41 로 두 번 남으므로, 41 은 코드 없는 것(전원 끊김)만 셈
+    $ts += @(@(Get-Arr (Get-Prop $Data 'Shutdowns')) | Where-Object { -not (Format-BugCode (Get-Prop $_ 'Code')) } | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') })
+    foreach ($k in 'BugChecks', 'Whea') { $ts += @(@(Get-Arr (Get-Prop $Data $k)) | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') }) }
     $ts += @(@(Merge-GpuEvents (Get-Prop $Data 'GpuEvents')) | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') })
     $ts = @($ts | Where-Object { $_ -and $_ -ge $now.AddDays(-$days) })
     $recent = @($ts | Where-Object { $_ -ge $cut }).Count; $earlier = $ts.Count - $recent

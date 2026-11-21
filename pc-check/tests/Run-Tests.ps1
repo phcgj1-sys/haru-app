@@ -346,6 +346,8 @@ It '최근 추세: 최근 7일 문제가 이전보다 2배 이상 잦으면 안�
     $few = New-Scenario @{ Shutdowns = (& $mk @(1, 2)) }; $few.Meta.Days = 30
     Assert (-not (Get-ProblemTrend $few).Rising) '2건뿐이면 판단 안 함'
     $short = New-Scenario @{}; $short.Meta.Days = 7; Assert ($null -eq (Get-ProblemTrend $short)) '기간 7일이면 비교 안 함'
+    $bs = New-Scenario @{ BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' }); Shutdowns = @([ordered]@{ T = (T 1); Code = '0x116'; PowerButton = $false }) }; $bs.Meta.Days = 30
+    Assert-Eq (Get-ProblemTrend $bs).Recent 1 '블루스크린 1번은 1건 (BugCheck + 41 중복 제외)'
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $f = @((Get-Diagnosis -Data $up).Findings | Where-Object { $_.Title -match '잦아짐' })[0]; Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') "영어: $(Tr $f.Detail)" } finally { $script:UiLang = $lg }
 }
