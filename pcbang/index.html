@@ -126,6 +126,8 @@ canvas{max-width:100%}
 .foot{padding-top:0;padding-bottom:40px}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--fg);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;font-size:14px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
+.updbar{position:fixed;left:0;right:0;margin:0 auto;width:max-content;bottom:16px;z-index:98;display:flex;gap:8px;align-items:center;flex-wrap:wrap;max-width:calc(100% - 32px);background:var(--surface);color:var(--fg);border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.18);padding:10px 12px;border-radius:12px;font-size:14px}
+@media print{.updbar{display:none!important}}
 .steps{display:flex;flex-direction:column;gap:6px}
 .steps .st{display:flex;gap:8px;align-items:center;font-size:14px}
 .steps .st .ic{width:20px;text-align:center}

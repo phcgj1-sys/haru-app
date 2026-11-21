@@ -1870,7 +1870,21 @@ detect().then(function () { renderSummary(); renderSpec(); var t = $('.tabs [ari
 renderAllOut();
 var h = (location.hash || '').slice(1);
 if (h && $('[data-panel="' + h + '"]')) showTab(h);
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('../sw.js').catch(function () {});
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  navigator.serviceWorker.register('../sw.js').catch(function () {});
+  // 앱 파일은 캐시에서 먼저 열리므로, 새 버전이 배포되면 이번 화면은 옛 버전 그대로이고 새 버전은 뒤에서 설치됨
+  // → 설치가 끝나 새 버전이 이 화면을 넘겨받으면 알려 줌(점검 프로그램 파일도 새로 고침해야 새 것을 받음)
+  var hadCtl = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.addEventListener('controllerchange', function () {
+    if (!hadCtl) { hadCtl = true; return; } // 처음 설치는 알릴 필요 없음
+    if ($('#updBar')) return;
+    var bar = document.createElement('div'); bar.id = 'updBar'; bar.className = 'updbar'; bar.setAttribute('role', 'status');
+    bar.innerHTML = '<span>새 버전이 준비됐어요. 새로 고침하면 적용돼요' + (testBusy ? ' (지금 측정이 끝난 뒤 누르세요)' : '') + '.</span> <button class="btn sm primary" type="button" id="updGo">새로 고침</button> <button class="btn sm" type="button" id="updLater">나중에</button>';
+    document.body.appendChild(bar);
+    $('#updGo').addEventListener('click', function () { if (testBusy) { toast('측정이 끝난 뒤 눌러 주세요'); return; } location.reload(); });
+    $('#updLater').addEventListener('click', function () { bar.remove(); });
+  });
+}
 // 테스트·디버그용
 window.__pcbang = { igpuFromCpu: igpuFromCpu, matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, problems: problems, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
 })();
