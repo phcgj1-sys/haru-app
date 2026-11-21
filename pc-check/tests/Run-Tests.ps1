@@ -151,6 +151,19 @@ It '전원 버튼 강제 종료만 여러 번이면 심각(bad)으로 올리지 
     Assert-Eq $fa.Level 'bad' '진짜 전원 차단 3회는 심각'; Assert-Eq $fb.Level 'warn' '버튼 종료 3회는 주의'
     Assert ([int]$fb.Penalty -lt [int]$fa.Penalty) "감점 $($fb.Penalty) < $($fa.Penalty)"; Assert ($b.Health -gt $a.Health) '점수 덜 깎임'
 }
+It 'Windows 안정성 지수: 요약·낮으면 안내·보고서 표시 (영어 번역)' {
+    Assert ($null -eq (Get-StabilitySummary @())) '기록 없으면 null'
+    $sm = Get-StabilitySummary @([ordered]@{ T = '2026-11-12T10:00:00'; V = 8.5 }, [ordered]@{ T = '2026-11-14T10:00:00'; V = 2.1 }, [ordered]@{ T = '2026-11-13T10:00:00'; V = 5.0 })
+    Assert-Eq $sm.Latest 2.1 '가장 최근 값(시간순)'; Assert-Eq $sm.Min 2.1 '최저'; Assert-Eq $sm.Count 3 '개수'
+    $d = New-Scenario @{ Stability = $sm }; $dx = Get-Diagnosis -Data $d
+    Assert (@($dx.Findings | Where-Object { $_.Title -match '안정성 지수 낮음' }).Count -eq 1) '낮으면 안내'
+    $ok = Get-Diagnosis -Data (New-Scenario @{ Stability = (Get-StabilitySummary @([ordered]@{ T = '2026-11-14T10:00:00'; V = 9.0 })) })
+    Assert (@($ok.Findings | Where-Object { $_.Title -match '안정성 지수' }).Count -eq 0) '높으면 안내 없음'
+    $h = New-HtmlReport -Data $d -Dx $dx; Assert ($h -match '안정성 지수</td><td>최근 2.1 / 10') '보고서 표시'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $he = New-HtmlReport -Data $d -Dx $dx; Assert ($he -match 'Low Windows stability index \(2.1/10\)') '영어 제목'; Assert ($he -match 'latest 2.1 / 10') '영어 표'
+        $m = [regex]::Matches($he, '[^<>"]{0,20}[가-힣]+[^<>"]{0,20}'); Assert ($m.Count -eq 0) "한글 남음: $(($m | Select-Object -First 3 | ForEach-Object Value) -join ' | ')" } finally { $script:UiLang = $old }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
@@ -382,7 +395,7 @@ It '백그라운드 수집: 진행 상황 전달 후 데이터 반환' {
     $data = Complete-CollectAsync $job
     Assert ($null -eq $job.Sync.Error) "오류: $($job.Sync.Error)"
     Assert ($null -ne $data) '데이터 반환'
-    Assert-Eq $job.Sync.N 11 '단계 수 전달'
+    Assert-Eq $job.Sync.N 12 '단계 수 전달'
     Assert-Eq $data.Meta.Days 3 '기간 전달'
     [void](Get-Diagnosis -Data $data)
 }

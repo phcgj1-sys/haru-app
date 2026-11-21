@@ -459,6 +459,13 @@ function Invoke-Collect {
             })
         } }
         @{ Name = '블랙박스 기록';            Run = { $D.Blackbox = @(Find-BlackboxFiles $Days) } }
+        @{ Name = 'Windows 안정성 지수';      Run = {
+            # 신뢰성 모니터의 시스템 안정성 지수 (1~10, 읽기 전용). 수집 작업이 꺼진 PC 에서는 비어 있음
+            $since = [Management.ManagementDateTimeConverter]::ToDmtfDateTime((Get-Date).AddDays(-$Days))
+            $vals = @(Get-CimInstance Win32_ReliabilityStabilityMetrics -Filter "TimeGenerated >= '$since'" -ErrorAction SilentlyContinue |
+                ForEach-Object { [ordered]@{ T = (Format-T $_.TimeGenerated); V = [math]::Round([double]$_.SystemStabilityIndex, 2) } })
+            $D.Stability = Get-StabilitySummary $vals
+        } }
         @{ Name = '드라이버 설치·앱 충돌·온도'; Run = {
             $D.DriverInstalls = @(Get-EventsSafe 'System' 20001 'Microsoft-Windows-UserPnp' $since 200 | ForEach-Object {
                 $txt = Get-EventText $_
@@ -697,6 +704,12 @@ function Get-Diagnosis {
             & $add 'GPU_DRIVER' 18 '그래픽 드라이버 설치 직후(3일 이내)부터 문제 시작'
             & $find 'warn' 'GPU_DRIVER' '그래픽 드라이버 설치 직후부터 문제 시작' "$((($inst | Sort-Object -Descending | Select-Object -First 1)).ToString('yyyy-MM-dd')) 드라이버 설치 후 문제가 시작됐습니다. 이전 버전으로 되돌려 보세요 (DDU 사용)." 5
         }
+    }
+
+    # ---- 안정성 지수 (Windows 신뢰성 모니터) — 보조 지표
+    $stab = Get-Prop $Data 'Stability'
+    if ($stab -and $null -ne (Get-Prop $stab 'Latest') -and [double](Get-Prop $stab 'Latest') -lt 3) {
+        & $find 'info' 'DRIVER' "Windows 안정성 지수 낮음 ($(Get-Prop $stab 'Latest')/10)" '신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.' 0
     }
 
     # ---- 7) WHEA 하드웨어 오류
@@ -1212,6 +1225,7 @@ $findHtml
 <tr><td>모델</td><td>$(HtmlEnc (Get-Prop $s 'Model'))</td></tr>
 <tr><td>CPU</td><td>$(HtmlEnc (Get-Prop $s 'CPU')) ($(HtmlEnc (Get-Prop $s 'Cores'))코어 / $(HtmlEnc (Get-Prop $s 'Threads'))스레드)</td></tr>
 <tr><td>메인보드</td><td>$(HtmlEnc (Get-Prop $s 'Board')) · BIOS $(HtmlEnc (Get-Prop $s 'BIOS')) ($(HtmlEnc ([string](Get-Prop $s 'BIOSDate')).Split('T')[0]))</td></tr>
+$(if ($stb = Get-Prop $Data 'Stability') { "<tr><td>Windows 안정성 지수</td><td>최근 $(HtmlEnc (Get-Prop $stb 'Latest')) / 10 · 최저 $(HtmlEnc (Get-Prop $stb 'Min')) · 평균 $(HtmlEnc (Get-Prop $stb 'Avg'))</td></tr>" })
 <tr><td>마지막 부팅</td><td>$(HtmlEnc ([string](Get-Prop $s 'LastBoot')).Replace('T',' '))</td></tr>
 <tr><td>전원 관리</td><td>$(HtmlEnc (Get-Prop $s 'PowerPlan')) · 빠른 시작 $(if ((Get-Prop $s 'FastStartup') -eq 1) { '켜짐' } elseif ((Get-Prop $s 'FastStartup') -eq 0) { '꺼짐' } else { '-' })</td></tr>
 </table></div></details>
@@ -1610,6 +1624,14 @@ function Add-BlackboxEvent($Sync, [string]$Code, [switch]$Front) {
 function Get-BlackboxPending($Sync) {
     [Threading.Monitor]::Enter($Sync.SyncRoot)
     try { $v = [string]$Sync.Pending; $Sync.Pending = ''; return $v } finally { [Threading.Monitor]::Exit($Sync.SyncRoot) }
+}
+function Get-StabilitySummary($Values) {
+    # 안정성 지수 기록 → 최근값·최저값·평균 (기록 없으면 $null)
+    $v = @(@(Get-Arr $Values) | Where-Object { $null -ne (Get-Prop $_ 'V') } | Sort-Object { [string](Get-Prop $_ 'T') })
+    if (-not $v.Count) { return $null }
+    $nums = @($v | ForEach-Object { [double](Get-Prop $_ 'V') })
+    $mo = $nums | Measure-Object -Minimum -Average
+    return [ordered]@{ Latest = $nums[-1]; LatestT = [string](Get-Prop $v[-1] 'T'); Min = $mo.Minimum; Avg = [math]::Round($mo.Average, 1); Count = $nums.Count }
 }
 function Get-BlackboxCloseQuestion($State) {
     # 기록 중 창을 닫으려 할 때 물어볼 문구 (기록 중이 아니면 빈 값)
@@ -2654,7 +2676,7 @@ $script:EnPairs = @(
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
-    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
+    @('가장 최근 기록 그래프', 'Latest record chart'), @('RE:Windows 안정성 지수 낮음 \(([\d.]+)/10\)', 'Low Windows stability index ($1/10)'), @('신뢰성 모니터가 최근 충돌·오류를 많이 기록했습니다. 시작 메뉴에서 "안정성 기록 보기"로 날짜별 오류를 확인할 수 있습니다.', 'Reliability Monitor recorded many recent crashes and errors. Open "View reliability history" from the Start menu to see errors by date.'), @('Windows 안정성 지수', 'Windows stability index'), @('RE:최근 ([\d.]+) / 10 · 최저 ([\d.]+) · 평균 ([\d.]+)', 'latest $1 / 10 · min $2 · avg $3'), @('RE:블랙박스 기록 중입니다 \((\d+) 줄\)\.', 'Blackbox recording in progress ($1 rows).'), @('기록을 멈추고 창을 닫을까요?', 'Stop recording and close the window?'), @('기록 쓰기 실패 — 다시 시도 중 (USB 연결·여유 공간 확인)', 'Write failed - retrying (check the USB connection and free space)'), @('기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)', 'Recording stopped midway due to a write error (check the USB connection and free space)'), @('점검자 서명', 'Technician signature'), @('고객 확인 서명', 'Customer signature'), @('점검일', 'Date'), @('추천: 이 검사로 원인을 확인하세요', 'Recommended: confirm the cause with this test'),
     @('RE:과열 보호: 그래픽카드 ([\d\.]+) °C 가 이어져 테스트를 멈췄습니다\. 쿨링을 점검하세요\.', 'Overheat protection: the graphics card stayed at $1 °C, so the test was stopped. Check the cooling.'),
     @('블랙박스: 과열 보호로 테스트 중지 (과열 의심)', 'Black box: test stopped by overheat protection (overheating suspected)'),
     @('RE:테스트 중 그래픽카드 온도가 95°C 이상으로 이어져 하드웨어 보호를 위해 부하를 멈췄습니다 \(최고 (.+?)\)\. 팬·먼지·써멀을 점검한 뒤 다시 시험하세요\.', 'The graphics card stayed at 95 °C or more during the test, so the load was stopped to protect the hardware (max $1). Check fans, dust and thermal paste, then test again.'),
