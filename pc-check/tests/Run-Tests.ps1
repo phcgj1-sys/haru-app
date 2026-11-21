@@ -620,6 +620,14 @@ It '영어 모드: 저장 파일 이름에 한글 없음 (PCCheck_...)' {
     } finally { $script:UiLang = $old }
     Assert ((Get-OutputPrefix) -eq 'PC진단') '한국어는 기존 이름 유지'
 }
+It '보고서 탭 제목: PC 이름·날짜 포함 (여러 보고서를 열어도 구분, 영어·HideName 반영)' {
+    $d = New-Scenario @{}; $d.Meta.Computer = 'SHOP-PC7'; $d.Meta.Created = '2026-11-14T10:00:00'
+    $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)
+    Assert ($h -match '<title>PC 진단 보고서 — SHOP-PC7 2026-11-14</title>') '한국어 제목'
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try { Assert ((New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)) -match '<title>[^<가-힣]+ — SHOP-PC7 2026-11-14</title>') '영어 제목' } finally { $script:UiLang = $lg }
+    $x = Hide-ComputerName $d; Assert ((New-HtmlReport -Data $x -Dx (Get-Diagnosis -Data $x)) -notmatch 'SHOP-PC7') 'HideName 이면 제목에도 없음'
+}
 It '인쇄용 점검 확인란: 화면에서는 숨기고 인쇄 시에만 표시' {
     $h = New-HtmlReport -Data (New-Scenario @{}) -Dx (Get-Diagnosis -Data (New-Scenario @{}))
     Assert ($h -match 'class="sign"') '확인란'; Assert ($h -match '\.sign\{display:none') '화면 숨김'; Assert ($h -match '@media print\{\.sign\{display:flex\}') '인쇄 표시'

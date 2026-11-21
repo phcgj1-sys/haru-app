@@ -1346,7 +1346,7 @@ function openAll(v){document.querySelectorAll('details').forEach(function(d){d.o
 
     $html = @"
 <!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PC 진단 보고서</title><style>$css</style></head><body><main>
+<title>PC 진단 보고서 — $(HtmlEnc (Get-Prop $m 'Computer')) $(HtmlEnc ([string](Get-Prop $m 'Created')).Split('T')[0])</title><style>$css</style></head><body><main>
 <header>
  <div class="ring $gradeCls"><svg width="128" height="128" viewBox="0 0 128 128"><circle class="bg" cx="64" cy="64" r="52"/><circle class="fg" cx="64" cy="64" r="52" stroke-dasharray="$dash $circS"/></svg><b>$($Dx.Health)</b><small>/ 100</small></div>
  <div class="hd"><h1>PC 진단 보고서</h1><div class="grade">상태: $(HtmlEnc $Dx.Grade)</div>
