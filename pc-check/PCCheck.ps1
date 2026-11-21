@@ -1468,8 +1468,21 @@ function Read-History {
     foreach ($k in ($all.Keys | Sort-Object { [string]($_ -split '\|', 2)[1] })) { $all[$k] }
 }
 function Get-ShortHash([string]$Text) {
-    $h = [Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($Text))
+    # FIPS 정책이 켜진 PC(회사·관공서)에서는 5.1 의 SHA256.Create() 가 예외를 내므로 FIPS 호환 구현 사용, 그래도 안 되면 간단한 해시
+    $bytes = [Text.Encoding]::UTF8.GetBytes($Text)
+    try { $alg = New-Object Security.Cryptography.SHA256CryptoServiceProvider; $h = $alg.ComputeHash($bytes); $alg.Dispose() }
+    catch { return (Get-FallbackHash $Text) }
     return (($h[0..5] | ForEach-Object { $_.ToString('x2') }) -join '')
+}
+function Get-FallbackHash([string]$Text) {
+    # 암호 구현을 쓸 수 없을 때: FNV-1a 32비트 두 번 (씨앗 다르게) → 12자리
+    $out = ''
+    foreach ($seed in [uint64]2166136261, [uint64]84696351) {
+        [uint64]$h = $seed
+        foreach ($b in [Text.Encoding]::UTF8.GetBytes($Text)) { $h = (($h -bxor [uint64]$b) * [uint64]16777619) -band [uint64]4294967295 }
+        $out += $h.ToString('x8')
+    }
+    return $out.Substring(0, 12)
 }
 function Get-MachineIdHash([string]$Uuid) {
     # 메인보드 고유 ID(SMBIOS UUID)의 한 방향 요약 — 원래 값은 저장하지 않음. 값이 없거나 모든 보드가 같은 기본값이면 빈 값
@@ -1514,7 +1527,8 @@ function Add-History($Data, $Dx) {
 function Save-Results {
     param($Data, $Dx, [string]$Dir, [switch]$Track)
     if (-not (Test-Path $Dir)) { New-Item -ItemType Directory -Force -Path $Dir | Out-Null }
-    if ($Track) { Add-Comparison $Data $Dx (Read-History) }
+    # 이력 비교는 부가 기능 — 실패해도 보고서는 저장
+    if ($Track) { try { Add-Comparison $Data $Dx (Read-History) } catch { Write-PCLog "comparison failed: $($_.Exception.Message)" } }
     $stamp = (ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created')); if (-not $stamp) { $stamp = Get-Date }
     $base = Join-Path $Dir ("{0}_{1:yyyyMMdd_HHmmss}" -f (Get-OutputPrefix), $stamp)
     $html = New-HtmlReport -Data $Data -Dx $Dx
@@ -1523,7 +1537,7 @@ function Save-Results {
     [IO.File]::WriteAllText("$base.json", (ConvertTo-Json -InputObject $Data -Depth 6), $utf8)
     # 메신저로 바로 보낼 수 있는 짧은 요약 (원인 Top 3 · 지금 할 일)
     [IO.File]::WriteAllText("$base.txt", (Get-SummaryText $Data $Dx), $utf8)
-    if ($Track) { Add-History $Data $Dx }
+    if ($Track) { try { Add-History $Data $Dx } catch { Write-PCLog "history failed: $($_.Exception.Message)" } }
     return [pscustomobject]@{ Html = "$base.html"; Json = "$base.json"; Txt = "$base.txt" }
 }
 

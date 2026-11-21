@@ -847,6 +847,16 @@ It '지난 검사 대비: 같은 이름이라도 하드웨어가 다른 PC 의 �
     $hist3 = @([ordered]@{ Created = '2026-11-10T09:00:00'; Computer = $a.Meta.Computer; Health = 40 })
     $dx3 = Get-Diagnosis -Data $a; Add-Comparison $a $dx3 $hist3; Assert ($null -ne $dx3['Previous']) '지문 없는 예전 기록은 이름만으로'
 }
+It '해시: FIPS 정책 PC 에서도 동작 (예비 해시는 결정적·12자리), 이력 오류가 나도 보고서 저장' {
+    Assert-Eq (Get-ShortHash 'abc') 'ba7816bf8f01' 'SHA-256 앞 6바이트'
+    $f1 = Get-FallbackHash 'board|cpu'; Assert-Eq $f1.Length 12 '12자리'; Assert-Eq (Get-FallbackHash 'board|cpu') $f1 '같은 입력 같은 값'
+    Assert ((Get-FallbackHash 'board|cpu2') -ne $f1) '다른 입력 다른 값'
+    Assert-Eq (Get-FallbackHash '') (Get-FallbackHash '') '빈 문자열'
+    $oldWd = $script:WorkDir; $script:WorkDir = Join-Path $OutDir ('wdf_' + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $script:WorkDir | Out-Null
+    [IO.File]::WriteAllText((Join-Path $script:WorkDir 'history.json'), '{ not json')   # 깨진 이력 파일
+    try { $d = New-Scenario @{}; $r = Save-Results -Data $d -Dx (Get-Diagnosis -Data $d) -Dir $OutDir -Track; Assert (Test-Path $r.Html) '이력이 깨져도 보고서 저장' } finally { $script:WorkDir = $oldWd }
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
