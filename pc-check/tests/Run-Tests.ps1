@@ -772,6 +772,9 @@ It '노하드 + 블랙박스 기록 없음: 기록이 비어도 양호라고 하
     $dl2 = New-Scenario @{ Disks = $dl.Disks; Blackbox = @($bb) }
     Assert ((Get-Diagnosis -Data $dl2).Grade -notmatch '판단 보류') '블랙박스가 있으면 정상 판정'
     Assert-Eq (Get-Diagnosis -Data (New-Scenario @{})).Grade '양호' '일반 PC 는 그대로'
+    Assert-Eq (Get-GradeClass $dx) 'warn' '판단 보류는 주의 색 (초록 아님)'
+    Assert-Eq (Get-GradeClass (Get-Diagnosis -Data (New-Scenario @{}))) 'ok' '양호는 초록'
+    Assert ((New-HtmlReport -Data $dl -Dx $dx) -match 'class="ring warn"') '보고서 점수 원도 주의 색'
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert ((Tr "상태: $($dx.Grade)") -notmatch '[가-힣]') "영어: $(Tr $dx.Grade)" } finally { $script:UiLang = $lg }
 }

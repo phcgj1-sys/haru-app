@@ -1196,7 +1196,7 @@ function Get-SummaryText($Data, $Dx) {
 function New-HtmlReport {
     param([Parameter(Mandatory)]$Data, [Parameter(Mandatory)]$Dx)
     $m = Get-Prop $Data 'Meta'; $s = Get-Prop $Data 'System'
-    $gradeCls = if ($Dx.Health -ge 90) { 'ok' } elseif ($Dx.Health -ge 70) { 'warn' } else { 'bad' }
+    $gradeCls = Get-GradeClass $Dx
     $circ = 2 * [math]::PI * 52
     $dash = ($circ * $Dx.Health / 100).ToString('0.##', [Globalization.CultureInfo]::InvariantCulture)
     $circS = $circ.ToString('0.##', [Globalization.CultureInfo]::InvariantCulture)
@@ -1828,6 +1828,11 @@ function Get-StabilitySummary($Values) {
 function Get-DayChoices([int]$Days) {
     # 화면의 분석 기간 목록: 기본 7·30·90·180일 + 명령줄로 받은 값 (오름차순)
     return @(@(7, 30, 90, 180) + @($Days) | Where-Object { $_ -ge 1 -and $_ -le 365 } | Sort-Object -Unique)
+}
+function Get-GradeClass($Dx) {
+    # 점수 색: 판단 보류(노하드 기록 없음)는 점수가 높아도 초록(양호)으로 보이지 않게 주의 색
+    if ([string]$Dx.Grade -match '판단 보류') { return 'warn' }
+    if ($Dx.Health -ge 90) { return 'ok' } elseif ($Dx.Health -ge 70) { return 'warn' } else { return 'bad' }
 }
 function Get-WindowTitle([string]$Shop) {
     # 창 제목: 프로그램 이름·버전 + 매장 이름 (매장 이름은 번역하지 않음)
@@ -2477,8 +2482,8 @@ function Show-Gui {
             $state.Summary = Get-SummaryText $data $dx
             $bar.Value = $bar.Maximum
             $score.Text = "$($dx.Health)"
-            $score.ForeColor = $(if ($dx.Health -ge 90) { [Drawing.Color]::SeaGreen } elseif ($dx.Health -ge 70) { [Drawing.Color]::DarkOrange } else { [Drawing.Color]::Firebrick })
-            $grade.Text = Tr "상태: $($dx.Grade)"
+            $score.ForeColor = $(switch (Get-GradeClass $dx) { 'ok' { [Drawing.Color]::SeaGreen } 'warn' { [Drawing.Color]::DarkOrange } default { [Drawing.Color]::Firebrick } })
+            $grade.Text = Tr "상태: $($dx.Grade)"; $tip.SetToolTip($grade, $grade.Text)   # 긴 등급(판단 보류 등)이 잘려도 전체 문구 확인
             foreach ($c in $dx.Causes | Select-Object -First 4) {
                 $it = New-Object Windows.Forms.ListViewItem((Tr "[원인] $($c.Name)"))
                 [void]$it.SubItems.Add("$($c.Score)"); [void]$it.SubItems.Add((Tr $c.Confidence))
