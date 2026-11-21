@@ -857,6 +857,19 @@ It '해시: FIPS 정책 PC 에서도 동작 (예비 해시는 결정적·12자�
     [IO.File]::WriteAllText((Join-Path $script:WorkDir 'history.json'), '{ not json')   # 깨진 이력 파일
     try { $d = New-Scenario @{}; $r = Save-Results -Data $d -Dx (Get-Diagnosis -Data $d) -Dir $OutDir -Track; Assert (Test-Path $r.Html) '이력이 깨져도 보고서 저장' } finally { $script:WorkDir = $oldWd }
 }
+It '저장: 보고서 생성이 실패해도 원자료(JSON)는 남아 -FromJson 으로 다시 만들 수 있음' {
+    $dir = Join-Path $OutDir ('sv_' + [guid]::NewGuid().ToString('N'))
+    $orig = ${function:New-HtmlReport}
+    try {
+        Set-Item function:script:New-HtmlReport { param($Data, $Dx) throw 'boom' }
+        $d = New-Scenario @{}; $err = $null
+        try { [void](Save-Results -Data $d -Dx (Get-Diagnosis -Data $d) -Dir $dir) } catch { $err = $_.Exception.Message }
+        Assert ($err -match '원자료는 저장됨') "오류 안내: $err"
+        Assert (@(Get-ChildItem $dir -Filter '*.json').Count -eq 1) 'JSON 저장됨'
+    } finally { Set-Item function:script:New-HtmlReport $orig }
+    $j = ConvertFrom-PCJson (Get-Content -Raw -Encoding UTF8 (Get-ChildItem $dir -Filter '*.json')[0].FullName)
+    Assert ((New-HtmlReport -Data $j -Dx (Get-Diagnosis -Data $j)) -match '<html') 'JSON 으로 다시 생성'
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'
