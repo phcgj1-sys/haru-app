@@ -826,6 +826,13 @@ It '지난 검사 대비: 같은 이름이라도 하드웨어가 다른 PC 의 �
     Assert ($null -eq $dx['Previous']) '다른 PC 기록은 비교 안 함'
     $hist2 = @([ordered]@{ Created = '2026-11-10T09:00:00'; Computer = $a.Meta.Computer; Fp = (Get-HwFingerprint $a); Health = 40 })
     $dx2 = Get-Diagnosis -Data $a; Add-Comparison $a $dx2 $hist2; Assert ($null -ne $dx2['Previous']) '같은 PC 는 비교'
+    $g = New-Scenario @{}; $g.Gpus = @([ordered]@{ Name = 'NVIDIA GeForce RTX 5080'; Vendor = 'NVIDIA' }); $g.System.RamGB = 64
+    Assert-Eq (Get-HwFingerprint $g) (Get-HwFingerprint $a) '그래픽카드·RAM 교체 후에도 같은 PC (수리 전후 비교 유지)'
+    $m1 = New-Scenario @{}; $m1.System.MachineId = (Get-MachineIdHash '4C4C4544-0042-3510-8048-B4C04F4E3132'); $m2 = New-Scenario @{}; $m2.System.MachineId = (Get-MachineIdHash '4C4C4544-0042-3510-8048-B4C04F4E9999')
+    Assert ((Get-HwFingerprint $m1) -ne (Get-HwFingerprint $m2)) '같은 모델이라도 보드 ID 가 다르면 다른 PC'
+    Assert-Eq (Get-MachineIdHash 'FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF') '' '기본값 UUID 무시'
+    Assert-Eq (Get-MachineIdHash '03000200-0400-0500-0006-000700080009') '' '흔한 기본값 무시'
+    Assert ((Get-MachineIdHash '4C4C4544-0042-3510-8048-B4C04F4E3132') -notmatch '4C4C') '원래 값 저장 안 함'
     $hist3 = @([ordered]@{ Created = '2026-11-10T09:00:00'; Computer = $a.Meta.Computer; Health = 40 })
     $dx3 = Get-Diagnosis -Data $a; Add-Comparison $a $dx3 $hist3; Assert ($null -ne $dx3['Previous']) '지문 없는 예전 기록은 이름만으로'
 }

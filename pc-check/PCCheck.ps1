@@ -385,6 +385,7 @@ function Invoke-Collect {
                 LastBoot = (Format-T $os.LastBootUpTime); PowerPlan = $plan; FastStartup = $fast
                 Model = ("$($cs.Manufacturer) $($cs.Model)").Trim()
                 CrashDump = $dumpCfg; PageFiles = $pageFiles
+                MachineId = (Get-MachineIdHash ([string](Get-CimInstance Win32_ComputerSystemProduct -ErrorAction SilentlyContinue).UUID))
                 IsVM = [bool]($cs.HypervisorPresent -and ("$($cs.Manufacturer) $($cs.Model)" -match 'Virtual|VMware|QEMU|KVM|Xen|Parallels|VirtualBox|Hyper-V|Amazon EC2|Google Compute'))
             }
         } }
@@ -1460,13 +1461,23 @@ function Read-History {
     }
     foreach ($k in ($all.Keys | Sort-Object { [string]($_ -split '\|', 2)[1] })) { $all[$k] }
 }
-function Get-HwFingerprint($Data) {
-    # 보드·CPU·RAM 용량·그래픽카드로 만든 짧은 지문 (개인 정보·일련번호는 쓰지 않음)
-    $s = Get-Prop $Data 'System'
-    $txt = "$(Get-Prop $s 'Board')|$(Get-Prop $s 'CPU')|$(Get-Prop $s 'RamGB')|$((@(Get-Arr (Get-Prop $Data 'Gpus')) | ForEach-Object { Get-Prop $_ 'Name' }) -join ',')"
-    if ($txt -eq '|||') { return '' }
-    $h = [Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($txt))
+function Get-ShortHash([string]$Text) {
+    $h = [Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($Text))
     return (($h[0..5] | ForEach-Object { $_.ToString('x2') }) -join '')
+}
+function Get-MachineIdHash([string]$Uuid) {
+    # 메인보드 고유 ID(SMBIOS UUID)의 한 방향 요약 — 원래 값은 저장하지 않음. 값이 없거나 모든 보드가 같은 기본값이면 빈 값
+    $u = $Uuid.Trim().ToUpperInvariant()
+    if (-not $u -or $u -match '^[0F-]+$' -or $u -eq '03000200-0400-0500-0006-000700080009') { return '' }
+    return (Get-ShortHash "uuid|$u")
+}
+function Get-HwFingerprint($Data) {
+    # 같은 이름의 다른 PC 구분용 짧은 지문. 메인보드 ID 가 있으면 그것만 (그래픽카드·RAM 을 바꿔도 같은 PC 로 인식), 없으면 보드·CPU
+    $s = Get-Prop $Data 'System'
+    $mid = [string](Get-Prop $s 'MachineId'); if ($mid) { return $mid }
+    $txt = "$(Get-Prop $s 'Board')|$(Get-Prop $s 'CPU')"
+    if ($txt -eq '|') { return '' }
+    return (Get-ShortHash $txt)
 }
 function Add-Comparison($Data, $Dx, $History) {
     $me = [string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')
