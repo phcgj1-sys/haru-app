@@ -341,7 +341,7 @@ function judge(game, sp, opt) {
   var ram = sp.ram || null;
   var rL = 'unk';
   if (ram) rL = lvl(ram, game.min.ram, game.rec.ram);
-  else if (sp.ramAtLeast) { // 브라우저 값은 2의 거듭제곱으로 내림: 실제는 al 이상 al*2 미만(8 이상이면 상한 모름)
+  else if (sp.ramAtLeast) { // 브라우저 값은 2의 거듭제곱 근사값(반올림 방식은 브라우저마다 다름, 크롬은 8GB 근처에서 멈춤). 대략 al 근처~al*2 미만으로 보고, 8 이상이면 상한 모름
     var al = sp.ramAtLeast, hi = al >= 8 ? Infinity : al * 2;
     rL = al >= game.rec.ram ? 'rec' : al >= game.min.ram ? (hi > game.rec.ram ? 'unk' : 'min') : (hi <= game.min.ram ? 'fail' : 'unk');
   }
@@ -479,7 +479,7 @@ function renderSpec() {
   kv('그래픽(브라우저)', d.renderer ? esc(d.renderer) + (sp.gpu && sp.src.gpu === '자동 감지' ? ' <span class="pill ok">' + esc(sp.gpu.name) + ' · 점수 ' + fmt(sp.gpu.score) + '</span>' : (matchGpu(d.renderer) ? '' : ' <span class="pill warn">표에 없음</span>')) : '<span class="muted">못 읽음</span>');
   if (d.webgpu) kv('WebGPU', esc(d.webgpu));
   kv('CPU 스레드', d.threads ? d.threads + '개 (논리 코어)' : '-');
-  kv('메모리(브라우저)', d.memGB ? d.memGB + 'GB 이상 (브라우저는 2의 거듭제곱으로 내림한 근사값만 알려 줘요. 예: 12GB → 8GB)' : '<span class="muted">못 읽음 (크롬·엣지만 지원)</span>');
+  kv('메모리(브라우저)', d.memGB ? '약 ' + d.memGB + 'GB (브라우저는 2의 거듭제곱으로 맞춘 근사값만 알려 주고 크롬은 8GB 근처에서 멈춰요. 예: 16GB·32GB → 8GB. 정확한 용량은 윈도우 점검 프로그램으로)' : '<span class="muted">못 읽음 (크롬·엣지만 지원)</span>');
   kv('운영체제', esc(d.osName || '-') + (d.is64 ? ' · 64비트' : ''));
   kv('화면', d.screen ? d.screen.w + '×' + d.screen.h + ' (배율 ' + d.screen.dpr + ') → 실제 ' + Math.round(d.screen.w * d.screen.dpr) + '×' + Math.round(d.screen.h * d.screen.dpr) : '-');
   kv('모니터 주사율', S.dev.hz ? S.dev.hz + 'Hz' : '<a href="#dev" data-goto="dev">측정하기</a>');
