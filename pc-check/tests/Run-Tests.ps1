@@ -277,6 +277,21 @@ It '영어: 시스템 정보가 비어 있어도(수집 실패) 한글이 남지
         Assert-Eq (Tr '(빌드 26100.2314)') '(build 26100.2314)' '소수점 빌드'
     } finally { $script:UiLang = $lg }
 }
+It '영어: 소스의 모든 Tr "..." 문구(화면·알림)가 번역됨, 짧은 낱말은 다른 낱말 속에서 바뀌지 않음' {
+    $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
+    $lg = $script:UiLang; $script:UiLang = 'en'; $miss = @()
+    try {
+        foreach ($m in [regex]::Matches($src, '\bTr \(?"((?:[^"`]|`.)*)"|\bTr \(?''([^'']*)''')) {
+            $lit = $(if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value })
+            if ($lit -notmatch '[가-힣]') { continue }
+            $sample = $lit -replace '\$\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)', '12' -replace '\$\w+(\.\w+)*', '12' -replace '`n', "`n"
+            if ((Tr $sample) -match '[가-힣]') { $miss += $lit }
+        }
+        Assert ($miss.Count -eq 0) "번역 없음 $($miss.Count): $(($miss | Select-Object -First 3) -join ' | ')"
+        Assert ((Tr '예상하지 못한 오류가 발생했습니다.') -notmatch 'yes') "짧은 낱말 '예' 가 낱말 속에서 바뀜"
+        Assert-Eq (Tr '예') 'yes' '단독 낱말은 번역'
+    } finally { $script:UiLang = $lg }
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
