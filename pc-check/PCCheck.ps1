@@ -1685,6 +1685,10 @@ function Get-StabilitySummary($Values) {
     $mo = $nums | Measure-Object -Minimum -Average
     return [ordered]@{ Latest = $nums[-1]; LatestT = [string](Get-Prop $v[-1] 'T'); Min = $mo.Minimum; Avg = [math]::Round($mo.Average, 1); Count = $nums.Count }
 }
+function Get-DayChoices([int]$Days) {
+    # 화면의 분석 기간 목록: 기본 7·30·90·180일 + 명령줄로 받은 값 (오름차순)
+    return @(@(7, 30, 90, 180) + @($Days) | Where-Object { $_ -ge 1 -and $_ -le 365 } | Sort-Object -Unique)
+}
 function Get-BlackboxCloseQuestion($State) {
     # 기록 중 창을 닫으려 할 때 물어볼 문구 (기록 중이 아니면 빈 값)
     if (-not $State -or -not $State.Box) { return '' }
@@ -2218,8 +2222,8 @@ function Show-Gui {
     $noteLbl = New-Object Windows.Forms.Label; $noteLbl.Text = '메모'; $noteLbl.AutoSize = $true
     $noteBox = New-Object Windows.Forms.TextBox; $noteBox.MaxLength = 200; $noteBox.Text = $Note
     $daysBox = New-Object Windows.Forms.ComboBox; $daysBox.DropDownStyle = 'DropDownList'
-    foreach ($o in '7일', '30일', '90일', '180일') { [void]$daysBox.Items.Add($o) }
-    $daysBox.SelectedItem = $(if ($Days -le 7) { '7일' } elseif ($Days -le 30) { '30일' } elseif ($Days -le 90) { '90일' } else { '180일' })
+    foreach ($o in (Get-DayChoices $Days)) { [void]$daysBox.Items.Add("$($o)일") }
+    $daysBox.SelectedItem = "$($Days)일"   # 명령줄 -Days 60 같은 값도 그대로 (90일로 바뀌지 않게)
 
     $start = New-Object Windows.Forms.Button
     $start.Text = '검사 시작'; $start.Font = $bold

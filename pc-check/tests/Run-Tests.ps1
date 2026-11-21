@@ -227,6 +227,13 @@ It 'JSON 재분석(-FromJson): PowerShell 7 에서도 날짜가 원래 형식 �
     $arr = ConvertFrom-PCJson '[{"Created":"2026-11-10T09:00:00","Health":60},{"Created":"2026-11-14T09:00:00","Health":80}]'
     Assert-Eq @($arr).Count 2 '배열 그대로'; Assert-Eq @($arr)[1].Created '2026-11-14T09:00:00' '배열 안 날짜'
 }
+It '화면 분석 기간 목록: 명령줄 -Days 값을 그대로 포함 (60 → 90 으로 바뀌지 않음)' {
+    Assert-Eq ((Get-DayChoices 30) -join ',') '7,30,90,180' '기본'
+    Assert-Eq ((Get-DayChoices 60) -join ',') '7,30,60,90,180' '60 추가'
+    Assert-Eq ((Get-DayChoices 365) -join ',') '7,30,90,180,365' '365 추가'
+    $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
+    Assert ($src -match [regex]::Escape('$daysBox.SelectedItem = "$($Days)일"')) '선택값 = 받은 값'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })
