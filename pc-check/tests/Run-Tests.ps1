@@ -326,6 +326,16 @@ It '디스크 오류: USB·카드 리더에서 난 오류는 PC 내부 디스크
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $f = @($dx.Findings | Where-Object { $_.Title -match 'USB' })[0]; Assert ((Tr "$($f.Title) $($f.Detail)") -notmatch '[가-힣]') '영어' } finally { $script:UiLang = $lg }
 }
+It '그래픽 오류: 같은 멈춤의 Display 4101 과 LiveKernelEvent 141 은 한 번만 셈' {
+    $t0 = (Get-Date).AddDays(-2)
+    $ev = @([ordered]@{ T = (Format-T $t0); Source = 'Display'; Id = 4101; Xid = $null; Msg = 'x' },
+            [ordered]@{ T = (Format-T $t0.AddSeconds(40)); Source = 'LiveKernelEvent'; Id = 1001; Xid = $null; Msg = 'LiveKernelEvent 141' },
+            [ordered]@{ T = (Format-T $t0.AddHours(5)); Source = 'LiveKernelEvent'; Id = 1001; Xid = $null; Msg = 'LiveKernelEvent 117' })
+    Assert-Eq @(Merge-GpuEvents $ev).Count 2 '중복 1건 제거, 따로 난 오류 보고는 유지'
+    $dx = Get-Diagnosis -Data (New-Scenario @{ GpuEvents = $ev })
+    Assert-Eq $dx.Counts.Gpu 2 '진단 집계 2건'
+    Assert-Eq @(Merge-GpuEvents @()).Count 0 '빈 목록'
+}
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
     $dx = Get-Diagnosis -Data (New-Scenario @{
         BugChecks = @([ordered]@{ T = (T 1); Code = '0x116' })

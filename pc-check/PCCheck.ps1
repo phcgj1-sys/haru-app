@@ -543,6 +543,19 @@ function Get-Prop($o, [string]$n) {
     $p = $o.PSObject.Properties[$n]; if ($p) { return $p.Value }; return $null
 }
 
+function Merge-GpuEvents($Events) {
+    # 한 번의 그래픽 드라이버 멈춤(TDR)은 Display 4101 과 Windows 오류 보고(LiveKernelEvent 141)로 두 번 남음 → 3분 안의 오류 보고는 같은 사건으로 보고 한 번만 셈
+    $all = @(Get-Arr $Events)
+    $base = @($all | Where-Object { [string](Get-Prop $_ 'Source') -ne 'LiveKernelEvent' })
+    $bt = @($base | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') } | Where-Object { $_ })
+    $out = @($base)
+    foreach ($e in @($all | Where-Object { [string](Get-Prop $_ 'Source') -eq 'LiveKernelEvent' })) {
+        $t = ConvertTo-Date (Get-Prop $e 'T'); $dup = $false
+        if ($t) { foreach ($b in $bt) { if ([math]::Abs(($t - $b).TotalMinutes) -le 3) { $dup = $true; break } } }
+        if (-not $dup) { $out += $e }
+    }
+    return $out
+}
 function Get-EventDiskNumber([string]$Text) {
     # 디스크 이벤트 본문의 '\Device\Harddisk2\DR2' 에서 디스크 번호
     if ($Text -match 'Harddisk(\d+)') { return [int]$Matches[1] }
@@ -632,7 +645,7 @@ function Get-Diagnosis {
     $shut = @(Get-Arr (Get-Prop $Data 'Shutdowns'))
     $bugEv = @(Get-Arr (Get-Prop $Data 'BugChecks'))
     $dumps = @(Get-Arr (Get-Prop $Data 'Dumps'))
-    $gpuEv = @(Get-Arr (Get-Prop $Data 'GpuEvents'))
+    $gpuEv = @(Merge-GpuEvents (Get-Prop $Data 'GpuEvents'))
     $whea = @(Get-Arr (Get-Prop $Data 'Whea'))
     $dsplit = Split-DiskEvents $Data
     $diskEv = @($dsplit.Internal); $extDiskEv = @($dsplit.External)
@@ -1362,7 +1375,7 @@ function Get-NewSince($Data, [datetime]$Since) {
     foreach ($s in @(Get-Arr (Get-Prop $Data 'Shutdowns'))) { if (& $after $s) { if (Format-BugCode (Get-Prop $s 'Code')) { $n.Bsod++ } else { $n.PowerLoss++ } } }
     $bsodEv = @(@(Get-Arr (Get-Prop $Data 'BugChecks')) | Where-Object { & $after $_ }).Count
     if ($bsodEv -gt $n.Bsod) { $n.Bsod = $bsodEv }
-    $n.Gpu = @(@(Get-Arr (Get-Prop $Data 'GpuEvents')) | Where-Object { & $after $_ }).Count
+    $n.Gpu = @(@(Merge-GpuEvents (Get-Prop $Data 'GpuEvents')) | Where-Object { & $after $_ }).Count
     $n.Whea = @(@(Get-Arr (Get-Prop $Data 'Whea')) | Where-Object { & $after $_ }).Count
     $n.Disk = @(@((Split-DiskEvents $Data).Internal) | Where-Object { & $after $_ }).Count   # USB·카드 리더 오류 제외
     # 노하드는 Windows 기록이 없으므로 지난 검사 이후 끝난 블랙박스 기록 중 이상(bad·warn) 판정도 셈
