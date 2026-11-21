@@ -1582,11 +1582,15 @@ function Get-LiveSample {
     return $s
 }
 
+function Get-HwEventFilter([datetime]$Since) {
+    # 위험·오류·경고만 (USB 를 꽂을 때 생기는 'Ntfs 98: 볼륨 정상' 같은 정보 이벤트를 오류로 세지 않도록)
+    return @{ LogName = 'System'; StartTime = $Since; Level = @(1, 2, 3); ProviderName = @('Microsoft-Windows-WHEA-Logger', 'Display', 'nvlddmkm', 'amdkmdag', 'disk', 'Ntfs') }
+}
 function Get-RecentHwEvents([datetime]$Since) {
     # 기록 중 새로 생긴 하드웨어/그래픽 오류 (짧은 코드로)
     $out = @()
     try {
-        $ev = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; StartTime = $Since; ProviderName = @('Microsoft-Windows-WHEA-Logger', 'Display', 'nvlddmkm', 'amdkmdag', 'disk', 'Ntfs') } -MaxEvents 20 -ErrorAction Stop)
+        $ev = @(Get-WinEvent -FilterHashtable (Get-HwEventFilter $Since) -MaxEvents 20 -ErrorAction Stop)
         foreach ($e in $ev) {
             $code = switch ($e.ProviderName) {
                 'Microsoft-Windows-WHEA-Logger' { "WHEA $($e.Id)" }

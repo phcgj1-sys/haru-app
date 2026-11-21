@@ -903,6 +903,13 @@ It 'CPU 부하: 컴파일된 고부하 연산으로 동작, 일시정지(출렁�
     } finally { Stop-CpuStress $c }
     $s0 = $c.Sync.Loops; Start-Sleep -Milliseconds 500; Assert-Eq $c.Sync.Loops $s0 '중지 후 멈춤'
 }
+It '블랙박스 실시간 오류 감시: 정보 이벤트(USB 연결 시 Ntfs 98 등)는 제외' {
+    $f = Get-HwEventFilter (Get-Date).AddMinutes(-1)
+    Assert ($f.ContainsKey('Level')) '심각도 필터 있음'
+    Assert (-not (@($f.Level) -contains 4)) '정보(4) 제외'
+    Assert ((@($f.Level) -contains 2) -and (@($f.Level) -contains 1)) '오류·위험 포함'
+    Assert (@($f.ProviderName) -contains 'Microsoft-Windows-WHEA-Logger') 'WHEA 감시'
+}
 It '기록 화면: 쓰기 재시도 중이면 경고 문구 (영어 번역 포함)' {
     Assert-Eq (Get-BlackboxWarnText @{ Warn = '' }) '' '정상이면 없음'
     Assert-Eq (Get-BlackboxWarnText $null) '' 'null 안전'
