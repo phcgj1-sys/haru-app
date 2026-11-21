@@ -243,6 +243,11 @@ It '-ExitCode: 무인 실행 결과를 종료 코드로 (0 양호 · 1 주의 ·
     Assert ($want -ge 1) '문제 시나리오는 0 아님'
     $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $jp -OutDir (Join-Path $OutDir 'ec2') -NoOpen -Lang ko 2>&1
     Assert-Eq $LASTEXITCODE 0 '-ExitCode 없으면 0'
+    $bad = Join-Path $OutDir ('ec_bad_' + [guid]::NewGuid().ToString('N') + '.json'); [IO.File]::WriteAllText($bad, '{ 이건 JSON 아님')
+    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson $bad -OutDir (Join-Path $OutDir 'ec3') -NoOpen -Lang ko -ExitCode 2>&1
+    Assert-Eq $LASTEXITCODE 3 '읽지 못하면 3 (주의 1 과 구분)'
+    $null = & $exe -NoProfile -File $ps1 -Mode Silent -FromJson (Join-Path $OutDir 'missing[1].json') -OutDir (Join-Path $OutDir 'ec4') -NoOpen -Lang ko -ExitCode 2>&1
+    Assert-Eq $LASTEXITCODE 3 '파일 없으면 3'
 }
 It '화면 분석 기간 목록: 명령줄 -Days 값을 그대로 포함 (60 → 90 으로 바뀌지 않음)' {
     Assert-Eq ((Get-DayChoices 30) -join ',') '7,30,90,180' '기본'

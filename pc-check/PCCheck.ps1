@@ -3229,9 +3229,11 @@ $script:LogFile = Join-Path $script:WorkDir ("logs\{0}.log" -f (Get-FileStamp (G
 Write-PCLog "$($script:AppName) v$($script:AppVersion) mode=$Mode days=$Days ps=$($PSVersionTable.PSVersion)"
 
 if ($FromJson) {
-    $data = ConvertFrom-PCJson (Get-Content -LiteralPath $FromJson -Raw -Encoding UTF8)
-    $dx = Get-Diagnosis -Data $data
-    $res = Save-Results -Data $data -Dx $dx -Dir $OutDir
+    try {
+        $data = ConvertFrom-PCJson (Get-Content -LiteralPath $FromJson -Raw -Encoding UTF8 -ErrorAction Stop)
+        $dx = Get-Diagnosis -Data $data
+        $res = Save-Results -Data $data -Dx $dx -Dir $OutDir
+    } catch { if ($ExitCode) { Write-PCLog "fromjson failed: $($_.Exception.Message)"; Write-Error $_ -ErrorAction Continue; exit 3 }; throw }
     Write-ConsoleResult $dx $res
     if ($Mode -eq 'Silent') { Write-Output $res; if ($ExitCode) { exit (Get-ResultExitCode $dx) }; return }
     if (-not $NoOpen) { Start-Process $res.Html }
@@ -3270,8 +3272,10 @@ if ($Note) { $data.Meta.Note = $Note.Trim() }
 if ($script:ShopText) { $data.Meta.Shop = $script:ShopText }
 if ($script:HideName) { $data = Hide-ComputerName $data }
 $rdir = Get-ReportDir $data $OutDir $script:OutDirDefault (Get-UsbRoot)
-$dx = Invoke-SafeDiagnosis $data $rdir
-$res = Save-Results -Data $data -Dx $dx -Dir $rdir -Track
+try {
+    $dx = Invoke-SafeDiagnosis $data $rdir
+    $res = Save-Results -Data $data -Dx $dx -Dir $rdir -Track
+} catch { if ($ExitCode) { Write-Error $_ -ErrorAction Continue; exit 3 }; throw }   # 1(주의)과 헷갈리지 않게 실행 실패는 3
 Write-ConsoleResult $dx $res
 if ($Mode -eq 'Silent') { Write-Output $res; if ($ExitCode) { exit (Get-ResultExitCode $dx) }; return }
 if (-not $NoOpen) { Start-Process $res.Html }
