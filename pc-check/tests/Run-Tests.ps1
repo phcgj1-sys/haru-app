@@ -281,15 +281,25 @@ It '영어: 소스의 모든 Tr "..." 문구(화면·알림)가 번역됨, 짧�
     $src = Get-Content -Raw (Join-Path $PSScriptRoot '..\PCCheck.ps1')
     $lg = $script:UiLang; $script:UiLang = 'en'; $miss = @()
     try {
-        foreach ($m in [regex]::Matches($src, '\bTr \(?"((?:[^"`]|`.)*)"|\bTr \(?''([^'']*)''')) {
+        foreach ($m in [regex]::Matches($src, '(?:\bTr|Write-TrHost|&\s?\$notify) \(?"((?:[^"`]|`.)*)"|(?:\bTr|Write-TrHost|&\s?\$notify) \(?''([^'']*)''')) {
             $lit = $(if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value })
             if ($lit -notmatch '[가-힣]') { continue }
-            $sample = $lit -replace '\$\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)', '12' -replace '\$\w+(\.\w+)*', '12' -replace '`n', "`n"
+            $sample = $lit -replace '\$\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)', '12' -replace '\$\w+(\.\w+)*', '12' -replace '\{\d+\}', '12' -replace '`n', "`n"
             if ((Tr $sample) -match '[가-힣]') { $miss += $lit }
         }
         Assert ($miss.Count -eq 0) "번역 없음 $($miss.Count): $(($miss | Select-Object -First 3) -join ' | ')"
         Assert ((Tr '예상하지 못한 오류가 발생했습니다.') -notmatch 'yes') "짧은 낱말 '예' 가 낱말 속에서 바뀜"
         Assert-Eq (Tr '예') 'yes' '단독 낱말은 번역'
+    } finally { $script:UiLang = $lg }
+}
+It '영어 콘솔 모드: 결과 출력에 한글이 남지 않음 (점수 단위 포함)' {
+    $lg = $script:UiLang; $script:UiLang = 'en'
+    try {
+        foreach ($k in $scenarios.Keys) {
+            $d = New-Scenario $scenarios[$k].Data; $dx = Get-Diagnosis -Data $d
+            $out = (Write-ConsoleResult $dx ([pscustomobject]@{ Html = 'x.html' }) 6>&1 | Out-String)
+            $m = [regex]::Matches($out, '.{0,20}[가-힣]+.{0,20}'); Assert ($m.Count -eq 0) "[$k] 한글 남음: $(($m | Select-Object -First 3 | ForEach-Object Value) -join ' | ')"
+        }
     } finally { $script:UiLang = $lg }
 }
 It '덤프와 이벤트의 같은 블루스크린은 한 번만 셈' {
