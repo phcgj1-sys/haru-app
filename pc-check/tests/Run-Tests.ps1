@@ -818,6 +818,17 @@ It '노하드 + 블랙박스 기록 없음: 기록이 비어도 양호라고 하
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert ((Tr "상태: $($dx.Grade)") -notmatch '[가-힣]') "영어: $(Tr $dx.Grade)" } finally { $script:UiLang = $lg }
 }
+It '지난 검사 대비: 같은 이름이라도 하드웨어가 다른 PC 의 기록과 섞지 않음' {
+    $a = New-Scenario @{}; $b = New-Scenario @{}; $b.System.CPU = 'Different CPU'
+    Assert ((Get-HwFingerprint $a) -ne (Get-HwFingerprint $b)) '지문 다름'; Assert-Eq (Get-HwFingerprint $a) (Get-HwFingerprint (New-Scenario @{})) '같은 PC 는 같은 지문'
+    $hist = @([ordered]@{ Created = '2026-11-10T09:00:00'; Computer = $a.Meta.Computer; Fp = (Get-HwFingerprint $b); Health = 40 })
+    $dx = Get-Diagnosis -Data $a; Add-Comparison $a $dx $hist
+    Assert ($null -eq $dx['Previous']) '다른 PC 기록은 비교 안 함'
+    $hist2 = @([ordered]@{ Created = '2026-11-10T09:00:00'; Computer = $a.Meta.Computer; Fp = (Get-HwFingerprint $a); Health = 40 })
+    $dx2 = Get-Diagnosis -Data $a; Add-Comparison $a $dx2 $hist2; Assert ($null -ne $dx2['Previous']) '같은 PC 는 비교'
+    $hist3 = @([ordered]@{ Created = '2026-11-10T09:00:00'; Computer = $a.Meta.Computer; Health = 40 })
+    $dx3 = Get-Diagnosis -Data $a; Add-Comparison $a $dx3 $hist3; Assert ($null -ne $dx3['Previous']) '지문 없는 예전 기록은 이름만으로'
+}
 It '단계 계획: 경과 시간별 단계와 출렁임 부하' {
     $g = Get-StageAt $script:StagePlan 0; Assert-Eq $g.Key 'idle' '시작'; Assert (-not $g.Cpu) '대기는 부하 없음'
     $g = Get-StageAt $script:StagePlan 130; Assert-Eq $g.Key 'cpu' 'CPU'; Assert $g.Cpu 'CPU 켬'

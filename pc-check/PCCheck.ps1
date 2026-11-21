@@ -1460,9 +1460,19 @@ function Read-History {
     }
     foreach ($k in ($all.Keys | Sort-Object { [string]($_ -split '\|', 2)[1] })) { $all[$k] }
 }
+function Get-HwFingerprint($Data) {
+    # 보드·CPU·RAM 용량·그래픽카드로 만든 짧은 지문 (개인 정보·일련번호는 쓰지 않음)
+    $s = Get-Prop $Data 'System'
+    $txt = "$(Get-Prop $s 'Board')|$(Get-Prop $s 'CPU')|$(Get-Prop $s 'RamGB')|$((@(Get-Arr (Get-Prop $Data 'Gpus')) | ForEach-Object { Get-Prop $_ 'Name' }) -join ',')"
+    if ($txt -eq '|||') { return '' }
+    $h = [Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes($txt))
+    return (($h[0..5] | ForEach-Object { $_.ToString('x2') }) -join '')
+}
 function Add-Comparison($Data, $Dx, $History) {
     $me = [string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')
-    $mine = @($History | Where-Object { [string](Get-Prop $_ 'Computer') -eq $me })
+    # 같은 이름이라도 다른 PC(같은 이미지로 부팅한 노하드 PC 등)의 기록과 섞이지 않도록 하드웨어 지문도 비교 (예전 기록엔 지문이 없으면 이름만)
+    $fp = Get-HwFingerprint $Data
+    $mine = @($History | Where-Object { [string](Get-Prop $_ 'Computer') -eq $me -and (-not $fp -or -not (Get-Prop $_ 'Fp') -or [string](Get-Prop $_ 'Fp') -eq $fp) })
     $prev = $mine | Select-Object -Last 1
     if (-not $prev) { return }
     # 최근 검사 점수 변화 (최대 5회) — 수리 전후 비교용
@@ -1473,7 +1483,7 @@ function Add-Comparison($Data, $Dx, $History) {
     $Dx.Previous = [ordered]@{ Created = (Format-T $pt); Health = [int](Get-Prop $prev 'Health'); New = $new; NewTotal = $total }
 }
 function Add-History($Data, $Dx) {
-    $h = @(Read-History) + @([ordered]@{ Created = (Get-Prop (Get-Prop $Data 'Meta') 'Created'); Computer = (Get-Prop (Get-Prop $Data 'Meta') 'Computer'); Health = $Dx.Health; Counts = $Dx.Counts })
+    $h = @(Read-History) + @([ordered]@{ Created = (Get-Prop (Get-Prop $Data 'Meta') 'Created'); Computer = (Get-Prop (Get-Prop $Data 'Meta') 'Computer'); Fp = (Get-HwFingerprint $Data); Health = $Dx.Health; Counts = $Dx.Counts })
     if ($h.Count -gt 50) { $h = $h[($h.Count - 50)..($h.Count - 1)] }
     $json = ConvertTo-Json -InputObject @($h) -Depth 5
     foreach ($p in (Get-HistoryPaths)) {
