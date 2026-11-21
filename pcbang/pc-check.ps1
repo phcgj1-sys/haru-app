@@ -735,8 +735,10 @@ try {
   }
   # 전원 관리
   if ($result.power) {
-    if ($result.power -eq '고성능' -or $result.power -eq '최고의 성능') { [void]$oks.Add(("전원 관리: {0}" -f $result.power)) }
-    else { [void]$warns.Add(("전원 관리가 [{0}] - 고성능으로 바꾸면 좋아요" -f $result.power)) }
+    # 복제한 고성능·최고의 성능(새 GUID, 영문 이름)도 정상으로. 절전·균형만 경고, 그 밖의 사용자 지정은 확인 안내
+    if ($result.power -match '고성능|최고|High performance|Ultimate') { [void]$oks.Add(("전원 관리: {0}" -f $result.power)) }
+    elseif ($result.power -match '절전|균형|Power saver|Balanced') { [void]$warns.Add(("전원 관리가 [{0}] - 고성능으로 바꾸면 좋아요" -f $result.power)) }
+    else { [void]$oks.Add(("전원 관리: {0} (사용자 지정 - 고성능 계열인지 확인)" -f $result.power)) }
   }
   # XMP
   if ($result.ramXmpOff -eq $true) { [void]$warns.Add(("메모리가 정격보다 느리게 동작 ({0} / 정격 {1}MT/s) - BIOS에서 XMP/EXPO 켜기 확인" -f $result.ramSpeed, $result.ramRated)) }

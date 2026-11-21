@@ -2,6 +2,10 @@
 
 반복 작업이 바퀴마다 한 일과 남은 일을 적는 곳이에요. 최신이 위.
 
+## 바퀴 82 (2026-11-21)
+- 고침(전원 관리 판정): pc-check 는 표준 전원 계획을 GUID 로 알아 한글 이름을 주지만, '최고의 성능'을 켜는 흔한 방법(powercfg -duplicatescheme)은 새 GUID 를 만들어 이름을 그대로 읽음 → 영문 윈도우 'Ultimate Performance'·'High performance' 는 웹(/고성능|최고/)·콘솔(-eq '고성능') 모두 '고성능으로 바꾸세요' 오탐, 매장 관리 프로그램의 사용자 지정 계획도 같은 경고. 고성능 계열(고성능|최고|High performance|Ultimate)은 정상, 절전·균형(Power saver·Balanced 포함)만 경고, 그 밖은 참고('사용자 지정 전원 관리 — 고성능 계열인지 확인').
+- 확인: 9가지 이름 판정(고성능·최고의 성능·Ultimate·High performance → 없음, 균형 조정·절전·Balanced → 경고, PC방 게임 모드·사용자 지정 → 참고). pc-check.ps1 BOM·CRLF 유지. smoke.js 종료 코드 0·모두 통과. sw.js haru-v109.
+
 ## 바퀴 81 (2026-11-21)
 - 점검(수정 없음): data.js 게임 요구 사양을 기억하는 공식 표와 대조 — 배그(스팀)·오버워치 2(블리자드)·롤(라이엇) 일치. 로스트아크는 data.js(국내 스토브 다운로드 페이지 기준: i3-10100·GTX 1050 Ti·16GB)가 해외 스팀 출시 때 사양(i3·GTX 460·8GB, shacknews)보다 높음 — 국내 사양이 올라간 것인지 확인하려 했으나 lostark.game.onstove.com 이 이 환경에서 막힘(DNS 실패). 추측으로 바꾸지 않고 '실제 확인 필요'로 남김.
 - 독립 검토 8차(pc-check.ps1 측정 정확성·웹 해석) 진행 중.
