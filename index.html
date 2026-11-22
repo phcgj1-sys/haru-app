@@ -96,12 +96,14 @@ a.card>span:last-child{flex:1;min-width:0}
 .ic:not([style]):not(.ja):not(.th):not(.cl){background:#111111}
 @media (prefers-color-scheme: dark){.ic:not([style]):not(.ja):not(.th):not(.cl){background:#3A3A40}}
 .foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted);line-height:1.6}.foot nav{display:flex;flex-wrap:wrap;gap:4px 16px;margin-bottom:8px}.foot nav a{color:var(--fg);font-size:13.5px;font-weight:600;text-decoration:none;padding:6px 0}.foot p{margin:6px 0}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--soft);border-radius:14px;padding:5px;margin:0 0 16px}.seg a{display:flex;flex-direction:column;justify-content:center;min-height:56px;border-radius:10px;padding:8px 12px;text-decoration:none;color:var(--muted)}.seg a b{font-size:15px;color:var(--fg)}.seg a span{font-size:12px}.seg a[aria-current="page"]{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.08)}.seg a:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 </style>
 </head>
 <body>
 <div class="app">
   <h1>하루 학습</h1>
   <p class="sub">하루 15분, 매일. 35가지 앱을 한곳에서.</p>
+  <nav class="seg" aria-label="학습 방식 고르기"><a href="index.html" aria-current="page"><b>기존 학습</b><span>앱별 전체 수업</span></a><a href="plan/index.html"><b>20시간 핵심 계획</b><span>핵심 20% · 2시간 × 10세션</span></a></nav>
   <details class="startguide" id="startguide"><summary>어디서 시작할까요? 목표별 추천 순서</summary>
     <div class="sg"><b>외국어를 매일 조금씩</b><ol><li><a href="en/index.html">하루영어</a></li><li><a href="listen/index.html">영어 듣기 집중</a></li><li><a href="ja/index.html">하루일본어</a></li><li><a href="th/index.html">하루태국어</a></li></ol></div>
     <div class="sg"><b>컴퓨터·스마트폰이 아직 어려워요</b><ol><li><a href="basics/index.html">스마트폰·컴퓨터 기초</a></li><li><a href="money/index.html">돈 관리 기초</a></li><li><a href="media/index.html">사진·영상 편집 기초</a></li><li><a href="writing/index.html">AI로 글쓰기</a></li></ol></div>

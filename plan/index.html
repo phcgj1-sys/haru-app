@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F0F10" media="(prefers-color-scheme: dark)">
+<title>20시간 핵심 계획 · 하루 학습</title>
+<meta name="description" content="앱마다 결과의 80%를 만드는 20% 핵심 개념만 골라 2시간 세션 10개로 끝내는 20시간 계획. 세션마다 마지막 15분은 복습.">
+<meta property="og:title" content="20시간 핵심 계획 · 하루 학습">
+<meta property="og:description" content="앱마다 핵심 20%만 골라 2시간 × 10세션. 세션마다 15분 복습 포함.">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="ko_KR">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="preload" href="../fonts/pretendard/pretendard.css" as="style" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="../fonts/pretendard/pretendard.css"></noscript>
+<style>
+:root{--bg:#F7F7F5;--surface:#FFFFFF;--fg:#111111;--muted:#666666;--line:#E2E2DE;--soft:#EFEFEB;--accent:#111111;--accent-ink:#FFFFFF;--ok:#157A43;--ok-soft:#E1F5E9;--warn:#8A4B00;--warn-soft:#FFF1DC;color-scheme:light}
+@media (prefers-color-scheme: dark){:root{--bg:#0F0F10;--surface:#1A1A1C;--fg:#F2F2F2;--muted:#A6A6AA;--line:#2C2C2F;--soft:#232326;--accent:#F2F2F2;--accent-ink:#111111;--ok:#3FD98B;--ok-soft:#10301F;--warn:#FFC266;--warn-soft:#33240F;color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Pretendard Variable",Pretendard,"Noto Sans KR",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.55}
+.app{max-width:640px;margin:0 auto;padding:calc(14px + env(safe-area-inset-top,0px)) 16px calc(32px + env(safe-area-inset-bottom,0px))}
+h1{font-size:24px;margin:0;font-weight:800;letter-spacing:-.025em}
+h2{font-size:18px;margin:0;font-weight:800;letter-spacing:-.015em}
+.sub{color:var(--muted);font-size:14px;margin:4px 0 16px}
+a{color:inherit}
+.back{display:inline-flex;align-items:center;min-height:44px;font-size:14.5px;font-weight:600;text-decoration:none;color:var(--muted)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;background:var(--soft);border-radius:14px;padding:5px;margin:0 0 16px}
+.seg a{display:flex;flex-direction:column;justify-content:center;min-height:56px;border-radius:10px;padding:8px 12px;text-decoration:none;color:var(--muted)}
+.seg a b{font-size:15px;color:var(--fg)}
+.seg a span{font-size:12px}
+.seg a[aria-current="page"]{background:var(--surface);box-shadow:0 1px 3px rgba(0,0,0,.08);color:var(--muted)}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px;margin:0 0 12px}
+.box p{margin:6px 0}
+.muted{color:var(--muted)}
+.small{font-size:13.5px}
+.rhythm{display:flex;margin:10px 0 4px;border-radius:10px;overflow:hidden;font-size:12px;font-weight:700;text-align:center}
+.rhythm span{padding:7px 4px;background:var(--soft);color:var(--fg)}
+.rhythm span:last-child{background:var(--ok-soft);color:var(--ok)}
+.grp{margin:22px 0 10px;color:var(--muted);font-size:14px;font-weight:700}
+.grid{display:grid;grid-template-columns:1fr;gap:10px}
+@media (min-width:480px){.grid{grid-template-columns:1fr 1fr}}
+a.card{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:14px;text-decoration:none;color:inherit;min-height:76px}
+.ic{width:44px;height:44px;border-radius:13px;color:#FFFFFF;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:none;background:#111111}
+@media (prefers-color-scheme: dark){.ic.plain{background:#3A3A40}}
+.t{font-weight:700;font-size:16px}
+.s{color:var(--muted);font-size:13px;margin-top:1px}
+.bar{height:5px;border-radius:999px;background:var(--soft);overflow:hidden;margin-top:6px}
+.bar b{display:block;height:100%;background:var(--ok);border-radius:999px}
+.resume{display:flex;align-items:center;gap:14px;background:var(--fg);color:var(--bg);border-radius:18px;padding:16px;text-decoration:none;margin:0 0 12px}
+.resume .rk{font-size:12.5px;opacity:.7;font-weight:600}
+.resume .rt{font-weight:800;font-size:17px;margin-top:1px}
+.resume .go{margin-left:auto;font-weight:700;font-size:14px;white-space:nowrap;background:var(--bg);color:var(--fg);border-radius:10px;padding:8px 12px}
+.stat{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:12px 0}
+.stat div{background:var(--surface);padding:10px 6px;text-align:center}
+.stat b{display:block;font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+ol.core{margin:8px 0 0;padding-left:22px}
+ol.core li{margin:8px 0}
+ol.core li b{font-size:15px}
+ol.core li div{font-size:13.5px;color:var(--muted)}
+.links{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.links a{display:inline-flex;align-items:center;min-height:32px;padding:3px 10px;border-radius:999px;background:var(--soft);font-size:12.5px;font-weight:600;text-decoration:none}
+details.ses{background:var(--surface);border:1px solid var(--line);border-radius:16px;margin:0 0 10px}
+details.ses>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px 16px;min-height:64px}
+details.ses>summary::-webkit-details-marker{display:none}
+.num{width:36px;height:36px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;flex:none}
+details.ses.done .num{background:var(--ok);color:#FFFFFF}
+@media (prefers-color-scheme: dark){details.ses.done .num{color:#0F0F10}}
+.sum-t{font-weight:700;font-size:15.5px}
+.sum-s{font-size:12.5px;color:var(--muted)}
+.ses-body{padding:0 16px 16px}
+.goal{background:var(--soft);border-radius:12px;padding:10px 12px;font-size:14.5px;margin:0 0 12px}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.tags span{font-size:12px;font-weight:700;border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+table.blocks{width:100%;border-collapse:collapse;font-size:14px}
+table.blocks td{border-top:1px solid var(--line);padding:9px 6px;vertical-align:top}
+table.blocks td.tm{white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:700;width:1%;padding-left:0}
+table.blocks tr.rv td{background:var(--ok-soft)}
+table.blocks tr.rv td.tm{color:var(--ok);padding-left:6px}
+.h3{font-size:14px;font-weight:800;margin:16px 0 6px}
+.practice{border-left:3px solid var(--fg);padding:2px 0 2px 12px;font-size:14.5px}
+.review{background:var(--ok-soft);border-radius:14px;padding:12px 14px;margin-top:14px}
+.review .h3{margin-top:0;color:var(--ok)}
+.review ul{margin:4px 0 8px;padding-left:20px;font-size:14px}
+.review details{background:var(--surface);border-radius:10px;padding:8px 12px;margin:6px 0}
+.review details summary{cursor:pointer;font-size:14.5px;font-weight:600;min-height:28px}
+.review details p{margin:6px 0 2px;font-size:14px}
+.btn{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:10px 16px;border-radius:12px;border:0;background:var(--fg);color:var(--bg);font:inherit;font-weight:700;font-size:15px;cursor:pointer}
+.btn.ghost{background:var(--soft);color:var(--fg)}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:14px}
+.timer{font-variant-numeric:tabular-nums;font-weight:800}
+.now{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:8px 12px;font-size:14px;font-weight:600;margin-top:10px}
+.skip{background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:10px 12px;font-size:13.5px;margin-top:10px}
+a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
+[hidden]{display:none!important}
+.foot{margin-top:28px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app" id="root"></div>
+<script>
+var APPS = [{"name":"외국어","apps":[{"slug":"en","title":"하루영어","ic":"EN","color":""},{"slug":"ja","title":"하루일본어","ic":"日","color":"#B3261E"},{"slug":"th","title":"하루태국어","ic":"ไทย","color":"#1E6FB3"},{"slug":"listen","title":"영어 듣기 집중","ic":"듣기","color":"#B3261E"}]},{"name":"생활 기초","apps":[{"slug":"basics","title":"스마트폰·컴퓨터 기초","ic":"기초","color":"#5F6368"},{"slug":"money","title":"돈 관리 기초","ic":"돈","color":"#B06A00"},{"slug":"media","title":"사진·영상 편집 기초","ic":"편집","color":"#8E24AA"},{"slug":"writing","title":"AI로 글쓰기","ic":"글","color":"#1A73E8"}]},{"name":"일과 도구","apps":[{"slug":"excel","title":"엑셀 배우기","ic":"표","color":"#2B5F75"},{"slug":"sheets","title":"구글 시트·폼 배우기","ic":"시트","color":"#5B5F97"},{"slug":"claude","title":"클로드 배우기","ic":"CL","color":"#4A4A4A"},{"slug":"homepage","title":"클로드로 홈페이지 잘 만들기","ic":"홈","color":"#0B7285"},{"slug":"youtube","title":"클로드로 유튜브 채널 만들기","ic":"영상","color":"#7C3A5E"},{"slug":"github","title":"깃허브 처음부터 배우기","ic":"깃","color":"#3A4A63"},{"slug":"linux","title":"리눅스 서버 장애 판별","ic":"서버","color":"#2F5D3A"},{"slug":"winpc","title":"윈도우 PC 장애 판별","ic":"PC","color":"#0F5A9E"},{"slug":"network","title":"네트워크 기초","ic":"망","color":"#00695C"},{"slug":"script","title":"쉘 스크립트와 서버 자동화","ic":"자동","color":"#455A64"}]},{"name":"AI 기초","apps":[{"slug":"found","title":"AI 기초: 개발 환경과 수학","ic":"기초","color":"#4338CA"},{"slug":"ml","title":"머신러닝·딥러닝 기초","ic":"ML","color":"#9D174D"},{"slug":"cv","title":"컴퓨터 비전","ic":"비전","color":"#0E7490"},{"slug":"nlp","title":"자연어 처리","ic":"NLP","color":"#9A3412"},{"slug":"gen","title":"생성형 AI와 음성","ic":"생성","color":"#86198F"},{"slug":"rl","title":"강화학습","ic":"RL","color":"#3F6212"},{"slug":"llm","title":"트랜스포머와 LLM 직접 만들기","ic":"LLM","color":"#1E3A8A"}]},{"name":"AI 엔지니어링","apps":[{"slug":"ai","title":"AI 엔지니어링: LLM 앱 만들기","ic":"AI","color":"#3553FF"},{"slug":"mm","title":"멀티모달 AI","ic":"멀티모달","color":"#B4235A"},{"slug":"tools","title":"AI 도구와 프로토콜: MCP·스킬","ic":"MCP","color":"#0B6E6E"},{"slug":"re","title":"리버스 엔지니어링: 내 프로그램 읽기","ic":"RE","color":"#374151"},{"slug":"agent","title":"AI 에이전트 엔지니어링","ic":"에이전트","color":"#5B3CC4"},{"slug":"auto","title":"AI 자율 시스템과 안전","ic":"자율","color":"#8E2C48"},{"slug":"multi","title":"AI 다중 에이전트와 스웜","ic":"멀티","color":"#1F5FA8"},{"slug":"infra","title":"AI 인프라와 운영","ic":"운영","color":"#A35200"},{"slug":"safety","title":"AI 윤리·안전·정렬","ic":"안전","color":"#2E6B30"},{"slug":"cap","title":"캡스톤 프로젝트","ic":"캡스톤","color":"#92400E"}]}];
+var KEY = 'haru_plan_v1';
+var store = {};
+try { store = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { store = {}; }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+function prog(slug) { var s = store[slug] || {}; var d = s.done || {}; return Object.keys(d).length; }
+function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+function appInfo(slug) { for (var g = 0; g < APPS.length; g++) for (var i = 0; i < APPS[g].apps.length; i++) if (APPS[g].apps[i].slug === slug) return APPS[g].apps[i]; return null; }
+function icon(a) { return '<span class="ic' + (a.color ? '' : ' plain') + '"' + (a.color ? ' style="background:' + a.color + (a.ic.length > 2 ? ';font-size:12px' : '') + '"' : '') + '>' + esc(a.ic) + '</span>'; }
+var root = document.getElementById('root');
+var timerId = null;
+
+function seg() {
+  return '<a class="back" href="../index.html">‹ 하루 학습</a>' +
+    '<nav class="seg" aria-label="학습 방식 고르기"><a href="../index.html"><b>기존 학습</b><span>앱별 전체 수업</span></a><a href="./" aria-current="page"><b>20시간 핵심 계획</b><span>2시간 × 10세션</span></a></nav>';
+}
+
+function renderList() {
+  document.title = '20시간 핵심 계획 · 하루 학습';
+  var h = seg();
+  h += '<h1>20시간 핵심 계획</h1><p class="sub">앱마다 결과의 80%를 만드는 20% 핵심 개념만 골라, 2시간 세션 10개로 끝내요.</p>';
+  var last = store._last;
+  if (last && appInfo(last) && prog(last) < 10) {
+    var a = appInfo(last);
+    h += '<a class="resume" href="#app=' + last + '"><span><div class="rk">이어서 하기</div><div class="rt">' + esc(a.title) + '</div><div class="rk">세션 ' + (prog(last) + 1) + ' / 10</div></span><span class="go">계속</span></a>';
+  }
+  h += '<div class="box"><b>세션 하나 = 2시간</b><div class="rhythm" aria-hidden="true"><span style="flex:25">개념</span><span style="flex:35">따라 하기</span><span style="flex:45">실습</span><span style="flex:15">복습 15분</span></div>' +
+    '<p class="small muted">시간은 앱마다 조금씩 달라요. 마지막 15분은 언제나 복습이에요. 핵심 개념을 안 보고 말해 보고, 질문 5개에 먼저 답한 뒤 펼쳐서 맞춰 봐요. 세션 2부터는 지난 세션 질문도 섞여 있어서 저절로 간격 반복이 돼요.</p>' +
+    '<p class="small muted">수업 링크를 누르면 그 앱의 해당 수업이 바로 열려요. 계획에 없는 나머지 수업은 20시간을 마친 뒤 \'기존 학습\'에서 이어 보면 돼요.</p></div>';
+  for (var g = 0; g < APPS.length; g++) {
+    h += '<h2 class="grp">' + esc(APPS[g].name) + '</h2><div class="grid">';
+    for (var i = 0; i < APPS[g].apps.length; i++) {
+      var a2 = APPS[g].apps[i], p = prog(a2.slug);
+      h += '<a class="card" href="#app=' + a2.slug + '">' + icon(a2) + '<span style="flex:1;min-width:0"><div class="t">' + esc(a2.title) + '</div><div class="s">' + (p ? '세션 ' + p + ' / 10 · ' + (p * 2) + '시간 했어요' : '10세션 · 20시간') + '</div>' + (p ? '<div class="bar"><b style="width:' + (p * 10) + '%"></b></div>' : '') + '</span></a>';
+    }
+    h += '</div>';
+  }
+  h += '<p class="foot">진도는 이 기기 브라우저에만 저장돼요. 기존 학습의 진도와는 따로 기록돼요.</p>';
+  root.innerHTML = h;
+  window.scrollTo(0, 0);
+}
+
+function loadPlan(slug, cb) {
+  window.PLAN_DATA = window.PLAN_DATA || {};
+  if (window.PLAN_DATA[slug]) return cb(window.PLAN_DATA[slug]);
+  var s = document.createElement('script');
+  s.src = 'data/' + slug + '.js';
+  s.onload = function () { cb(window.PLAN_DATA[slug] || null); };
+  s.onerror = function () { cb(null); };
+  document.head.appendChild(s);
+}
+
+function lessonLinks(slug, ids) {
+  if (!ids) return '';
+  var parts = String(ids).split(',').map(function (x) { return x.trim(); }).filter(Boolean);
+  if (!parts.length) return '';
+  return '<div class="links">' + parts.map(function (id) { return '<a href="../' + slug + '/index.html#lesson=' + id + '">수업 ' + esc(id.replace(/^l0?/, '')) + ' 열기</a>'; }).join('') + '</div>';
+}
+
+function renderPlan(slug, openN) {
+  var info = appInfo(slug);
+  if (!info) { location.hash = ''; return; }
+  root.innerHTML = seg() + '<p class="muted">계획을 불러오는 중이에요…</p>';
+  loadPlan(slug, function (P) {
+    if (!P) { root.innerHTML = seg() + '<div class="box"><b>계획을 불러오지 못했어요.</b><p class="small muted">인터넷 연결을 확인하고 다시 열어 주세요.</p><p><a href="#">← 계획 목록</a></p></div>'; return; }
+    store._last = slug; save();
+    document.title = P.title + ' 20시간 계획 · 하루 학습';
+    var st = store[slug] || (store[slug] = { done: {} });
+    var done = st.done || (st.done = {});
+    var n = Object.keys(done).length;
+    var firstOpen = openN || 0;
+    if (!firstOpen) { for (var k = 1; k <= 10; k++) if (!done[k]) { firstOpen = k; break; } }
+    var h = '<a class="back" href="#">‹ 계획 목록</a>';
+    h += '<div style="display:flex;gap:12px;align-items:center;margin:4px 0 10px">' + icon(info) + '<div><h1 style="font-size:21px">' + esc(P.title) + '</h1><div class="small muted">20시간 핵심 계획 · 2시간 × 10세션</div></div></div>';
+    h += '<div class="stat"><div><b>' + n + '/10</b><span>마친 세션</span></div><div><b>' + (n * 2) + '시간</b><span>한 시간</span></div><div><b>' + P.core.length + '개</b><span>핵심 개념</span></div></div>';
+    h += '<div class="box"><b>20시간 뒤 할 수 있는 것</b><p>' + esc(P.outcome) + '</p><p class="small muted">' + esc(P.why) + '</p>';
+    h += '<p style="margin-top:12px"><a class="btn ghost" href="../' + slug + '/index.html">앱 열기 (기존 학습)</a></p></div>';
+    h += '<details class="box" open><summary style="cursor:pointer;min-height:28px"><b>핵심 20% 개념 ' + P.core.length + '개</b></summary><ol class="core">';
+    P.core.forEach(function (c) { h += '<li><b>' + esc(c[0]) + '</b><div>' + esc(c[1]) + '</div>' + lessonLinks(slug, c[2]) + '</li>'; });
+    h += '</ol><div class="skip"><b>이번 20시간에서 미루는 것</b> · ' + esc(P.skip) + '</div></details>';
+    h += '<h2 class="grp" style="margin-top:20px">세션 10개</h2>';
+    P.sessions.forEach(function (s) {
+      var isDone = !!done[s.n];
+      h += '<details class="ses' + (isDone ? ' done' : '') + '" id="s' + s.n + '"' + (s.n === firstOpen ? ' open' : '') + '><summary><span class="num">' + (isDone ? '✓' : s.n) + '</span><span style="flex:1;min-width:0"><div class="sum-t">세션 ' + s.n + '. ' + esc(s.title) + '</div><div class="sum-s">' + (isDone ? esc(done[s.n]) + ' 마침' : '2시간 · 마지막 15분 복습') + '</div></span></summary><div class="ses-body">';
+      h += '<div class="goal">' + esc(s.goal) + '</div>';
+      h += '<div class="tags">' + s.core.map(function (ci) { return '<span>' + esc((P.core[ci] || [''])[0]) + '</span>'; }).join('') + '</div>';
+      h += '<table class="blocks"><tbody>';
+      s.blocks.forEach(function (b, bi) {
+        var rv = bi === s.blocks.length - 1;
+        h += '<tr' + (rv ? ' class="rv"' : '') + ' data-b="' + bi + '"><td class="tm">' + esc(b[0]) + '</td><td>' + esc(b[1]) + lessonLinks(slug, b[2]) + '</td></tr>';
+      });
+      h += '</tbody></table>';
+      h += '<div class="h3">이 세션의 실습</div><div class="practice">' + esc(s.practice) + '</div>';
+      h += '<div class="review"><div class="h3">마지막 15분 복습</div><ul>' + s.review.steps.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
+      s.review.q.forEach(function (q, qi) { h += '<details><summary>' + (qi + 1) + '. ' + esc(q[0]) + '</summary><p>' + esc(q[1]) + '</p></details>'; });
+      h += '</div>';
+      h += '<div class="row"><button class="btn ghost" type="button" data-timer="' + s.n + '">2시간 타이머 시작</button><span class="timer" id="tm' + s.n + '" aria-live="polite"></span></div><div class="now" id="now' + s.n + '" hidden></div>';
+      h += '<div class="row"><button class="btn" type="button" data-done="' + s.n + '">' + (isDone ? '마침 표시 지우기' : '세션 ' + s.n + ' 마침') + '</button></div>';
+      h += '</div></details>';
+    });
+    if (n === 10) h += '<div class="box"><b>20시간 계획을 다 마쳤어요.</b><p class="small muted">이제 \'기존 학습\'에서 계획에 없던 수업을 이어 보거나, 복습 질문만 다시 훑어보세요.</p></div>';
+    h += '<p class="foot">수업 링크는 그 앱의 수업을 바로 열어요. 진도는 이 기기에만 저장돼요.</p>';
+    root.innerHTML = h;
+    if (openN) { var el = document.getElementById('s' + openN); if (el) el.scrollIntoView(); } else window.scrollTo(0, 0);
+    root.onclick = function (ev) {
+      var t = ev.target.closest('button');
+      if (!t) return;
+      if (t.dataset.done) {
+        var sn = +t.dataset.done;
+        if (done[sn]) delete done[sn];
+        else { var d = new Date(); done[sn] = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+        save();
+        stopTimer();
+        renderPlan(slug, done[sn] ? Math.min(sn + 1, 10) : sn);
+      } else if (t.dataset.timer) {
+        startTimer(P, +t.dataset.timer, t);
+      }
+    };
+  });
+}
+
+function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
+function toMin(x) { var m = /(\d):(\d\d)/.exec(x); return m ? (+m[1]) * 60 + (+m[2]) : 0; }
+function startTimer(P, sn, btn) {
+  var s = P.sessions[sn - 1];
+  if (timerId && btn.dataset.running === '1') { stopTimer(); btn.dataset.running = ''; btn.textContent = '2시간 타이머 시작'; document.getElementById('tm' + sn).textContent = ''; document.getElementById('now' + sn).hidden = true; return; }
+  stopTimer();
+  var start = Date.now();
+  btn.dataset.running = '1'; btn.textContent = '타이머 멈추기';
+  var tm = document.getElementById('tm' + sn), now = document.getElementById('now' + sn);
+  function tick() {
+    var el = Math.floor((Date.now() - start) / 1000), mins = el / 60;
+    var left = Math.max(0, 7200 - el);
+    tm.textContent = '남은 시간 ' + Math.floor(left / 3600) + ':' + ('0' + Math.floor(left % 3600 / 60)).slice(-2) + ':' + ('0' + left % 60).slice(-2);
+    var cur = -1;
+    s.blocks.forEach(function (b, bi) { var r = b[0].split(/[–-]/); if (mins >= toMin(r[0]) && mins < toMin(r[1])) cur = bi; });
+    var rows = document.querySelectorAll('#s' + sn + ' tr[data-b]');
+    for (var i = 0; i < rows.length; i++) rows[i].style.outline = (i === cur ? '2px solid var(--fg)' : '');
+    if (cur >= 0) { now.hidden = false; now.textContent = '지금: ' + s.blocks[cur][1]; }
+    if (left === 0) { stopTimer(); now.hidden = false; now.textContent = '2시간이 끝났어요. 복습을 마쳤다면 \'세션 ' + sn + ' 마침\'을 눌러요.'; btn.textContent = '2시간 타이머 시작'; btn.dataset.running = ''; }
+  }
+  tick();
+  timerId = setInterval(tick, 1000);
+}
+
+function route() {
+  stopTimer();
+  var m = /^#app=([a-z0-9]+)(?:&s=(\d+))?$/.exec(location.hash);
+  if (m) renderPlan(m[1], m[2] ? +m[2] : 0); else renderList();
+}
+window.addEventListener('hashchange', route);
+route();
+if ('serviceWorker' in navigator && location.protocol !== 'file:') { navigator.serviceWorker.register('../sw.js').catch(function () {}); }
+</script>
+</body>
+</html>
