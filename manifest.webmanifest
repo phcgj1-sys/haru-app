@@ -2,7 +2,7 @@
   "id": "./index.html",
   "name": "하루 학습",
   "short_name": "하루 학습",
-  "description": "하루 15분, 매일. 외국어·생활 기초·일과 도구·AI 기초부터 AI 엔지니어링까지 32가지 학습 앱. 수업·퀴즈·해설·복습.",
+  "description": "하루 15분, 매일. 외국어·생활 기초·일과 도구·AI 기초부터 AI 엔지니어링까지 35가지 학습 앱. 수업·퀴즈·해설·복습.",
   "lang": "ko",
   "dir": "ltr",
   "start_url": "./index.html",
@@ -47,7 +47,7 @@
       "sizes": "1080x2220",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "32가지 학습 앱 홈"
+      "label": "35가지 학습 앱 홈"
     },
     {
       "src": "store/raw/03-lesson.png",
