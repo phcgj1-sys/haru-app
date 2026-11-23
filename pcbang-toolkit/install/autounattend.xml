@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Windows 11 PC-bang unattended install (USB root에 복사)
+  - 로컬 계정 "PC" 자동 생성 (비밀번호 없음, 관리자) + 자동 로그인
+  - MS 계정 화면 / 개인정보 화면 / EULA 건너뜀, 한국어 / 한국 표준시
+  - 디스크 선택 화면은 직접 선택 (실수로 다른 디스크를 지우지 않도록 자동화하지 않음)
+  - ProductKey 는 Microsoft 공개 Pro 설치용 일반 키 (정품 인증 아님, Pro 에디션 선택용)
+-->
+<unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+  <settings pass="windowsPE">
+    <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <SetupUILanguage><UILanguage>ko-KR</UILanguage></SetupUILanguage>
+      <InputLocale>ko-KR</InputLocale>
+      <SystemLocale>ko-KR</SystemLocale>
+      <UILanguage>ko-KR</UILanguage>
+      <UserLocale>ko-KR</UserLocale>
+    </component>
+    <component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <UserData>
+        <AcceptEula>true</AcceptEula>
+        <ProductKey>
+          <Key>VK7JG-NPHTM-C97JM-9MPGT-3V66T</Key>
+          <WillShowUI>OnError</WillShowUI>
+        </ProductKey>
+      </UserData>
+    </component>
+  </settings>
+  <settings pass="oobeSystem">
+    <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <InputLocale>ko-KR</InputLocale>
+      <SystemLocale>ko-KR</SystemLocale>
+      <UILanguage>ko-KR</UILanguage>
+      <UserLocale>ko-KR</UserLocale>
+    </component>
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <TimeZone>Korea Standard Time</TimeZone>
+      <OOBE>
+        <HideEULAPage>true</HideEULAPage>
+        <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
+        <HideOnlineAccountScreens>true</HideOnlineAccountScreens>
+        <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
+        <ProtectYourPC>3</ProtectYourPC>
+      </OOBE>
+      <UserAccounts>
+        <LocalAccounts>
+          <LocalAccount wcm:action="add">
+            <Name>PC</Name>
+            <DisplayName>PC</DisplayName>
+            <Group>Administrators</Group>
+            <Password><Value></Value><PlainText>true</PlainText></Password>
+          </LocalAccount>
+        </LocalAccounts>
+      </UserAccounts>
+      <AutoLogon>
+        <Enabled>true</Enabled>
+        <Username>PC</Username>
+        <Password><Value></Value><PlainText>true</PlainText></Password>
+        <LogonCount>9999999</LogonCount>
+      </AutoLogon>
+    </component>
+  </settings>
+</unattend>

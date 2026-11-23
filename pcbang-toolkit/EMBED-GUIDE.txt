@@ -1,0 +1,38 @@
+﻿==========================================================
+  노하드 이미지 프로그램(DriverUpdater.ps1 등)에 탭으로 넣는 방법
+==========================================================
+
+결과: 기존 프로그램 창의 탭 옆에 [PC방 최적화] [작업 스케줄러 정리] 탭 2개가 추가됩니다.
+      최적화 도구의 함수/변수는 별도 모듈 공간에서 돌아가서 기존 프로그램 코드와 이름이 겹치지 않습니다.
+
+1) 폴더 배치
+   C:\Users\one\nohdd image\DriverUpdater\
+       DriverUpdater.ps1            (기존 프로그램)
+       PCBang\                      <- 이 압축 파일 내용을 통째로 여기에 풀기
+           PCBang-Optimizer.ps1
+           ...
+
+2) DriverUpdater.ps1 수정 (TabControl을 만들고 탭을 다 추가한 다음, ShowDialog() 바로 전에 아래 코드 붙여넣기)
+   - 아래 코드의 $tabs 를 기존 프로그램의 TabControl 변수 이름으로 바꾸세요.
+
+# ---------- PC방 최적화 / 작업 스케줄러 탭 추가 ----------
+$env:PCBANG_EMBED = '1'
+$env:PCBANG_DIR   = Join-Path $PSScriptRoot 'PCBang'
+$pcbFile = Join-Path $env:PCBANG_DIR 'PCBang-Optimizer.ps1'
+if (Test-Path $pcbFile) {
+    try {
+        $pcbCode = [IO.File]::ReadAllText($pcbFile, [Text.Encoding]::UTF8)
+        $pcbMod  = New-Module -Name PCBangOptimizer -ScriptBlock ([scriptblock]::Create($pcbCode))
+        & $pcbMod { param($tc) Add-PCBangTabs -TabControl $tc } $tabs
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("PC방 최적화 탭을 불러오지 못했습니다:`n$($_.Exception.Message)") | Out-Null
+    } finally {
+        Remove-Item Env:PCBANG_EMBED -ErrorAction SilentlyContinue
+    }
+}
+# ---------------------------------------------------------
+
+3) 주의
+   - 기존 프로그램이 관리자 권한으로 실행돼야 합니다 (아니면 탭 로그에 경고가 뜨고 대부분 실패).
+   - 백업(backup 폴더)과 로그(logs 폴더)는 PCBang 폴더 안에 생깁니다.
+   - 최적화 도구만 따로 쓰고 싶으면 PCBang\Start-GUI.bat 을 그대로 실행하면 됩니다 (탭 2개짜리 창).
