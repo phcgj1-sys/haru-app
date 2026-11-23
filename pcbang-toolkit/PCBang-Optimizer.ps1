@@ -13,7 +13,6 @@
   - 바꾸기 전 원래 값은 backup\backup.json 에 저장되며, 되돌리기로 복구됩니다.
 #>
 param(
-    [ValidateSet('Safe', 'Recommended', 'Max')]
     [string]$Preset,
     [string[]]$Exclude = @(),
     [switch]$UndoAll,
@@ -24,6 +23,11 @@ param(
 
 $Version = '1.1'
 $Embedded = ($env:PCBANG_EMBED -eq '1') -and -not $MyInvocation.MyCommand.Path
+# [ValidateSet]을 param에 두면 PS 5.1에서 스크립트 블록 모듈(탭 넣기)로 불러올 때 오류가 나서 여기서 검사
+if ($Preset -and $Preset -notin 'Safe', 'Recommended', 'Max') {
+    Write-Host "-Preset 은 Safe, Recommended, Max 중 하나여야 합니다. (입력: $Preset)" -ForegroundColor Red
+    exit 1
+}
 
 # ============================== 사용자 설정 ==============================
 # Defender 검사 예외로 넣을 게임 폴더 (존재하는 폴더만 추가됨)
@@ -1242,17 +1246,123 @@ function Initialize-PCBang {
     if (-not $isAdmin) { Log '관리자 권한이 아닙니다. 대부분의 항목이 실패합니다. 프로그램을 관리자 권한으로 실행하세요.' 'ERR' }
 }
 
+# 화면 색. 밝은 기본값 / Add-PCBangTabs -Dark 일 때 다크
+$script:Dark = $false
+function Col([string]$n) {
+    $c = if ($script:Dark) {
+        @{ Back = '#272727'; Fore = '#DDDDDD'; List = '#2B2B2B'; Box = '#1C1C1C'; BoxFore = '#BBBBBB'; Btn = '#4A4A4A'; Head = '#333333'; Line = '#555555'
+           Ok = '#7CD992'; Part = '#FFB454'; Off = '#8A8A8A'; Warn = '#FF8A80'; Item = '#DDDDDD' }[$n]
+    } else {
+        @{ Back = 'Control'; Fore = 'ControlText'; List = 'Window'; Box = 'White'; BoxFore = 'WindowText'; Btn = 'Control'; Head = 'Control'; Line = 'ControlDark'
+           Ok = 'DarkGreen'; Part = 'DarkOrange'; Off = 'Gray'; Warn = 'DarkRed'; Item = 'Black' }[$n]
+    }
+    if ($c.StartsWith('#')) { return [System.Drawing.ColorTranslator]::FromHtml($c) }
+    return [System.Drawing.Color]::FromName($c)
+}
+# 다크일 때 밝은 버튼 색 -> 같은 계열의 어두운 색
+$script:DarkBtn = @{ Honeydew = '#2F5D3A'; LightGreen = '#2E7D32'; Khaki = '#7A6A1E'; LightSkyBlue = '#1F6FA8'; MistyRose = '#8B3A3A'; LightSalmon = '#A0442F' }
+function Set-DarkScroll($ctl) {
+    # 스크롤바를 Windows 다크 테마로 (Win10 1809+, 실패해도 무시)
+    if (-not $script:Dark) { return }
+    try {
+        if (-not ('PCBangUx' -as [type])) { Add-Type -Name PCBangUx -Namespace '' -MemberDefinition '[DllImport("uxtheme.dll", CharSet=CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr h, string app, string id);' }
+        [void][PCBangUx]::SetWindowTheme($ctl.Handle, 'DarkMode_Explorer', $null)
+    } catch {}
+}
+function Set-ListLook($lv) {
+    $lv.BackColor = Col List; $lv.ForeColor = Col Item
+    if (-not $script:Dark) { return }
+    # 머리글은 직접 그림(기본은 밝은 회색), 행은 기본 그리기
+    $lv.OwnerDraw = $true
+    $lv.Add_DrawItem({ param($s, $e) $e.DrawDefault = $true })
+    $lv.Add_DrawSubItem({ param($s, $e) $e.DrawDefault = $true })
+    $lv.Add_DrawColumnHeader({
+        param($s, $e)
+        $bg = New-Object System.Drawing.SolidBrush (Col Head)
+        $e.Graphics.FillRectangle($bg, $e.Bounds); $bg.Dispose()
+        $pen = New-Object System.Drawing.Pen (Col Line)
+        $e.Graphics.DrawLine($pen, $e.Bounds.Right - 1, $e.Bounds.Top, $e.Bounds.Right - 1, $e.Bounds.Bottom); $pen.Dispose()
+        $r = New-Object System.Drawing.Rectangle(($e.Bounds.X + 4), $e.Bounds.Y, ($e.Bounds.Width - 4), $e.Bounds.Height)
+        [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, $e.Header.Text, $s.Font, $r, (Col Fore), [System.Windows.Forms.TextFormatFlags]'VerticalCenter, Left, EndEllipsis')
+    })
+    $lv.Add_HandleCreated({ param($s, $e) Set-DarkScroll $s })
+}
+function Set-PageLook($page, $top) {
+    $page.BackColor = Col Back; $page.ForeColor = Col Fore
+    $top.BackColor = Col Back; $top.ForeColor = Col Fore
+    foreach ($c in $top.Controls) {
+        if ($c -is [System.Windows.Forms.TextBox] -or $c -is [System.Windows.Forms.NumericUpDown]) { $c.BackColor = Col Box; $c.ForeColor = Col Fore; if ($script:Dark) { $c.BorderStyle = 'FixedSingle' } }
+    }
+}
+function Set-TabLook($TabControl) {
+    $tc = $TabControl
+    # 탭 머리글: 다크일 때만 직접 그림. 선택된 탭은 굵은 글자 + 빨간 밑줄 (색만으로 구분하지 않게)
+    if (-not $script:Dark) { return }
+    # 탭 줄의 빈 곳과 테두리는 DrawItem으로 못 칠해서, 그리기(WM_PAINT)가 끝난 뒤 덧칠
+    if (-not ('PCBangTabSkin' -as [type])) {
+        Add-Type -ReferencedAssemblies System.Windows.Forms, System.Drawing -TypeDefinition @'
+using System.Drawing; using System.Windows.Forms;
+public class PCBangTabSkin : NativeWindow {
+    TabControl tc; Color back, line;
+    public PCBangTabSkin(TabControl t, Color b, Color l) {
+        tc = t; back = b; line = l;
+        if (t.IsHandleCreated) AssignHandle(t.Handle);
+        t.HandleCreated += (s, e) => AssignHandle(tc.Handle);
+        t.HandleDestroyed += (s, e) => ReleaseHandle();
+    }
+    protected override void WndProc(ref Message m) {
+        base.WndProc(ref m);
+        if (m.Msg != 0x000F || tc.TabCount == 0) return;
+        using (var g = Graphics.FromHwnd(tc.Handle))
+        using (var br = new SolidBrush(back))
+        using (var pen = new Pen(line)) {
+            var d = tc.DisplayRectangle;
+            var all = new Region(tc.ClientRectangle);
+            all.Exclude(d);
+            for (int i = 0; i < tc.TabCount; i++) { var r = tc.GetTabRect(i); r.Inflate(-2, -2); all.Exclude(r); }
+            g.FillRegion(br, all);
+            for (int i = 0; i < tc.TabCount; i++) { var r = tc.GetTabRect(i); r.Inflate(-2, -2); g.DrawRectangle(pen, r.X, r.Y, r.Width - 1, r.Height - 1); }
+            g.DrawRectangle(pen, d.X - 1, d.Y - 1, d.Width + 1, d.Height + 1);
+            all.Dispose();
+            if (tc.SelectedIndex >= 0) {
+                var r = tc.GetTabRect(tc.SelectedIndex); r.Inflate(-2, -2);
+                using (var red = new SolidBrush(Color.FromArgb(0xE5, 0x39, 0x2D))) g.FillRectangle(red, r.X, r.Bottom - 3, r.Width, 3);
+            }
+        }
+    }
+}
+'@
+    }
+    $script:TabSkin = New-Object PCBangTabSkin($TabControl, (Col Back), (Col Line))
+    $tc.DrawMode = 'OwnerDrawFixed'
+    $tc.Padding = New-Object System.Drawing.Point(14, 7)
+    $tc.Add_SelectedIndexChanged({ param($s, $e) $s.Invalidate() })
+    $tc.Add_DrawItem({
+        param($s, $e)
+        $sel = ($e.Index -eq $s.SelectedIndex)
+        $bg = New-Object System.Drawing.SolidBrush ($(if ($sel) { Col Head } else { Col Box }))
+        $e.Graphics.FillRectangle($bg, $e.Bounds); $bg.Dispose()
+        $font = if ($sel) { New-Object System.Drawing.Font($s.Font, [System.Drawing.FontStyle]::Bold) } else { $s.Font }
+        [System.Windows.Forms.TextRenderer]::DrawText($e.Graphics, $s.TabPages[$e.Index].Text, $font, $e.Bounds, $(if ($sel) { Col Fore } else { Col BoxFore }), [System.Windows.Forms.TextFormatFlags]'HorizontalCenter, VerticalCenter')
+        if ($sel) { $font.Dispose() }
+    })
+}
+
 function New-Btn($parent, [string]$text, [int]$w, $color) {
     $b = New-Object System.Windows.Forms.Button
     $b.Text = $text; $b.Width = $w; $b.Height = 34
-    if ($color) { $b.BackColor = $color }
+    if ($script:Dark) {
+        $b.FlatStyle = 'Flat'; $b.FlatAppearance.BorderColor = Col Line; $b.ForeColor = [System.Drawing.Color]::White
+        $b.BackColor = if ($color -and $script:DarkBtn.ContainsKey($color.Name)) { [System.Drawing.ColorTranslator]::FromHtml($script:DarkBtn[$color.Name]) } else { Col Btn }
+    } elseif ($color) { $b.BackColor = $color }
     $parent.Controls.Add($b)
     return $b
 }
 function New-LogBox {
     $lb = New-Object System.Windows.Forms.TextBox
     $lb.Multiline = $true; $lb.ReadOnly = $true; $lb.ScrollBars = 'Vertical'
-    $lb.Dock = 'Bottom'; $lb.Height = 180; $lb.BackColor = [System.Drawing.Color]::White
+    $lb.Dock = 'Bottom'; $lb.Height = 180; $lb.BackColor = Col Box; $lb.ForeColor = Col BoxFore
+    if ($script:Dark) { $lb.BorderStyle = 'FixedSingle'; $lb.Add_HandleCreated({ param($s, $e) Set-DarkScroll $s }) }
     $script:LogBoxes.Add($lb)
     return $lb
 }
@@ -1290,7 +1400,7 @@ function New-OptimizerPage {
     $chkRp.Margin = New-Object System.Windows.Forms.Padding(8, 10, 8, 0)
     $top.Controls.Add($chkRp)
     $warn = New-Object System.Windows.Forms.Label
-    $warn.AutoSize = $true; $warn.ForeColor = [System.Drawing.Color]::DarkRed
+    $warn.AutoSize = $true; $warn.ForeColor = Col Warn
     $warn.Margin = New-Object System.Windows.Forms.Padding(4, 10, 4, 0)
     $warn.Text = '※ 복원 프로그램(디스크 보호)/노하드 이미지 쓰기 모드에서 실행하세요.  ※ 손님이 쓰는 계정으로 로그인해서 실행.  ※ 항목에 마우스를 올리면 설명이 나옵니다.'
     $top.Controls.Add($warn)
@@ -1324,6 +1434,7 @@ function New-OptimizerPage {
     $logBox = New-LogBox
     $page.Controls.Add($lv); $page.Controls.Add($logBox); $page.Controls.Add($top)
     $lv.BringToFront()
+    Set-PageLook $page $top; Set-ListLook $lv
     $script:Lv = $lv
     $script:ChkRp = $chkRp
 
@@ -1332,9 +1443,9 @@ function New-OptimizerPage {
             $t = $script:TweakMap[$it.Tag]
             $s = Get-TweakStatus $t
             $it.SubItems[3].Text = $s
-            if ($s -eq '적용됨') { $it.ForeColor = [System.Drawing.Color]::DarkGreen }
-            elseif ($s -eq '일부') { $it.ForeColor = [System.Drawing.Color]::DarkOrange }
-            else { $it.ForeColor = [System.Drawing.Color]::Black }
+            if ($s -eq '적용됨') { $it.ForeColor = Col Ok }
+            elseif ($s -eq '일부') { $it.ForeColor = Col Part }
+            else { $it.ForeColor = Col Item }
             [System.Windows.Forms.Application]::DoEvents()
         }
     }
@@ -1442,7 +1553,7 @@ function New-TaskPage {
     $txtF.Width = 160; $txtF.Margin = New-Object System.Windows.Forms.Padding(2, 7, 0, 0)
     $top.Controls.Add($txtF)
     $hint = New-Object System.Windows.Forms.Label
-    $hint.AutoSize = $true; $hint.ForeColor = [System.Drawing.Color]::DarkRed
+    $hint.AutoSize = $true; $hint.ForeColor = Col Warn
     $hint.Margin = New-Object System.Windows.Forms.Padding(8, 10, 0, 0)
     $hint.Text = '※ 보통 "사용 안 함"을 쓰세요. 삭제/시간 변경도 XML로 백업되어 "원래대로"로 복구됩니다. 시간 변경 작업 중 유지 관리용 작업은 "자동 유지 관리 끄기"도 함께 적용하세요.'
     $top.Controls.Add($hint)
@@ -1459,6 +1570,7 @@ function New-TaskPage {
     $logBox = New-LogBox
     $page.Controls.Add($lv); $page.Controls.Add($logBox); $page.Controls.Add($top)
     $lv.BringToFront()
+    Set-PageLook $page $top; Set-ListLook $lv
     $script:TLv = $lv; $script:TChkAll = $chkAll; $script:TFilter = $txtF; $script:THour = $numHour
 
     $script:TaskReload = {
@@ -1485,8 +1597,8 @@ function New-TaskPage {
             [void]$it.SubItems.Add((Get-TaskTriggerText $r))
             [void]$it.SubItems.Add($r.Desc)
             $it.ToolTipText = "$($r.P)$($r.N)`n$($r.Desc)"
-            if ($script:Backup.ContainsKey((Get-TaskKey $r.P $r.N))) { $it.ForeColor = [System.Drawing.Color]::DarkGreen }
-            if ($st -eq '삭제됨') { $it.ForeColor = [System.Drawing.Color]::Gray }
+            if ($script:Backup.ContainsKey((Get-TaskKey $r.P $r.N))) { $it.ForeColor = Col Ok }
+            if ($st -eq '삭제됨') { $it.ForeColor = Col Off }
             [void]$script:TLv.Items.Add($it)
         }
         } finally { $script:TLv.EndUpdate() }
@@ -1536,9 +1648,11 @@ function New-TaskPage {
 
 # 다른 프로그램(예: 노하드 이미지 도구)의 TabControl 에 탭 2개를 추가
 function Add-PCBangTabs {
-    param([Parameter(Mandatory = $true)][System.Windows.Forms.TabControl]$TabControl)
+    param([Parameter(Mandatory = $true)][System.Windows.Forms.TabControl]$TabControl, [switch]$Dark)
     Add-Type -AssemblyName System.Windows.Forms
     Add-Type -AssemblyName System.Drawing
+    $script:Dark = $Dark.IsPresent
+    Set-TabLook $TabControl
     Initialize-PCBang
     $p1 = New-OptimizerPage
     $p2 = New-TaskPage
