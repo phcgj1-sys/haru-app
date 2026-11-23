@@ -368,8 +368,9 @@ Add-Tweak -Id 'ntfs_lastaccess' -Cat $C -Level 2 -Name 'NTFS 마지막 접근 �
     -Desc '파일을 읽을 때마다 접근 시간을 쓰는 작업 제거 (게임 로딩 시 디스크 쓰기 감소)' `
     -Reg @( RegOp 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' 'NtfsDisableLastAccessUpdate' -2147483647 )
 
-Add-Tweak -Id 'vbs_off' -Cat $C -Level 3 -Name '메모리 무결성 / VBS 끄기' -Risk '중간' `
-    -Desc '게임 성능 약 3~10% 향상. 대신 커널 보호 기능이 꺼짐. 매장 게임 중 안티치트가 요구하는 게 있으면 쓰지 말 것' `
+# 프리셋에서 뺌: 발로란트·롤(Vanguard), 배틀필드 6, FACEIT 등이 메모리 무결성(HVCI)/VBS를 켜 두라고 요구함 (2026-11 검수)
+Add-Tweak -Id 'vbs_off' -Cat $C -Level 0 -Name '[선택] 메모리 무결성 / VBS 끄기' -Risk '높음' `
+    -Desc '게임 성능 약 3~10% 향상. 대신 커널 보호 기능이 꺼지고, 발로란트·롤(VAN: RESTRICTION 오류)·배틀필드 6·FACEIT 등 안티치트가 막을 수 있음. 이런 게임이 없는 매장만 사용' `
     -Reg @(
         RegOp 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' 'Enabled' 0
         RegOp 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard' 'EnableVirtualizationBasedSecurity' 0
