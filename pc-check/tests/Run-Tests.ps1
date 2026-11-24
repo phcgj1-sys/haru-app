@@ -493,12 +493,14 @@ It 'CI: 지원 종료 예정(Node 20) 액션 버전을 쓰지 않음' {
     Assert ($wf -notmatch 'actions/upload-artifact@v[1-5]\b') 'upload-artifact 는 v6 이상 (v5 는 아직 Node 20)'
     Assert ($wf -match 'actions/checkout@v\d+') 'checkout 사용'
 }
-It 'CI 릴리스: 태그(pc-check-v*)에서만, 테스트 통과 후, 쓰기 권한은 릴리스 작업에만' {
+It 'CI 릴리스: 태그(pc-check-v*) 또는 수동 실행(release)에서만, 테스트 통과 후, 쓰기 권한은 릴리스 작업에만' {
     $wf = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\..\.github\workflows\pc-check.yml'))
     $rel = [regex]::Match($wf, '(?s)\n  release:.*$').Value
     Assert ($rel) '릴리스 작업 있음'
     Assert ($rel -match 'needs:\s*windows') '테스트 작업 통과 후'
     Assert ($rel -match "startsWith\(github\.ref, 'refs/tags/pc-check-v'\)") '태그에서만'
+    Assert ($rel -match "github\.event_name == 'workflow_dispatch' && inputs\.release") '수동 실행(release=true)으로도'
+    Assert ($wf -match '(?s)workflow_dispatch:\s+inputs:\s+release:.*?default: false') '수동 실행 기본값은 릴리스 안 함'
     Assert ($rel -match 'contents:\s*write') '릴리스 작업만 쓰기'
     Assert ([regex]::Match($wf, '(?s)^.*?\njobs:').Value -match 'contents:\s*read') '기본 권한은 읽기'
     Assert ($rel -match 'PCCheck\.zip' -and $rel -match 'CHANGELOG\.md') 'ZIP 과 변경 이력을 올림'
