@@ -31,7 +31,7 @@ param(
 )
 
 $script:AppName    = 'PC 원클릭 진단'
-$script:AppVersion = '2.5.0'
+$script:AppVersion = '2.6.0'
 $script:IsWin      = ($env:OS -eq 'Windows_NT')
 
 # =====================================================================

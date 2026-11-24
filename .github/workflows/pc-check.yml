@@ -104,3 +104,27 @@ jobs:
             ${{ runner.temp }}/report-*/*.html
             ${{ runner.temp }}/gui.png
 
+  # Push a tag like pc-check-v2.5.0 to publish the tested ZIP as a GitHub release.
+  # Write access is limited to this job; the test job keeps read-only permissions.
+  release:
+    needs: windows
+    if: startsWith(github.ref, 'refs/tags/pc-check-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create release with the tested ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ver="${GITHUB_REF_NAME#pc-check-v}"
+          gh run download "$GITHUB_RUN_ID" -n PCCheck -D art
+          test -f art/PCCheck.zip
+          cp art/PCCheck.zip "PCCheck-v${ver}.zip"
+          awk -v v="## ${ver}" '{sub(/\r$/,"")} $0==v{f=1;next} /^## /{if(f)exit} f' pc-check/CHANGELOG.md > notes.md
+          test -s notes.md
+          gh release create "$GITHUB_REF_NAME" "PCCheck-v${ver}.zip" --title "PC One-Click Check v${ver}" --notes-file notes.md
