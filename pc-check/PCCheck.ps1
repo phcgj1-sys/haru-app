@@ -1486,7 +1486,7 @@ function New-HtmlReport {
         [ordered]@{ T = (Get-Prop $_ 'T'); K = $(if ($c) { "블루스크린 $c" } else { '전원 끊김/멈춤' }); W = $(if ($c) { (Get-BugInfo $c).D } else { '파워·과열·전원 접촉 의심' }); B = (Get-Prop $_ 'PowerButton') }
     })
     $bugRows = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); C = (Get-Prop $_ 'Code'); N = $bi.N; D = $bi.D; H = (Get-BugParamHint (Format-BugCode (Get-Prop $_ 'Code')) @(Get-Arr (Get-Prop $_ 'Params'))) } })
-    $dumpRows = @(Get-Arr (Get-Prop $Data 'Dumps') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); Name = (Get-Prop $_ 'Name'); C = (Get-Prop $_ 'Code'); N = $(if (Get-Prop $_ 'Code') { $bi.N } else { '' }); KB = "$(Get-Prop $_ 'SizeKB') KB" } })
+    $dumpRows = @(Get-Arr (Get-Prop $Data 'Dumps') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); Name = (Get-Prop $_ 'Name'); C = (Get-Prop $_ 'Code'); N = $(if (Get-Prop $_ 'Code') { $bi.N } else { '' }); H = (Get-BugParamHint (Format-BugCode (Get-Prop $_ 'Code')) @(Get-Arr (Get-Prop $_ 'Params'))); KB = "$(Get-Prop $_ 'SizeKB') KB" } })
     $dimmRows = @(Get-Arr (Get-Prop $Data 'Dimms') | ForEach-Object { [ordered]@{ Slot = (Get-Prop $_ 'Slot'); Sz = "$(Get-Prop $_ 'SizeGB') GB"; Ddr = (Get-Prop $_ 'DDR'); Sp = "$(Get-Prop $_ 'ConfiguredMHz') / $(Get-Prop $_ 'RatedMHz')"; Mk = (Get-Prop $_ 'Maker'); Pt = (Get-Prop $_ 'Part') } })
     $diskRows = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { [ordered]@{ Name = (Get-Prop $_ 'Name'); St = (Get-DiskStatus $_); Ty = "$(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus'))"; Sz = "$(Get-Prop $_ 'SizeGB') GB"; He = (Get-Prop $_ 'Health'); Tc = $(if ($null -ne (Get-Prop $_ 'TempC')) { "$(Get-Prop $_ 'TempC') °C" }); We = $(if ($null -ne (Get-Prop $_ 'WearPct')) { "$(Get-Prop $_ 'WearPct') %" }); Re = (Get-Prop $_ 'ReadErr'); Wr = (Get-Prop $_ 'WriteErr'); Tx = $(if ($null -ne (Get-Prop $_ 'TempMaxC')) { "$(Get-Prop $_ 'TempMaxC') °C" }); Ph = (Get-Prop $_ 'PowerOnHours') } })
     $memD = @(Get-Arr (Get-Prop $Data 'MemDiag'))
@@ -1627,7 +1627,8 @@ $(ConvertTo-HtmlTable $shutRows @('T','K','W','B') @('시간','종류','추정',
 <p class="sub">예기치 않은 종료(이벤트 6008): $(@(Get-Arr (Get-Prop $Data 'Unexpected')).Count) 건</p></div></details>
 <details class="sec"$(if ($bugRows.Count) { ' open' })><summary>블루스크린<span class="cnt">$($bugRows.Count)</span></summary><div>
 $(ConvertTo-HtmlTable $bugRows @('T','C','N','D','H') @('시간','코드','이름','설명','매개변수 해석'))
-<h4>덤프 파일</h4>$(ConvertTo-HtmlTable $dumpRows @('T','Name','C','N','KB') @('시간','파일','코드','이름','크기') '덤프 파일 없음')
+<h4>덤프 파일</h4>$(ConvertTo-HtmlTable $dumpRows @('T','Name','C','N','H','KB') @('시간','파일','코드','이름','매개변수 해석','크기') '덤프 파일 없음')
+$(if ($dumpRows.Count) { "<p class='sub'>$(HtmlEnc '원인 드라이버(.sys) 이름은 프로그램의 정밀 검사 → 블루스크린 원인 드라이버(BlueScreenView)에서 빨간 줄로 확인하세요.')</p>" })
 </div></details>
 <details class="sec"$(if ($c.Gpu) { ' open' })><summary>그래픽 드라이버 오류 (TDR · Xid)<span class="cnt">$($c.Gpu)</span></summary><div>
 $(ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'GpuEvents')) | Select-Object -First 80) @('T','Source','Id','Xid','Msg') @('시간','출처','ID','Xid','내용'))</div></details>
@@ -3634,6 +3635,7 @@ $script:EnPairs = @(
     @('대기 → CPU(연산 검증) → RAM 검사 → GPU·VRAM → 전체 부하 → 전력 출렁임 단계를 꺼짐·오류 없이 마쳤습니다.', 'It completed idle → CPU (verified) → RAM test → GPU/VRAM → full load → power swings without shutting off or errors.'),
     @('RE:CPU 연산 오류 (\d+) · RAM 검사 오류 (\d+) · VRAM 검사 오류 (\d+)', 'CPU calculation errors $1 · RAM test errors $2 · VRAM test errors $3'),
     @('RE:^점검: ', 'Checked by: '), @('확인자 서명: ____________________', 'Signature: ____________________'),
+    @('원인 드라이버(.sys) 이름은 프로그램의 정밀 검사 → 블루스크린 원인 드라이버(BlueScreenView)에서 빨간 줄로 확인하세요.', 'To see the responsible driver (.sys) name, open Detailed checks → Blue screen driver (BlueScreenView) in the program and look for the rows in red.'),
     @('부품 요약', 'Parts summary'), @('전원', 'Power'), @('노트북', 'Laptop'), @('RE:노트북 \(배터리 마모 (\d+)%\)', 'Laptop (battery wear $1%)'), @('RE:권장 파워 (\d+) W 이상', 'Recommended PSU $1 W or more'),
     @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
     @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),

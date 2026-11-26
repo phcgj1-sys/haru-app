@@ -929,6 +929,15 @@ It '블루스크린 매개변수 해석 (WhoCrashed 방식): 이벤트·미니�
         }
     } finally { $script:UiLang = $old }
 }
+It '덤프 파일 표: 미니덤프에서 읽은 매개변수 해석과 원인 드라이버 확인 안내 (영어)' {
+    $d = New-Scenario @{ Dumps = @([ordered]@{ T = (T 1); Name = '112626-1.dmp'; SizeKB = 900; Code = '0x124'; Params = @('0x0', '0x0', '0x0', '0x0') }) }
+    $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)
+    Assert ($h -match '112626-1\.dmp' -and $h -match 'CPU 내부 하드웨어 오류') '덤프 표 해석'
+    Assert ($h -match 'BlueScreenView\)에서 빨간 줄로') '드라이버 확인 안내'
+    Assert ((New-HtmlReport -Data (New-Scenario @{}) -Dx (Get-Diagnosis -Data (New-Scenario @{}))) -notmatch '빨간 줄로') '덤프 없으면 안내 없음'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $he = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($he, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } finally { $script:UiLang = $old }
+}
 It 'Format-BugCode 정규화' {
     Assert-Eq (Format-BugCode '0x00000116') '0x116' 'hex 문자열'
     Assert-Eq (Format-BugCode 278) '0x116' '정수'
