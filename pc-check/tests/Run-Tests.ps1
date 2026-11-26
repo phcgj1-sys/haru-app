@@ -670,6 +670,20 @@ It '권장 파워 용량: 그래픽카드 2장이면 합계로 계산 (가장 �
     $one = New-Scenario @{}; $one.Gpus = @((& $g 'NVIDIA GeForce RTX 4070' 'NVIDIA'))
     Assert-Eq (Get-PsuEstimate $one).GpuW 200 '한 장은 그대로'
 }
+It '노트북: 갑자기 꺼짐이 파워 원인이면 데스크톱 파워 교체 대신 어댑터·배터리 안내 (내장 그래픽 노트북 포함, 영어)' {
+    $mk = { param([bool]$lap) $d = New-Scenario @{ Shutdowns = @(1..5 | ForEach-Object { [ordered]@{ T = (T $_); Code = ''; PowerButton = $false } }) }; $d.System.IsLaptop = $lap; $d.Gpus = @([ordered]@{ Name = 'Intel(R) Iris(R) Xe Graphics'; Vendor = 'Intel'; VramGB = 1; Driver = '1'; DriverDate = (T 10); Status = 'OK' }); $d }
+    $dx = Get-Diagnosis -Data (& $mk $true)
+    $p = @($dx.Causes) | Where-Object { $_.Key -eq 'PSU' }
+    Assert ($p) '전원 원인'; Assert-Eq $p.Name '전원(어댑터·배터리)' '노트북 이름'
+    Assert ((@($p.Steps) -join ' ') -match '어댑터' -and (@($p.Steps) -join ' ') -notmatch '8핀') '노트북 안내 (그래픽카드 8핀 아님)'
+    Assert (-not (@($dx.Findings) | Where-Object { $_.Title -match '권장 파워' })) '권장 파워 없음'
+    $dd = Get-Diagnosis -Data (& $mk $false)
+    Assert-Eq (@($dd.Causes) | Where-Object { $_.Key -eq 'PSU' }).Name '파워(전원 공급)' '데스크톱은 그대로'
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    Assert ($src -match 'IsLaptop = \[bool\]\(\$cs\.PCSystemType -eq 2\)') '수집 단계'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $h = New-HtmlReport -Data (& $mk $true) -Dx $dx; $ko = @([regex]::Matches($h, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } finally { $script:UiLang = $old }
+}
 It '권장 파워 용량: 노트북 그래픽카드(Laptop GPU·Max-Q)는 데스크톱 파워를 권하지 않음' {
     foreach ($nm in 'NVIDIA GeForce RTX 4090 Laptop GPU', 'NVIDIA GeForce RTX 2080 with Max-Q Design', 'AMD Radeon RX 6800M Mobile') {
         $d = New-Scenario @{}; $d.Gpus = @([ordered]@{ Name = $nm; Vendor = 'NVIDIA'; VramGB = 16; Driver = '1'; DriverDate = (T 10); Status = 'OK' })

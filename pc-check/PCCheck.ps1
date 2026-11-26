@@ -390,6 +390,7 @@ function Invoke-Collect {
                 Model = ("$($cs.Manufacturer) $($cs.Model)").Trim()
                 CrashDump = $dumpCfg; PageFiles = $pageFiles
                 MachineId = (Get-MachineIdHash ([string](Get-CimInstance Win32_ComputerSystemProduct -ErrorAction SilentlyContinue).UUID))
+                IsLaptop = [bool]($cs.PCSystemType -eq 2)   # 2 = Mobile (노트북)
                 IsVM = [bool]($cs.HypervisorPresent -and ("$($cs.Manufacturer) $($cs.Model)" -match 'Virtual|VMware|QEMU|KVM|Xen|Parallels|VirtualBox|Hyper-V|Amazon EC2|Google Compute'))
             }
         } }
@@ -652,11 +653,23 @@ function Get-UsbRoot {
     $u = @(Get-UsbDriveRoots 50MB) | Select-Object -First 1
     if ($u) { return $u } else { return '' }
 }
+function Test-Laptop($Data) {
+    # 노트북: Windows 가 'Mobile' 로 알려 주거나, 그래픽카드 이름에 Laptop·Mobile·Max-Q
+    if ([bool](Get-Prop (Get-Prop $Data 'System') 'IsLaptop')) { return $true }
+    return [bool](@(Get-Arr (Get-Prop $Data 'Gpus') | Where-Object { [string](Get-Prop $_ 'Name') -match '(?i)\b(Laptop|Mobile)\b|Max-Q' }).Count)
+}
+# 노트북은 교체용 파워가 없으므로 '파워' 원인을 어댑터·배터리 안내로
+$script:LaptopPowerSteps = @(
+    '정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐',
+    '배터리 상태 확인: 명령 프롬프트에서 powercfg /batteryreport (마모가 심하면 배터리 교체)',
+    '어댑터 케이블·전원 단자 접촉 확인, 멀티탭 대신 벽 콘센트에 연결',
+    '바닥 통풍구 먼지·막힘 확인 (과열 보호 종료와 구분)'
+)
 function Get-PsuEstimate($Data) {
     # 최대 소비전력 추정과 권장 파워 용량 (측정값 우선, 없으면 모델별 대표값). 순간 전력 급증 대비 30% 여유
     $gpuW = 0.0; $gpuSrc = ''
     # 노트북(그래픽카드 이름에 Laptop·Mobile·Max-Q)은 교체용 파워가 없으므로 권장 용량을 내지 않음 (데스크톱 표로 750W 를 권하던 오판 방지)
-    if (@(Get-Arr (Get-Prop $Data 'Gpus') | Where-Object { [string](Get-Prop $_ 'Name') -match '(?i)\b(Laptop|Mobile)\b|Max-Q' }).Count) { return [pscustomobject]@{ GpuW = 0; GpuSource = ''; CpuW = 0; OtherW = 0; PeakW = 0; RecommendW = 0; IsLaptop = $true } }
+    if (Test-Laptop $Data) { return [pscustomobject]@{ GpuW = 0; GpuSource = ''; CpuW = 0; OtherW = 0; PeakW = 0; RecommendW = 0; IsLaptop = $true } }
     # 그래픽카드가 여러 장이면 합계 (가장 큰 한 장만 보면 파워를 작게 권함)
     $plSum = 0.0; foreach ($n in @(Get-Arr (Get-Prop $Data 'NvSmi'))) { $pl = Get-Prop $n 'PowerLimitW'; if ($null -ne $pl -and [double]$pl -gt 0) { $plSum += [double]$pl } }
     if ($plSum -gt 0) { $gpuW = $plSum; $gpuSrc = '전력 제한값' }
@@ -1062,12 +1075,15 @@ function Get-Diagnosis {
     }
 
     # ---- 결과 정리
+    $isLaptop = Test-Laptop $Data
     $ranked = @()
     foreach ($k in $script:Causes.Keys) {
         $v = [math]::Round([math]::Min(100.0, $score[$k]))
         if ($v -ge 10) {
             $conf = if ($v -ge 60) { '높음' } elseif ($v -ge 30) { '중간' } else { '낮음' }
-            $ranked += [ordered]@{ Key = $k; Name = $script:Causes[$k].Name; Icon = $script:Causes[$k].Icon; Score = $v; Confidence = $conf; Reasons = @($why[$k]); Steps = $script:Playbook[$k] }
+            $nm = $script:Causes[$k].Name; $steps = $script:Playbook[$k]
+            if ($k -eq 'PSU' -and $isLaptop) { $nm = '전원(어댑터·배터리)'; $steps = $script:LaptopPowerSteps }
+            $ranked += [ordered]@{ Key = $k; Name = $nm; Icon = $script:Causes[$k].Icon; Score = $v; Confidence = $conf; Reasons = @($why[$k]); Steps = $steps }
         }
     }
     $ranked = @($ranked | Sort-Object { - $_.Score })
@@ -3338,6 +3354,11 @@ $script:EnPairs = @(
     @('RE: — ([\d\- :]+) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다\.', ' — passed every stage of the detailed test at $1, so treated as resolved.'),
     @('그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.', 'The graphics memory test (memtest_vulkan) found errors. If they persist with overclocking disabled, the card needs warranty service.'),
     @('그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)', 'Graphics card connection lost (ERROR_DEVICE_LOST)'),
+    @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
+    @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),
+    @('배터리 상태 확인: 명령 프롬프트에서 powercfg /batteryreport (마모가 심하면 배터리 교체)', 'Check battery health: run powercfg /batteryreport in a command prompt (replace the battery if heavily worn)'),
+    @('어댑터 케이블·전원 단자 접촉 확인, 멀티탭 대신 벽 콘센트에 연결', 'Check the adapter cable and power jack, and plug into a wall outlet instead of a power strip'),
+    @('바닥 통풍구 먼지·막힘 확인 (과열 보호 종료와 구분)', 'Check the bottom vents for dust or blockage (to rule out an overheat shutdown)'),
     @('RAM 검사가 메모리를 확보하지 못해 RAM 단계는 시험되지 않음 (다른 프로그램을 닫고 다시)', 'The RAM test could not reserve memory, so the RAM stage was not tested (close other programs and retry)'),
     @('GPU 부하 도구가 시작되지 못해 GPU 단계는 시험되지 않음 (Vulkan 드라이버 확인)', 'The GPU load tool failed to start, so the GPU stages were not tested (check the Vulkan driver)'),
     @('단계별 자동 정밀 테스트 (약 32분, 권장)', 'Staged auto test (~32 min, recommended)'),
