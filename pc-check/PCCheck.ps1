@@ -486,7 +486,7 @@ function Invoke-Collect {
             $D.DiskEvents = @($ev | Sort-Object TimeCreated -Descending | Select-Object -First 200 | ForEach-Object { $tx = Get-EventText $_; [ordered]@{ T = (Format-T $_.TimeCreated); Source = $_.ProviderName; Id = $_.Id; DiskNum = (Get-EventDiskNumber $tx); Msg = (Get-FirstLine $tx) } })
             $D.Disks = @(Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
                 $r = $_ | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue
-                [ordered]@{ Name = $_.FriendlyName; DeviceId = [string]$_.DeviceId; Media = [string]$_.MediaType; Bus = [string]$_.BusType; SizeGB = [math]::Round($_.Size / 1GB); Health = [string]$_.HealthStatus; TempC = $r.Temperature; WearPct = $r.Wear; ReadErr = $r.ReadErrorsUncorrected; PowerOnHours = $r.PowerOnHours }
+                [ordered]@{ Name = $_.FriendlyName; DeviceId = [string]$_.DeviceId; Media = (Format-DiskMedia $_.MediaType); Bus = (Format-DiskBus $_.BusType); SizeGB = [math]::Round($_.Size / 1GB); Health = [string]$_.HealthStatus; TempC = $r.Temperature; WearPct = $r.Wear; ReadErr = $r.ReadErrorsUncorrected; PowerOnHours = $r.PowerOnHours }
             })
         } }
         @{ Name = '메모리 진단 결과';        Run = {
@@ -612,6 +612,15 @@ function Split-DiskEvents($Data) {
     $int = @(); $usb = @()
     foreach ($e in @(Get-Arr (Get-Prop $Data 'DiskEvents'))) { $n = Get-Prop $e 'DiskNum'; if ($null -ne $n -and $inner.Count -and -not $inner.ContainsKey("$n")) { $usb += $e } else { $int += $e } }
     return [pscustomobject]@{ Internal = $int; External = $usb }
+}
+function Format-DiskBus($v) {
+    # Get-PhysicalDisk 의 BusType 이 숫자로 오는 환경이 있어 이름으로 통일 (USB·iSCSI·SD 판정이 조용히 빠지지 않게)
+    $m = @{ '1' = 'SCSI'; '2' = 'ATAPI'; '3' = 'ATA'; '4' = '1394'; '5' = 'SSA'; '6' = 'Fibre Channel'; '7' = 'USB'; '8' = 'RAID'; '9' = 'iSCSI'; '10' = 'SAS'; '11' = 'SATA'; '12' = 'SD'; '13' = 'MMC'; '14' = 'MAX'; '15' = 'File Backed Virtual'; '16' = 'Storage Spaces'; '17' = 'NVMe' }
+    $t = [string]$v; if ($m.ContainsKey($t)) { return $m[$t] } else { return $t }
+}
+function Format-DiskMedia($v) {
+    $m = @{ '0' = 'Unspecified'; '3' = 'HDD'; '4' = 'SSD'; '5' = 'SCM' }
+    $t = [string]$v; if ($m.ContainsKey($t)) { return $m[$t] } else { return $t }
 }
 function Test-Diskless($Data) {
     # 노하드(네트워크 부팅): 디스크가 iSCSI·가상(파일) 디스크뿐 (가상 머신 제외)

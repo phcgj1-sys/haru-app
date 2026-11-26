@@ -557,6 +557,15 @@ It 'AMD/Intel: Windows GPU 센서 고온 판정 (NVIDIA 정보 없을 때만)' {
 It 'GPU 센서 읽기는 지원 안 되는 환경에서도 오류 없이 빈 결과' {
     $r = @(Get-GpuSensors); Assert ($r.Count -ge 0) 'ok'
 }
+It '디스크 종류·연결 방식: 숫자(BusType 7·9·17, MediaType 3·4)로 와도 이름으로 통일, 수집 단계에서 사용' {
+    Assert-Eq (Format-DiskBus 7) 'USB' 'USB'; Assert-Eq (Format-DiskBus '9') 'iSCSI' 'iSCSI'; Assert-Eq (Format-DiskBus 17) 'NVMe' 'NVMe'; Assert-Eq (Format-DiskBus 12) 'SD' 'SD'
+    Assert-Eq (Format-DiskBus 'SATA') 'SATA' '이름은 그대로'; Assert-Eq (Format-DiskBus $null) '' '없음'
+    Assert-Eq (Format-DiskMedia 3) 'HDD' 'HDD'; Assert-Eq (Format-DiskMedia 4) 'SSD' 'SSD'; Assert-Eq (Format-DiskMedia 'SSD') 'SSD' '이름은 그대로'
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    Assert ($src -match 'Media = \(Format-DiskMedia \$_\.MediaType\); Bus = \(Format-DiskBus \$_\.BusType\)') '수집 단계에서 변환'
+    $d = New-Scenario @{ Disks = @([ordered]@{ Name = 'v'; Media = (Format-DiskMedia 0); Bus = (Format-DiskBus 9); SizeGB = 100; Health = 'Healthy' }, [ordered]@{ Name = 'u'; Media = (Format-DiskMedia 0); Bus = (Format-DiskBus 7); SizeGB = 16; Health = 'Healthy' }) }
+    Assert (Test-Diskless $d) '숫자로 온 iSCSI + USB 도 노하드'
+}
 It '디스크 온도: HDD 는 55°C 부터 HDD 안내(NVMe 방열판 아님), SSD 는 70°C 부터 (영어 번역)' {
     $hdd = [ordered]@{ Name = 'WDC WD20EZAZ'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 2000; Health = 'Healthy'; TempC = 58 }
     $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($hdd)
