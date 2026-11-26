@@ -272,6 +272,45 @@ function Get-EventText($e) {
     return [string]$t
 }
 
+function Get-BugParamsFromText([string]$Text) {
+    # 'The bugcheck was: 0x00000124 (0x0, 0xffff..., 0xbe000000, 0x800400)' 의 매개변수 4개 (WhoCrashed 처럼 해석에 사용)
+    $m = [regex]::Match([string]$Text, '0x[0-9a-fA-F]{8}\s*\(\s*(0x[0-9a-fA-F]+)\s*,\s*(0x[0-9a-fA-F]+)\s*,\s*(0x[0-9a-fA-F]+)\s*,\s*(0x[0-9a-fA-F]+)\s*\)')
+    if (-not $m.Success) { return @() }
+    return @(1..4 | ForEach-Object { $m.Groups[$_].Value.ToLowerInvariant() })
+}
+function ConvertFrom-HexParam([string]$Hex) {
+    $v = [uint64]0
+    if ($Hex -and [uint64]::TryParse(($Hex -replace '^0x', ''), [Globalization.NumberStyles]::HexNumber, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { return $v }
+    return $null
+}
+function Get-BugParamHint([string]$Code, $Params) {
+    # 블루스크린 매개변수로 원인을 한 단계 더 좁힘 (흔한 코드만, 모르면 빈 값)
+    $p = @($Params | ForEach-Object { ConvertFrom-HexParam $_ })
+    if ($p.Count -lt 1 -or $null -eq $p[0]) { return '' }
+    switch ($Code) {
+        '0x124' {
+            switch ($p[0]) { 0 { return 'CPU 내부 하드웨어 오류(Machine Check) — CPU·전압·오버클럭·쿨러' } 3 { return '하드웨어 비마스크 인터럽트(NMI) — 메인보드·확장 카드' } 4 { return 'PCIe 장치 오류 — 그래픽카드·NVMe SSD·슬롯·라이저 케이블' } default { return '' } }
+        }
+        '0x101' { if ($p.Count -ge 4 -and $null -ne $p[3]) { return "CPU 코어 $($p[3]) 번이 응답하지 않음 — CPU·전압·오버클럭" } }
+        '0x9f' { if ($p[0] -eq 3) { return '장치가 절전·깨우기 전환을 끝내지 못함 — 장치 드라이버(USB·네트워크·그래픽) 업데이트' } elseif ($p[0] -eq 4) { return '전원 전환 시간 초과 — 저장장치·칩셋 드라이버' } }
+        '0x133' { if ($p[0] -eq 0) { return '한 드라이버 작업이 너무 오래 걸림 — 저장장치(SSD 펌웨어)·네트워크 드라이버' } elseif ($p[0] -eq 1) { return '드라이버 작업이 누적되어 시간 초과 — 저장장치·칩셋 드라이버' } }
+        '0x1a' { if ($p[0] -eq 0x41790) { return '메모리 페이지 표 손상 — RAM 불량에서 흔함 (XMP 끄고 RAM 검사)' } elseif ($p[0] -eq 0x61941) { return '잘못된 메모리 주소 참조 — 드라이버 또는 RAM' } }
+        { $_ -in '0x1e', '0x3b', '0x7e', '0x8e' } { if ($p[0] -eq [uint64]3221225477) {   # 0xC0000005 (PowerShell 은 0xc0000005 를 음수 Int32 로 읽으므로 10진수)
+ return '잘못된 메모리 접근(Access violation) — 드라이버 또는 RAM' } elseif ($p[0] -eq [uint64]2147483651) { return '디버그 중단점 — 드라이버 오류' } }
+    }
+    return ''
+}
+function Read-MinidumpBugParams([string]$Path) {
+    # 미니덤프 헤더의 매개변수 4개 (PAGEDU64: 0x40~, PAGEDUMP: 0x24~)
+    try {
+        $fs = [IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite')
+        try { $buf = New-Object byte[] 0x60; [void]$fs.Read($buf, 0, $buf.Length) } finally { $fs.Dispose() }
+        $sig = [Text.Encoding]::ASCII.GetString($buf, 0, 8)
+        if ($sig -eq 'PAGEDU64') { return @(0..3 | ForEach-Object { '0x{0:x}' -f [BitConverter]::ToUInt64($buf, 0x40 + 8 * $_) }) }
+        if ($sig -eq 'PAGEDUMP') { return @(0..3 | ForEach-Object { '0x{0:x}' -f [BitConverter]::ToUInt32($buf, 0x24 + 4 * $_) }) }
+    } catch {}
+    return @()
+}
 function Read-MinidumpBugCode([string]$Path) {
     # 커널 미니덤프 헤더에서 BugCheck 코드 직접 읽기 (PAGEDU64: 0x38, PAGEDUMP: 0x20)
     try {
@@ -451,10 +490,10 @@ function Invoke-Collect {
             $D.BugChecks = @(Get-EventsSafe 'System' 1001 $null $since | Where-Object { $_.ProviderName -match 'WER-SystemErrorReporting|BugCheck' } | ForEach-Object {
                 $txt = Get-EventText $_; $code = ''
                 if ($txt -match '0x[0-9a-fA-F]{8}\b') { $code = Format-BugCode $Matches[0] }
-                [ordered]@{ T = (Format-T $_.TimeCreated); Code = $code }
+                [ordered]@{ T = (Format-T $_.TimeCreated); Code = $code; Params = @(Get-BugParamsFromText $txt) }
             })
             $files = @(Get-ChildItem "$env:SystemRoot\Minidump\*.dmp" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 50)
-            $D.Dumps = @($files | ForEach-Object { [ordered]@{ T = (Format-T $_.LastWriteTime); Name = $_.Name; SizeKB = [math]::Round($_.Length / 1KB); Code = (Read-MinidumpBugCode $_.FullName) } })
+            $D.Dumps = @($files | ForEach-Object { [ordered]@{ T = (Format-T $_.LastWriteTime); Name = $_.Name; SizeKB = [math]::Round($_.Length / 1KB); Code = (Read-MinidumpBugCode $_.FullName); Params = @(Read-MinidumpBugParams $_.FullName) } })
             $live = @(Get-ChildItem "$env:SystemRoot\LiveKernelReports\WATCHDOG\*.dmp", "$env:SystemRoot\LiveKernelReports\*.dmp" -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -ge $since })
             $D.System.LiveDumps = $live.Count
         } }
@@ -1394,7 +1433,7 @@ function New-HtmlReport {
         $c = Format-BugCode (Get-Prop $_ 'Code')
         [ordered]@{ T = (Get-Prop $_ 'T'); K = $(if ($c) { "블루스크린 $c" } else { '전원 끊김/멈춤' }); W = $(if ($c) { (Get-BugInfo $c).D } else { '파워·과열·전원 접촉 의심' }); B = (Get-Prop $_ 'PowerButton') }
     })
-    $bugRows = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); C = (Get-Prop $_ 'Code'); N = $bi.N; D = $bi.D } })
+    $bugRows = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); C = (Get-Prop $_ 'Code'); N = $bi.N; D = $bi.D; H = (Get-BugParamHint (Format-BugCode (Get-Prop $_ 'Code')) @(Get-Arr (Get-Prop $_ 'Params'))) } })
     $dumpRows = @(Get-Arr (Get-Prop $Data 'Dumps') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); Name = (Get-Prop $_ 'Name'); C = (Get-Prop $_ 'Code'); N = $(if (Get-Prop $_ 'Code') { $bi.N } else { '' }); KB = "$(Get-Prop $_ 'SizeKB') KB" } })
     $dimmRows = @(Get-Arr (Get-Prop $Data 'Dimms') | ForEach-Object { [ordered]@{ Slot = (Get-Prop $_ 'Slot'); Sz = "$(Get-Prop $_ 'SizeGB') GB"; Ddr = (Get-Prop $_ 'DDR'); Sp = "$(Get-Prop $_ 'ConfiguredMHz') / $(Get-Prop $_ 'RatedMHz')"; Mk = (Get-Prop $_ 'Maker'); Pt = (Get-Prop $_ 'Part') } })
     $diskRows = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { [ordered]@{ Name = (Get-Prop $_ 'Name'); Ty = "$(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus'))"; Sz = "$(Get-Prop $_ 'SizeGB') GB"; He = (Get-Prop $_ 'Health'); Tc = $(if ($null -ne (Get-Prop $_ 'TempC')) { "$(Get-Prop $_ 'TempC') °C" }); We = $(if ($null -ne (Get-Prop $_ 'WearPct')) { "$(Get-Prop $_ 'WearPct') %" }); Re = (Get-Prop $_ 'ReadErr'); Wr = (Get-Prop $_ 'WriteErr'); Tx = $(if ($null -ne (Get-Prop $_ 'TempMaxC')) { "$(Get-Prop $_ 'TempMaxC') °C" }); Ph = (Get-Prop $_ 'PowerOnHours') } })
@@ -1534,7 +1573,7 @@ $(if (@(Get-Arr (Get-Prop $Data 'GpuSensors')).Count) { '<h4>그래픽 센서 (W
 $(ConvertTo-HtmlTable $shutRows @('T','K','W','B') @('시간','종류','추정','전원버튼'))
 <p class="sub">예기치 않은 종료(이벤트 6008): $(@(Get-Arr (Get-Prop $Data 'Unexpected')).Count) 건</p></div></details>
 <details class="sec"$(if ($bugRows.Count) { ' open' })><summary>블루스크린<span class="cnt">$($bugRows.Count)</span></summary><div>
-$(ConvertTo-HtmlTable $bugRows @('T','C','N','D') @('시간','코드','이름','설명'))
+$(ConvertTo-HtmlTable $bugRows @('T','C','N','D','H') @('시간','코드','이름','설명','매개변수 해석'))
 <h4>덤프 파일</h4>$(ConvertTo-HtmlTable $dumpRows @('T','Name','C','N','KB') @('시간','파일','코드','이름','크기') '덤프 파일 없음')
 </div></details>
 <details class="sec"$(if ($c.Gpu) { ' open' })><summary>그래픽 드라이버 오류 (TDR · Xid)<span class="cnt">$($c.Gpu)</span></summary><div>
@@ -3520,6 +3559,19 @@ $script:EnPairs = @(
     @('RE:배터리 마모 (\d+)%', 'Battery wear $1%'),
     @('배터리만으로 쓰면 고부하에서 갑자기 꺼질 수 있습니다. 배터리 교체를 권장합니다.', 'On battery power it may shut off under heavy load. Replacing the battery is recommended.'),
     @('사용 시간이 줄었을 수 있습니다. 마모가 40% 를 넘으면 교체를 고려하세요.', 'Battery life may be shorter. Consider replacing it once wear exceeds 40%.'),
+    @('매개변수 해석', 'Parameter hint'),
+    @('CPU 내부 하드웨어 오류(Machine Check) — CPU·전압·오버클럭·쿨러', 'CPU internal hardware error (Machine Check) — CPU, voltage, overclock, cooler'),
+    @('하드웨어 비마스크 인터럽트(NMI) — 메인보드·확장 카드', 'Hardware non-maskable interrupt (NMI) — motherboard, expansion cards'),
+    @('PCIe 장치 오류 — 그래픽카드·NVMe SSD·슬롯·라이저 케이블', 'PCIe device error — graphics card, NVMe SSD, slot, riser cable'),
+    @('RE:CPU 코어 (\d+) 번이 응답하지 않음 — CPU·전압·오버클럭', 'CPU core $1 stopped responding — CPU, voltage, overclock'),
+    @('장치가 절전·깨우기 전환을 끝내지 못함 — 장치 드라이버(USB·네트워크·그래픽) 업데이트', 'A device did not finish a sleep/wake transition — update device drivers (USB, network, graphics)'),
+    @('전원 전환 시간 초과 — 저장장치·칩셋 드라이버', 'Power transition timed out — storage or chipset drivers'),
+    @('한 드라이버 작업이 너무 오래 걸림 — 저장장치(SSD 펌웨어)·네트워크 드라이버', 'One driver task ran too long — storage (SSD firmware) or network drivers'),
+    @('드라이버 작업이 누적되어 시간 초과 — 저장장치·칩셋 드라이버', 'Accumulated driver work timed out — storage or chipset drivers'),
+    @('메모리 페이지 표 손상 — RAM 불량에서 흔함 (XMP 끄고 RAM 검사)', 'Memory page table corruption — common with faulty RAM (disable XMP and test RAM)'),
+    @('잘못된 메모리 주소 참조 — 드라이버 또는 RAM', 'Invalid memory address reference — driver or RAM'),
+    @('잘못된 메모리 접근(Access violation) — 드라이버 또는 RAM', 'Invalid memory access (access violation) — driver or RAM'),
+    @('디버그 중단점 — 드라이버 오류', 'Debug breakpoint — driver error'),
     @('부품 요약', 'Parts summary'), @('전원', 'Power'), @('노트북', 'Laptop'), @('RE:노트북 \(배터리 마모 (\d+)%\)', 'Laptop (battery wear $1%)'), @('RE:권장 파워 (\d+) W 이상', 'Recommended PSU $1 W or more'),
     @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
     @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),

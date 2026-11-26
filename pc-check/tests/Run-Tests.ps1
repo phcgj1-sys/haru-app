@@ -869,6 +869,31 @@ It '정밀 검사 버튼: 도구 실행이 실패하면 실패로 알리고 공�
         Assert ($r.Error -match '공식 다운로드 페이지') '안내'
     } finally { Remove-Item Function:\Start-Process, Function:\Show-MonitorDialog -ErrorAction SilentlyContinue }
 }
+It '블루스크린 매개변수 해석 (WhoCrashed 방식): 이벤트·미니덤프에서 4개 읽고 흔한 코드는 쉬운 말로, 보고서 표에 (영어)' {
+    $p = Get-BugParamsFromText 'The computer has rebooted from a bugcheck.  The bugcheck was: 0x00000124 (0x0000000000000000, 0xffffa58c3a1b8028, 0x00000000be000000, 0x0000000000800400). A dump was saved'
+    Assert-Eq ($p -join ',') '0x0000000000000000,0xffffa58c3a1b8028,0x00000000be000000,0x0000000000800400' '이벤트 매개변수'
+    Assert ((Get-BugParamHint '0x124' $p) -match '^CPU 내부 하드웨어 오류') '0x124 P1=0 → CPU'
+    Assert ((Get-BugParamHint '0x124' @('0x4', '0', '0', '0')) -match '^PCIe 장치 오류') '0x124 P1=4 → PCIe'
+    Assert-Eq (Get-BugParamHint '0x101' @('0x30', '0', '0xfffff', '0x5')) 'CPU 코어 5 번이 응답하지 않음 — CPU·전압·오버클럭' '0x101 코어 번호'
+    Assert ((Get-BugParamHint '0x9F' @('0x3', '0', '0', '0')) -match '절전·깨우기') '0x9F P1=3'
+    Assert ((Get-BugParamHint '0x1A' @('0x41790', '0', '0', '0')) -match '페이지 표 손상') '0x1A 41790'
+    Assert ((Get-BugParamHint '0x3B' @('0xc0000005', '0', '0', '0')) -match 'Access violation') '0x3B 접근 위반'
+    Assert-Eq (Get-BugParamHint '0x116' @('0xffff', '0', '0', '0')) '' '해석 없는 코드는 빈 값'
+    Assert-Eq (Get-BugParamHint '0x124' @()) '' '매개변수 없으면 빈 값'
+    $f = Join-Path $OutDir 'bp64.dmp'; [void][IO.Directory]::CreateDirectory($OutDir)
+    $buf = New-Object byte[] 0x60; [Text.Encoding]::ASCII.GetBytes('PAGEDU64').CopyTo($buf, 0); [BitConverter]::GetBytes([uint32]0x124).CopyTo($buf, 0x38); [BitConverter]::GetBytes([uint64]4).CopyTo($buf, 0x40); [BitConverter]::GetBytes([uint64]0xABC).CopyTo($buf, 0x48)
+    [IO.File]::WriteAllBytes($f, $buf)
+    Assert-Eq ((Read-MinidumpBugParams $f) -join ',') '0x4,0xabc,0x0,0x0' '미니덤프 64비트 매개변수'
+    $d = New-Scenario @{ BugChecks = @([ordered]@{ T = (T 1); Code = '0x124'; Params = @('0x4', '0x0', '0x0', '0x0') }) }
+    $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)
+    Assert ($h -match '매개변수 해석' -and $h -match 'PCIe 장치 오류') '보고서 표'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try {
+        foreach ($x in @(@('0x124', @('0x0')), @('0x124', @('0x3')), @('0x124', @('0x4')), @('0x101', @('0', '0', '0', '0x2')), @('0x9F', @('0x3')), @('0x9F', @('0x4')), @('0x133', @('0x0')), @('0x133', @('0x1')), @('0x1A', @('0x41790')), @('0x1A', @('0x61941')), @('0x1E', @('0xc0000005')), @('0x1E', @('0x80000003')))) {
+            $t = Tr (Get-BugParamHint $x[0] $x[1]); Assert ($t -and $t -notmatch '[가-힣]') "영어 $($x[0]): $t"
+        }
+    } finally { $script:UiLang = $old }
+}
 It 'Format-BugCode 정규화' {
     Assert-Eq (Format-BugCode '0x00000116') '0x116' 'hex 문자열'
     Assert-Eq (Format-BugCode 278) '0x116' '정수'
