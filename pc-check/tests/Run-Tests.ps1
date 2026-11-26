@@ -1098,6 +1098,18 @@ It '보고서 온도 수집: 관리자 권한이 없어(ACPI 거부) 도 열 영
         Assert ($src -match '\$D\.Thermal = @\(Get-ThermalReadings\)') '수집 단계에서 사용'
     } finally { Remove-Item Function:\Get-CimInstance -ErrorAction SilentlyContinue; $script:FakeAcpi = $null }
 }
+It '실시간 측정: NVIDIA 카드가 여러 장이면 가장 뜨거운 카드 기준 (nvidia-smi 여러 줄)' {
+    $num = { param($x) $r = 0.0; if ([double]::TryParse(($x -replace '[^\d\.]', ''), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$r)) { $r } else { $null } }
+    $b = Select-HottestNvRow @('45, 3, 20.5, 210, 400', '91, 100, 310.2, 2520, 11000') $num
+    Assert-Eq ($b -join '|') '91|100|310.2|2520|11000' '둘째 카드'
+    $b = Select-HottestNvRow @('62, 50, 150.1, 1800, 3000') $num
+    Assert-Eq $b[0] 62 '한 장'
+    $b = Select-HottestNvRow @('[N/A], 0, [N/A], 300, 100', '55, 1, 30, 300, 200') $num
+    Assert-Eq $b[0] 55 '온도 없는 줄보다 있는 줄'
+    Assert ($null -eq (Select-HottestNvRow @('No devices were found') $num)) '형식 아님'
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    Assert ([regex]::Match($src, '(?s)function Get-LiveSample.*?\n\}').Value -match 'Select-HottestNvRow') '실시간 측정에서 사용'
+}
 It '실시간 측정: GPU 센서가 여럿(내장+외장)이면 가장 뜨거운 값으로 (과열 보호가 늦지 않게)' {
     function Get-GpuSensors { return @([ordered]@{ Index = 0; TempC = 41.0; FanRPM = $null }, [ordered]@{ Index = 1; TempC = 93.5; FanRPM = 2100 }) }
     try {

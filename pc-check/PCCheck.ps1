@@ -1853,6 +1853,16 @@ function Show-MonitorDialog {
     [void]$f.ShowDialog()
     $t.Dispose(); $f.Dispose()
 }
+function Select-HottestNvRow([object[]]$Rows, [scriptblock]$Num) {
+    # nvidia-smi CSV 여러 줄 중 온도가 가장 높은 줄 (값 5개: 온도·사용률·전력·클럭·VRAM)
+    $best = $null
+    foreach ($r in @($Rows)) {
+        $c = ([string]$r) -split ',\s*'; if ($c.Count -lt 5) { continue }
+        $v = @(0..4 | ForEach-Object { & $Num $c[$_] })
+        if ($null -eq $best -or ($null -ne $v[0] -and ($null -eq $best[0] -or [double]$v[0] -gt [double]$best[0]))) { $best = $v }
+    }
+    return $best
+}
 function Get-LiveSample {
     $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = '' }
     try { $s.CpuPct = [int](Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorTime } catch {}
@@ -1864,8 +1874,10 @@ function Get-LiveSample {
     if ($nv) {
         $num = { param($x) $r = 0.0; if ([double]::TryParse(($x -replace '[^\d\.]', ''), [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$r)) { $r } else { $null } }
         try {
-            $c = ([string](@(& $nv '--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,memory.used' '--format=csv,noheader,nounits' 2>$null)[0])) -split ',\s*'
-            if ($c.Count -ge 5) { $s.GpuTempC = & $num $c[0]; $s.GpuUtilPct = & $num $c[1]; $s.GpuPowerW = & $num $c[2]; $s.GpuClockMHz = & $num $c[3]; $s.GpuMemMB = & $num $c[4] }
+            # 카드가 여러 장이면 한 줄씩 나옴 → 가장 뜨거운 카드 기준 (둘째 카드 과열을 놓치지 않게)
+            $rowsNv = @(& $nv '--query-gpu=temperature.gpu,utilization.gpu,power.draw,clocks.gr,memory.used' '--format=csv,noheader,nounits' 2>$null)
+            $best = Select-HottestNvRow $rowsNv $num
+            if ($best) { $s.GpuTempC = $best[0]; $s.GpuUtilPct = $best[1]; $s.GpuPowerW = $best[2]; $s.GpuClockMHz = $best[3]; $s.GpuMemMB = $best[4] }
         } catch {}
         try {
             $th = [string](@(& $nv '--query-gpu=clocks_event_reasons.active' '--format=csv,noheader' 2>$null)[0])
