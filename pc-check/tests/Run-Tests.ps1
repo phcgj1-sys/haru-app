@@ -1077,6 +1077,23 @@ It '보고서 온도 수집: 관리자 권한이 없어(ACPI 거부) 도 열 영
         Assert ($src -match '\$D\.Thermal = @\(Get-ThermalReadings\)') '수집 단계에서 사용'
     } finally { Remove-Item Function:\Get-CimInstance -ErrorAction SilentlyContinue; $script:FakeAcpi = $null }
 }
+It '온도 모니터: CPU 를 많이 써도 보드 온도가 전혀 변하지 않으면(고정값 센서) 실제 CPU 온도가 아닐 수 있다고 표시' {
+    $old = $script:UiLang
+    try {
+        $script:UiLang = 'ko'
+        $max = @{}; foreach ($i in 1..12) { Update-MonitorMax $max ([ordered]@{ CpuPct = 100; BoardTempC = 27.8 }) }
+        Assert ($max.BoardStatic) '고정값 감지'
+        Assert ((Get-MonitorText ([ordered]@{ CpuPct = 100; BoardTempC = 27.8 }) $max) -match '실제 CPU 온도가 아닐 수 있음') '표시'
+        $max2 = @{}; foreach ($i in 1..12) { Update-MonitorMax $max2 ([ordered]@{ CpuPct = 100; BoardTempC = (40 + $i) }) }
+        Assert (-not $max2.BoardStatic) '변하는 센서는 정상'
+        $max3 = @{}; foreach ($i in 1..12) { Update-MonitorMax $max3 ([ordered]@{ CpuPct = 5; BoardTempC = 35 }) }
+        Assert (-not $max3.BoardStatic) 'CPU 를 안 쓸 때는 판단 안 함'
+        $max4 = @{}; foreach ($i in 1..5) { Update-MonitorMax $max4 ([ordered]@{ CpuPct = 100; BoardTempC = 27.8 }) }
+        Assert (-not $max4.BoardStatic) '표본이 적으면 판단 안 함'
+        $script:UiLang = 'en'
+        Assert ((Get-MonitorText ([ordered]@{ CpuPct = 100; BoardTempC = 27.8 }) $max) -notmatch '[가-힣]') '영어'
+    } finally { $script:UiLang = $old }
+}
 It 'CPU·메인보드 온도 센서: 관리자 ACPI 우선, 없으면 일반 권한 열 영역 카운터, 이상값 무시' {
     function Get-CimInstance { param($ClassName, $Namespace, $Filter, $ErrorAction) if ($ClassName -eq 'MSAcpi_ThermalZoneTemperature') { if ($script:FakeAcpi) { return $script:FakeAcpi } else { throw 'access denied' } } else { return @([pscustomobject]@{ Temperature = 318 }, [pscustomobject]@{ Temperature = 0 }) } }
     try {

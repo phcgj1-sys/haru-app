@@ -1768,6 +1768,13 @@ function Update-MonitorMax([hashtable]$Max, $Sample) {
         $v = $Sample[$k]; if ($null -eq $v -or "$v" -eq '') { continue }
         if ($null -eq $Max[$k] -or [double]$v -gt [double]$Max[$k]) { $Max[$k] = [double]$v }
     }
+    # 보드에 따라 ACPI 열 영역이 고정값(예: 27.8 °C)만 내므로, CPU 를 많이 쓰는데도 전혀 변하지 않으면 표시
+    $bt = $Sample['BoardTempC']
+    if ($null -ne $bt -and "$bt" -ne '') {
+        $Max['BoardN'] = 1 + [int]$Max['BoardN']
+        if ($null -eq $Max['BoardMin'] -or [double]$bt -lt [double]$Max['BoardMin']) { $Max['BoardMin'] = [double]$bt }
+        $Max['BoardStatic'] = ([int]$Max['BoardN'] -ge 10 -and [double]$Max['CpuPct'] -ge 80 -and ([double]$Max['BoardTempC'] - [double]$Max['BoardMin']) -lt 0.5)
+    }
 }
 function Get-MonitorText($S, [hashtable]$Max) {
     # 실시간 온도 모니터 표시 문구 (숫자가 많아 번역 표 대신 언어별로 직접 만듦)
@@ -1781,7 +1788,7 @@ function Get-MonitorText($S, [hashtable]$Max) {
     $cpu = "$(& $w 'CPU 사용률' 'CPU usage') $(& $n $S.CpuPct)%"; if ($null -ne $S.CpuPerfPct) { $cpu += " · $(& $w '클럭' 'clock') $(& $n $S.CpuPerfPct)%" }
     $l += $cpu
     if ($null -ne $S.BoardTempC) {
-        $l += "$(& $w 'CPU·메인보드 온도' 'CPU/board temp') $(& $n $S.BoardTempC) °C ($mx $(& $n $Max.BoardTempC) °C)$(if ([double]$S.BoardTempC -ge 90) { $hot })"
+        $l += "$(& $w 'CPU·메인보드 온도' 'CPU/board temp') $(& $n $S.BoardTempC) °C ($mx $(& $n $Max.BoardTempC) °C)$(if ([double]$S.BoardTempC -ge 90) { $hot })$(if ($Max.BoardStatic) { & $w ' — 값이 변하지 않아 실제 CPU 온도가 아닐 수 있음 (HWiNFO 로 확인)' ' — value never changes, may not be the real CPU temperature (check with HWiNFO)' })"
     } else { $l += (& $w 'CPU·메인보드 온도: 이 PC 는 Windows 기본 센서가 없습니다 (HWiNFO 로 확인)' 'CPU/board temp: no built-in Windows sensor on this PC (check with HWiNFO)') }
     if ($null -ne $S.GpuTempC -or $null -ne $S.GpuUtilPct) {
         $l += "$(& $w '그래픽카드 온도' 'GPU temp') $(& $n $S.GpuTempC) °C ($mx $(& $n $Max.GpuTempC) °C)$(if ($null -ne $S.GpuTempC -and [double]$S.GpuTempC -ge 85) { $hot })"
