@@ -2794,6 +2794,9 @@ function Show-BlackboxDialog {
     })
     $browse.Add_Click({ $d = New-Object Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog($f) -eq 'OK') { $dirBox.Text = Join-Path $d.SelectedPath 'PCCheck_blackbox' } })
     $startB.Add_Click({
+        # GPU 도구를 준비하는 동안(DoEvents) 다시 눌러 기록기가 둘 생기지 않도록 먼저 막음
+        if ($st.Box -or -not $startB.Enabled) { return }
+        $startB.Enabled = $false
         try {
             $st.Auto = $autoR.Checked; $st.GpuFailed = $false; $st.Hot = 0; $st.CpuErrSeen = 0
             $st.Plan = $(if ($quickChk.Checked) { Get-QuickPlan } else { $script:StagePlan })

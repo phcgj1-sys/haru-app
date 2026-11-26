@@ -1092,16 +1092,21 @@ It '백그라운드 실행 공간에 필요한 설정값이 모두 전달됨 (GP
     Assert ($src -notmatch "foreach \(\`$v in 'AppName'") '설정 목록이 한 곳(SharedVars)에만 있음'
 }
 It '백그라운드 수집: 진행 상황 전달 후 데이터 반환' {
-    $job = Start-CollectAsync -Days 3
-    $sw = [Diagnostics.Stopwatch]::StartNew(); $seen = 0
-    while (-not $job.Sync.Done -and $sw.Elapsed.TotalSeconds -lt 120) { if ($job.Sync.I -gt $seen) { $seen = $job.Sync.I }; Start-Sleep -Milliseconds 100 }
-    Assert $job.Sync.Done '120초 안에 완료'
-    $data = Complete-CollectAsync $job
-    Assert ($null -eq $job.Sync.Error) "오류: $($job.Sync.Error)"
-    Assert ($null -ne $data) '데이터 반환'
-    Assert-Eq $job.Sync.N 12 '단계 수 전달'
-    Assert-Eq $data.Meta.Days 3 '기간 전달'
-    [void](Get-Diagnosis -Data $data)
+    $job = $null; $done = $false
+    try {
+        $job = Start-CollectAsync -Days 3
+        $sw = [Diagnostics.Stopwatch]::StartNew(); $seen = 0
+        while (-not $job.Sync.Done -and $sw.Elapsed.TotalSeconds -lt 120) { if ($job.Sync.I -gt $seen) { $seen = $job.Sync.I }; Start-Sleep -Milliseconds 100 }
+        Assert $job.Sync.Done '120초 안에 완료'
+        $data = Complete-CollectAsync $job; $done = $true
+        Assert ($null -eq $job.Sync.Error) "오류: $($job.Sync.Error)"
+        Assert ($null -ne $data) '데이터 반환'
+        Assert-Eq $job.Sync.N 12 '단계 수 전달'
+        Assert-Eq $data.Meta.Days 3 '기간 전달'
+        [void](Get-Diagnosis -Data $data)
+    } finally {   # 시간 초과·Assert 실패 때도 백그라운드 수집을 멈추고 정리 (프로세스 종료 때 남지 않게)
+        if ($job -and -not $done) { try { $job.PS.Stop() } catch {}; try { $job.PS.Dispose(); $job.Runspace.Dispose() } catch {} }
+    }
 }
 
 Write-Host "`n[블랙박스]" -ForegroundColor Cyan
@@ -1350,6 +1355,12 @@ It '정밀 테스트 통과 확인서 (OCCT 인증 방식): 전 단계 통과 �
     $old = $script:UiLang; $script:UiLang = 'en'
     try { $he = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($he, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value } | Where-Object { $_ -notmatch 'OO컴퓨터' }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')"; Assert ($he -match 'Detailed test pass certificate') '영어 제목' } finally { $script:UiLang = $old }
 }
+It '블랙박스 창: 기록 시작을 빠르게 두 번 눌러도 기록기가 하나만 (GPU 도구 준비 전에 단추를 먼저 막음)' {
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    $h = [regex]::Match($src, '(?s)\$startB\.Add_Click\(\{.*?Install-MemtestVulkan').Value
+    Assert ($h -match 'if \(\$st\.Box -or -not \$startB\.Enabled\) \{ return \}') '이미 기록 중이면 무시'
+    Assert ($h.IndexOf('$startB.Enabled = $false') -ge 0 -and $h.IndexOf('$startB.Enabled = $false') -lt $h.IndexOf('::DoEvents()')) 'DoEvents 전에 단추 비활성화'
+}
 It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드카드로 해석하지 않음)' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usb[1]_' + [guid]::NewGuid().ToString('N'))
@@ -1488,7 +1499,11 @@ It '온도 모니터: 측정은 별도 실행 공간에서 (멈춘 드라이버�
         $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
         $dlg = [regex]::Match($src, '(?s)function Show-MonitorDialog.*?\n\}').Value
         Assert ($dlg -match 'Start-LiveSampleJob' -and $dlg -notmatch '\$smp = Get-LiveSample') '화면 스레드에서 직접 측정하지 않음'
-    } finally { $rs.Dispose() }
+    } finally {
+        # 측정 작업을 먼저 정리한 뒤 실행 공간을 닫음 (실행 중인 작업 아래에서 닫지 않게)
+        foreach ($x in @($j, $bj)) { if ($x -and $x.PS) { try { if (-not $x.Handle.IsCompleted) { $x.PS.Stop() } } catch {}; try { $x.PS.Dispose() } catch {} } }
+        $rs.Dispose()
+    }
 }
 It '실시간 측정: GPU 센서가 여럿(내장+외장)이면 가장 뜨거운 값으로 (과열 보호가 늦지 않게)' {
     function Get-GpuSensors { return @([ordered]@{ Index = 0; TempC = 41.0; FanRPM = $null }, [ordered]@{ Index = 1; TempC = 93.5; FanRPM = 2100 }) }
@@ -1838,23 +1853,26 @@ It '실제 기록기: 줄 기록 후 중지 표시, CPU 부하 시작/중지' {
     $a = Read-BlackboxAnalysis $job.Path; Assert (-not $a.Abrupt) '정상 종료'
 }
 It '기록기: 순간 쓰기 오류는 다시 시도, 계속되면 기록 오류로 표시 (갑자기 꺼짐으로 오판 안 함)' {
-    $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb3') -IntervalSec 0.1 -NoEvents
-    $sw = [Diagnostics.Stopwatch]::StartNew()
-    while ($job.Sync.Rows -lt 2 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
-    $bad = Join-Path (Join-Path $OutDir 'no_such_dir_x') 'y.csv'
-    $job.Sync.Path = $bad
-    $sw.Restart(); while (-not $job.Sync.Warn -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
-    Assert ([string]$job.Sync.Warn) '순간 오류 감지'
-    $job.Sync.Path = $job.Path; $r0 = $job.Sync.Rows
-    $sw.Restart(); while ($job.Sync.Rows -le $r0 -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
-    Assert ($job.Sync.Rows -gt $r0) '다시 기록 계속'; Assert ($null -eq $job.Sync.Error) '오류로 멈추지 않음'
-    $job.Sync.Path = $bad
-    $sw.Restart(); while (-not $job.Sync.Done -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
-    Assert $job.Sync.Done '계속되는 오류면 중지'; Assert ([string]$job.Sync.Error) '오류 보고'
-    Stop-Blackbox $job
-    $a = Read-BlackboxAnalysis $job.Path
-    Assert (-not $a.Abrupt) '전원 차단으로 오판 안 함'; Assert ($a.Events.ContainsKey('LOGERR')) '기록 오류 표시'
-    Assert (@($a.Notes) -match '기록 오류').Count '안내'
+    $job = $null; $stopped = $false
+    try {
+        $job = Start-Blackbox -Dir (Join-Path $OutDir 'bb3') -IntervalSec 0.1 -NoEvents
+        $sw = [Diagnostics.Stopwatch]::StartNew()
+        while ($job.Sync.Rows -lt 2 -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
+        $bad = Join-Path (Join-Path $OutDir 'no_such_dir_x') 'y.csv'
+        $job.Sync.Path = $bad
+        $sw.Restart(); while (-not $job.Sync.Warn -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
+        Assert ([string]$job.Sync.Warn) '순간 오류 감지'
+        $job.Sync.Path = $job.Path; $r0 = $job.Sync.Rows
+        $sw.Restart(); while ($job.Sync.Rows -le $r0 -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
+        Assert ($job.Sync.Rows -gt $r0) '다시 기록 계속'; Assert ($null -eq $job.Sync.Error) '오류로 멈추지 않음'
+        $job.Sync.Path = $bad
+        $sw.Restart(); while (-not $job.Sync.Done -and $sw.Elapsed.TotalSeconds -lt 30) { Start-Sleep -Milliseconds 100 }
+        Assert $job.Sync.Done '계속되는 오류면 중지'; Assert ([string]$job.Sync.Error) '오류 보고'
+        Stop-Blackbox $job; $stopped = $true
+        $a = Read-BlackboxAnalysis $job.Path
+        Assert (-not $a.Abrupt) '전원 차단으로 오판 안 함'; Assert ($a.Events.ContainsKey('LOGERR')) '기록 오류 표시'
+        Assert (@($a.Notes) -match '기록 오류').Count '안내'
+    } finally { if ($job -and -not $stopped) { Stop-Blackbox $job } }   # Assert 가 실패해도 기록기 실행 공간을 남기지 않음
 }
 It '화면 → 기록기 사건 전달: 연달아 생겨도, 쓰기 실패해도 잃지 않음' {
     $sy = [hashtable]::Synchronized(@{ Pending = '' })
