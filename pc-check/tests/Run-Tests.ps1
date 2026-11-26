@@ -1185,6 +1185,24 @@ It '견고성: 깨진 블랙박스 파일(빈 파일·머리말만·머리말 �
     }
     Assert-Eq $fails.Count 0 ($fails -join ' / ')
 }
+It 'CPU 부하 연산 검증 (Prime95·OCCT 방식): 정상 CPU 는 오류 0, 결과가 달라지면 오류로 세고 블랙박스가 CPU 불안정으로 판정 (영어)' {
+    $j = Start-CpuStress -Threads 2
+    try {
+        Assert $j.Native '컴파일된 부하'
+        $sw = [Diagnostics.Stopwatch]::StartNew(); while ($j.Sync.Loops -lt 6 -and $sw.Elapsed.TotalSeconds -lt 60) { Start-Sleep -Milliseconds 100 }
+        Assert-Eq (Get-CpuStressErrors $j) 0 '정상 CPU 는 같은 결과'
+        $before = $j.Sync.Loops; $j.Sync.InjectError = $true
+        $sw.Restart(); while ($j.Sync.Loops -lt $before + 4 -and $sw.Elapsed.TotalSeconds -lt 60) { Start-Sleep -Milliseconds 100 }
+        Assert-Eq (Get-CpuStressErrors $j) 1 '틀린 결과 1건 검출'
+    } finally { Stop-CpuStress $j }
+    $rows = @(,@('cpu', 100, 99, 40, 1, 20, '', 0, 'CPUERR')) + (Rep 4 @('cpu', 100, 99, 40, 1, 20, '', 0, ''))
+    $ab = Read-BlackboxAnalysis (New-Bb2File 'bb_cpuerr.csv' $rows)
+    Assert-Eq $ab.Cause 'CPU_OC' '꺼짐 + CPU 오류 → CPU'; Assert ($ab.Title -match 'CPU 연산 오류 1 건 뒤 꺼짐') "제목 $($ab.Title)"
+    $ok = Read-BlackboxAnalysis (New-Bb2File 'bb_cpuerr2.csv' $rows -Stop)
+    Assert-Eq $ok.Cause 'CPU_OC' '정상 종료 + CPU 오류 → CPU (디스크 아님)'; Assert ($ok.Detail -match 'CPU 연산 오류 1 건') '안내'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { foreach ($x in $ab.Title, $ab.Detail, $ok.Detail, (Tr ' · CPU 연산 오류 3 건')) { Assert ((Tr $x) -notmatch '[가-힣]') "영어: $(Tr $x)" } } finally { $script:UiLang = $old }
+}
 It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드카드로 해석하지 않음)' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usb[1]_' + [guid]::NewGuid().ToString('N'))

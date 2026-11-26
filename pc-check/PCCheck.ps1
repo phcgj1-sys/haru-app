@@ -31,7 +31,7 @@ param(
 )
 
 $script:AppName    = 'PC 원클릭 진단'
-$script:AppVersion = '2.7.0'
+$script:AppVersion = '2.8.0'
 $script:IsWin      = ($env:OS -eq 'Windows_NT')
 
 # =====================================================================
@@ -2071,6 +2071,8 @@ public class PCCheckCpuStress {
     public volatile bool Stop;
     public volatile bool Pause;
     public long Loops;
+    public long Errors;            // 같은 계산의 결과가 달라진 횟수 (Prime95·OCCT 처럼 연산 오류 검출)
+    public volatile bool InjectError;   // 테스트용: 다음 결과를 일부러 틀리게
     Thread[] threads;
     public void Start(int n) {
         threads = new Thread[n];
@@ -2079,15 +2081,23 @@ public class PCCheckCpuStress {
         }
     }
     void Work(object o) {
-        double a0 = 1.0001 + (int)o, a1 = 1.0002, a2 = 1.0003, a3 = 1.0004, a4 = 0.9999, a5 = 0.9998, a6 = 0.9997, a7 = 0.9996;
         const double m = 0.999999, c = 0.000001;
+        double seed = 1.0001 + (int)o;
+        bool haveRef = false; double refSum = 0; ulong refInt = 0;
         while (!Stop) {
             if (Pause) { Thread.Sleep(20); continue; }
-            for (int k = 0; k < 2000000; k++) {   // 독립 누산기 8개 — 연산 장치를 가득 채움
+            // 매 블록 같은 값에서 시작 → 정상 CPU 는 늘 같은 결과. 다르면 연산 오류 (불안정한 오버클럭·전압 부족·CPU 불량)
+            double a0 = seed, a1 = 1.0002, a2 = 1.0003, a3 = 1.0004, a4 = 0.9999, a5 = 0.9998, a6 = 0.9997, a7 = 0.9996;
+            ulong x = 0x9E3779B97F4A7C15UL ^ (ulong)(int)o;
+            for (int k = 0; k < 2000000; k++) {   // 독립 누산기 8개(부동소수점) + 정수 난수 — 연산 장치를 가득 채움
                 a0 = a0 * m + c; a1 = a1 * m + c; a2 = a2 * m + c; a3 = a3 * m + c;
                 a4 = a4 * m + c; a5 = a5 * m + c; a6 = a6 * m + c; a7 = a7 * m + c;
+                x ^= x << 13; x ^= x >> 7; x ^= x << 17;
             }
-            if (a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7 == 42.0) Console.Write("");   // 최적화로 사라지지 않게
+            double sum = a0 + a1 + a2 + a3 + a4 + a5 + a6 + a7;
+            if (InjectError) { InjectError = false; sum += 1.0; }
+            if (!haveRef) { refSum = sum; refInt = x; haveRef = true; }
+            else if (BitConverter.DoubleToInt64Bits(sum) != BitConverter.DoubleToInt64Bits(refSum) || x != refInt) { Interlocked.Increment(ref Errors); }
             Interlocked.Increment(ref Loops);
         }
     }
@@ -2113,6 +2123,11 @@ function Start-CpuStress {
         $jobs += [pscustomobject]@{ PS = $ps; Handle = $ps.BeginInvoke() }
     }
     return [pscustomobject]@{ Sync = $sync; Pool = $pool; Jobs = $jobs; Threads = $Threads; Native = $false }
+}
+function Get-CpuStressErrors($Job) {
+    # 연산 검증 오류 수 (PowerShell 대체 부하는 검증하지 않으므로 0)
+    if ($Job -and $Job.Native) { return [long]$Job.Sync.Errors }
+    return 0
 }
 function Stop-CpuStress($Job) {
     if (-not $Job) { return }
@@ -2339,6 +2354,8 @@ function Read-BlackboxAnalysis([string]$Path) {
     # 부가 신호
     if ($res.RamErrors -gt 0) { $res.Notes += "RAM 검사 오류 $($res.RamErrors) 건 (RAM 불량이 거의 확실)" }
     if ($res.GpuTestErrors -gt 0) { $res.Notes += "VRAM 검사 오류 $($res.GpuTestErrors) 건 (그래픽카드 메모리 불량 의심)" }
+    $res.CpuErrors = [int]$events['CPUERR']
+    if ($res.CpuErrors -gt 0) { $res.Notes += "CPU 연산 오류 $($res.CpuErrors) 건 (같은 계산의 결과가 달라짐 — 오버클럭·언더볼트·CPU 전압·불량 의심)" }
     if ($events.ContainsKey('LOGERR')) { $res.Notes += '기록 오류로 기록이 중간에 멈춤 (USB 연결·여유 공간 확인)' }
     if ($events.ContainsKey('GPULOST')) { $res.Notes += '그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)' }
     $gpuFail = $events.ContainsKey('GPUFAIL')
@@ -2391,7 +2408,9 @@ function Read-BlackboxAnalysis([string]$Path) {
         if ($evText) { $res.Detail += " 직전 오류: $evText." }
         $res.Detail += $noteText
         # 꺼지기 전에 메모리 검사 오류가 나왔다면 그것이 더 직접적인 근거 — 원인과 제목을 함께 바꿈 (제목·원인 불일치 방지)
-        if ($res.RamErrors -gt 0) {
+        if ($res.CpuErrors -gt 0 -and $res.RamErrors -le 0) {
+            $res.Cause = 'CPU_OC'; $res.Title = "블랙박스: CPU 연산 오류 $($res.CpuErrors) 건 뒤 꺼짐 (CPU 불안정 의심)"
+        } elseif ($res.RamErrors -gt 0) {
             $res.Cause = 'RAM'; $res.Title = "블랙박스: RAM 검사 오류 $($res.RamErrors) 건 뒤 꺼짐 (RAM 불량 의심)"
         } elseif ($res.GpuTestErrors -gt 0) {
             $res.Cause = 'GPU_HW'; $res.Title = "블랙박스: VRAM 검사 오류 $($res.GpuTestErrors) 건 뒤 꺼짐 (그래픽카드 불량 의심)"
@@ -2408,7 +2427,7 @@ function Read-BlackboxAnalysis([string]$Path) {
     } elseif ($hwEvKeys.Count -or $thr.ContainsKey('HWSLOW') -or $thr.ContainsKey('PBRAKE')) {
         $res.Level = 'warn'; $res.Title = "블랙박스: 테스트 중 오류 기록 ($([math]::Round($res.Minutes)) 분)"
         $res.Detail = "꺼지지는 않았지만 테스트 중 이상 신호가 기록되었습니다$(if ($hwEvText) { ": $hwEvText" })."
-        if ($hwEvText -match 'Xid|TDR|NVIDIA|AMD|INTEL') { $res.Cause = 'GPU_HW' } elseif ($hwEvText -match 'WHEA') { $res.Cause = 'CPU_OC' } elseif ($hwEvText) { $res.Cause = 'DISK' } else { $res.Cause = 'PSU' }
+        if ($hwEvText -match 'Xid|TDR|NVIDIA|AMD|INTEL') { $res.Cause = 'GPU_HW' } elseif ($hwEvText -match 'WHEA|CPUERR') { $res.Cause = 'CPU_OC' } elseif ($hwEvText) { $res.Cause = 'DISK' } else { $res.Cause = 'PSU' }
         $res.Detail += $noteText
     } else {
         $res.Level = 'ok'
@@ -2559,8 +2578,11 @@ function Show-BlackboxDialog {
             $txt = $head
             if ($l) { $txt += "`nCPU $($l.CpuPct)%$(if ($null -ne $l.CpuPerfPct) { " (클럭 $($l.CpuPerfPct)%)" }) · GPU $(if ($null -ne $l.GpuTempC) { "$($l.GpuTempC) °C" } else { '-' })$(if ($null -ne $l.GpuPowerW) { " $($l.GpuPowerW) W" })$(if ($l.GpuThrottle) { " [$($l.GpuThrottle)]" })" }
             $rt = Get-RamTestState
+            $ce = Get-CpuStressErrors $st.Cpu
+            if ($st.Box -and $ce -gt [long]$st.CpuErrSeen) { Add-BlackboxEvent $st.Box.Sync 'CPUERR'; $st.CpuErrSeen = $ce }
             if ($st.Ram -and $st.Box -and $st.Box.Sync.GpuSeen -notmatch 'RAMFAIL' -and (Test-RamTestStalled $rt ((Get-Date) - $st.RamStart).TotalSeconds)) { Add-BlackboxEvent $st.Box.Sync 'RAMFAIL'; $st.Box.Sync.GpuSeen += ' RAMFAIL' }
             if ($rt.TestedMB -gt 0) { $txt += " · RAM 검사 $([math]::Round($rt.TestedMB / 1024, 1)) GB, 오류 $($rt.Errors) 건" }
+            if ($ce -gt 0) { $txt += " · CPU 연산 오류 $ce 건" }
             if ($sy.Events) { $txt += " · 오류 $($sy.Events) 건" }
             $txt += Get-BlackboxWarnText $sy
             $live.Text = (Tr $txt) + "`n" + $sy.Path
@@ -2570,7 +2592,7 @@ function Show-BlackboxDialog {
     $browse.Add_Click({ $d = New-Object Windows.Forms.FolderBrowserDialog; if ($d.ShowDialog($f) -eq 'OK') { $dirBox.Text = Join-Path $d.SelectedPath 'PCCheck_blackbox' } })
     $startB.Add_Click({
         try {
-            $st.Auto = $autoR.Checked; $st.GpuFailed = $false; $st.Hot = 0
+            $st.Auto = $autoR.Checked; $st.GpuFailed = $false; $st.Hot = 0; $st.CpuErrSeen = 0
             $st.Plan = $(if ($quickChk.Checked) { Get-QuickPlan } else { $script:StagePlan })
             if ($st.Auto -or $gpuChk.Checked) {
                 # GPU 부하 도구를 미리 준비 (노하드는 재부팅마다 지워지므로 매번 받음). 실패하면 바로 알림
@@ -3369,6 +3391,9 @@ $script:EnPairs = @(
     @('그래픽카드 하드웨어 감속 신호 (전원 공급 불안정 또는 과열)', 'Graphics card hardware slowdown signal (unstable power or overheating)'),
     @('그래픽카드 온도 제한 동작', 'Graphics card thermal limiting'),
     @('RE:VRAM 검사 오류 (\d+) 건 \(그래픽카드 메모리 불량 의심\)', 'VRAM test errors: $1 (faulty graphics memory suspected)'),
+    @('RE:블랙박스: CPU 연산 오류 (\d+) 건 뒤 꺼짐 \(CPU 불안정 의심\)', 'Black box: shut off after $1 CPU calculation errors (unstable CPU suspected)'),
+    @('RE:CPU 연산 오류 (\d+) 건 \(같은 계산의 결과가 달라짐 — 오버클럭·언더볼트·CPU 전압·불량 의심\)', 'CPU calculation errors: $1 (the same calculation gave different results — suspect overclock, undervolt, CPU voltage or a faulty CPU)'),
+    @('RE: · CPU 연산 오류 (\d+) 건', ' · CPU calculation errors $1'),
     @('RE:블랙박스: VRAM 검사에서 오류 (\d+) 건', 'Black box: VRAM test found $1 errors'),
     @(' (이후 테스트 통과)', ' (later test passed)'),
     @('GPU 부하 도구 준비 중...', 'Preparing the GPU load tool...'),
