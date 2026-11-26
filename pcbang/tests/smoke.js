@@ -367,6 +367,12 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(dk.join('/') === 'warn,warn/info,info', '노하드: 디스크·재부팅 대기는 참고, 일반 PC 는 경고 (' + dk.join('/') + ')');
   }
 
+  // NVIDIA 드라이버 표시: 32.0.15.6603 → 566.03, AMD 는 그대로
+  {
+    const dv = await page.evaluate(() => [window.__pcbang.drvText({ name: 'NVIDIA GeForce RTX 4060', driver: '32.0.15.6603' }), window.__pcbang.drvText({ name: 'AMD Radeon RX 7600', driver: '31.0.24027.1012' })]);
+    ok(/^566\.03/.test(dv[0]) && dv[1] === '31.0.24027.1012', '드라이버 표시: NVIDIA 566.03, AMD 그대로 (' + dv.join(' / ') + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],

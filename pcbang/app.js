@@ -486,7 +486,7 @@ function renderSpec() {
   if (nat) {
     kv('점검 프로그램', '<span class="pill ok">적용됨 ' + esc(nat.time || '') + '</span>');
     kv('· CPU', esc(nat.cpu || '-') + (nat.cores ? ' (' + nat.cores + '코어' + (nat.threads ? ' ' + nat.threads + '스레드' : '') + ')' : ''));
-    kv('· 그래픽', (nat.gpus || []).map(function (g) { return esc(g.name) + (g.vram ? ' ' + g.vram + 'GB' : '') + (g.driver ? ' · 드라이버 ' + esc(g.driver) : ''); }).join('<br>') || '-');
+    kv('· 그래픽', (nat.gpus || []).map(function (g) { return esc(g.name) + (g.vram ? ' ' + g.vram + 'GB' : '') + (g.driver ? ' · 드라이버 ' + esc(drvText(g)) : ''); }).join('<br>') || '-');
     kv('· RAM', nat.ramGB ? nat.ramGB + 'GB' + (nat.ramSpeed ? ' · ' + nat.ramSpeed + 'MHz' : '') + (nat.ramSticks ? ' · ' + nat.ramSticks + '개' : '') : '-');
     kv('· 운영체제', esc(nat.osName || '-'));
     if (nat.power) kv('· 전원 관리', esc(nat.power));
@@ -1333,6 +1333,13 @@ function gwGrade(p) {
   if (p.loss > 0 || p.avg > 3) return 'warn';
   return 'ok';
 }
+// NVIDIA 드라이버: 윈도우가 보여 주는 32.0.15.6603 의 뒤 두 칸을 이어 끝 5자리 → 566.03 (NVIDIA 앱·홈페이지에 나오는 번호)
+function drvText(g) {
+  var v = String((g && g.driver) || ''), m = v.match(/^\d+\.\d+\.(\d+)\.(\d+)$/);
+  if (!m || !/nvidia/i.test((g && g.name) || '')) return v;
+  var d = (m[1] + ('0000' + m[2]).slice(-4)).slice(-5);
+  return d.slice(0, 3) + '.' + d.slice(3) + ' (' + v + ')';
+}
 function monOnIgpu(nat) {
   if (!nat) return false; if (nat.monitorOnIgpu) return true;
   var p = (nat.displays || []).filter(function (x) { return x.primary; })[0];
@@ -1517,7 +1524,7 @@ function diffNative(a, b) {
   var cmp = function (label, x, y) { x = x == null ? '' : String(x); y = y == null ? '' : String(y); if (x !== y && (x || y)) out.push(label + ': ' + (x || '없음') + ' → ' + (y || '없음')); };
   cmp('CPU', a.cpu, b.cpu);
   cmp('그래픽', (a.gpus || []).map(function (g) { return g.name; }).join(', '), (b.gpus || []).map(function (g) { return g.name; }).join(', '));
-  cmp('그래픽 드라이버', (a.gpus || [])[0] && a.gpus[0].driver, (b.gpus || [])[0] && b.gpus[0].driver);
+  cmp('그래픽 드라이버', (a.gpus || [])[0] && drvText(a.gpus[0]), (b.gpus || [])[0] && drvText(b.gpus[0]));
   cmp('RAM(GB)', a.ramGB, b.ramGB); cmp('램 속도', a.ramSpeed, b.ramSpeed);
   cmp('윈도우 빌드', a.osBuild, b.osBuild); cmp('주사율(Hz)', a.hz, b.hz); cmp('전원 관리', a.power, b.power);
   cmp('보안 부팅', a.secureBoot, b.secureBoot); cmp('TPM', a.tpm, b.tpm); cmp('네트워크', a.adapter, b.adapter);
@@ -1966,5 +1973,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   });
 }
 // 테스트·디버그용
-window.__pcbang = { igpuFromCpu: igpuFromCpu, matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, problems: problems, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
+window.__pcbang = { igpuFromCpu: igpuFromCpu, matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, drvText: drvText, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, problems: problems, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
 })();
