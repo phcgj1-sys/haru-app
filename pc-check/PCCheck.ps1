@@ -487,7 +487,7 @@ function Invoke-Collect {
             $D.DiskEvents = @($ev | Sort-Object TimeCreated -Descending | Select-Object -First 200 | ForEach-Object { $tx = Get-EventText $_; [ordered]@{ T = (Format-T $_.TimeCreated); Source = $_.ProviderName; Id = $_.Id; DiskNum = (Get-EventDiskNumber $tx); Msg = (Get-FirstLine $tx) } })
             $D.Disks = @(Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
                 $r = $_ | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue
-                [ordered]@{ Name = $_.FriendlyName; DeviceId = [string]$_.DeviceId; Media = (Format-DiskMedia $_.MediaType); Bus = (Format-DiskBus $_.BusType); SizeGB = [math]::Round($_.Size / 1GB); Health = [string]$_.HealthStatus; TempC = $r.Temperature; WearPct = $r.Wear; ReadErr = $r.ReadErrorsUncorrected; PowerOnHours = $r.PowerOnHours }
+                [ordered]@{ Name = $_.FriendlyName; DeviceId = [string]$_.DeviceId; Media = (Format-DiskMedia $_.MediaType); Bus = (Format-DiskBus $_.BusType); SizeGB = [math]::Round($_.Size / 1GB); Health = [string]$_.HealthStatus; TempC = $r.Temperature; WearPct = $r.Wear; ReadErr = $r.ReadErrorsUncorrected; WriteErr = $r.WriteErrorsUncorrected; TempMaxC = $r.TemperatureMax; PowerOnHours = $r.PowerOnHours }   # CrystalDiskInfo 처럼 쓰기 오류·기록상 최고 온도·사용 시간
             })
         } }
         @{ Name = '메모리 진단 결과';        Run = {
@@ -984,6 +984,14 @@ function Get-Diagnosis {
         if ($null -ne $we -and [int]$we -ge 90) { & $add 'DISK' 15 'SSD 수명 거의 소진'; & $find 'warn' 'DISK' "SSD 수명 소진 ($(Get-Prop $dk 'Name') $we%)" '교체를 준비하세요.' 10 }
         $re = Get-Num (Get-Prop $dk 'ReadErr')
         if ($null -ne $re -and [int64]$re -gt 0) { & $add 'DISK' 15 "복구 불가 읽기 오류 $re"; & $find 'warn' 'DISK' "디스크 읽기 오류 ($(Get-Prop $dk 'Name'))" "복구되지 않은 읽기 오류 $re 회." 8 }
+        $wr = Get-Num (Get-Prop $dk 'WriteErr')
+        if ($null -ne $wr -and $wr -gt 0) { & $add 'DISK' 15 "복구 불가 쓰기 오류 $wr"; & $find 'warn' 'DISK' "디스크 쓰기 오류 ($(Get-Prop $dk 'Name'))" "복구되지 않은 쓰기 오류 $wr 회." 8 }
+        $isHdd = (Format-DiskMedia (Get-Prop $dk 'Media')) -match '(?i)^HDD$'
+        $poh = Get-Num (Get-Prop $dk 'PowerOnHours')
+        # 하드디스크는 보통 3~5년(약 2.6만~4.4만 시간) 지나면 고장률이 오름 — 상태가 정상이어도 백업·교체 계획 안내
+        if ($isHdd -and $null -ne $poh -and $poh -ge 35000) { & $find 'info' 'DISK' "오래 사용한 하드디스크 ($(Get-Prop $dk 'Name'), 약 $([math]::Round($poh / 8760, 1)) 년)" '고장률이 높아지는 시기입니다. 중요한 자료를 백업하고 교체를 계획하세요.' 2 }
+        $tmax = Get-Num (Get-Prop $dk 'TempMaxC')
+        if ($null -ne $tmax -and $tmax -ge $(if ($isHdd) { 60 } else { 80 })) { & $find 'info' 'DISK' "디스크 기록상 최고 온도 높음 ($(Get-Prop $dk 'Name') $tmax °C)" '과거에 매우 뜨거웠던 적이 있습니다. 공기 흐름·방열판을 확인하세요.' 0 }
         $tc = Get-Num (Get-Prop $dk 'TempC')
         # HDD 는 55°C 이상이면 수명이 크게 줄어듦 (SSD 는 70°C) — HDD 에 'NVMe 방열판' 안내를 하지 않도록 구분
         if ((Format-DiskMedia (Get-Prop $dk 'Media')) -match '(?i)^HDD$') { if ($null -ne $tc -and [int]$tc -ge 55) { & $add 'THERMAL' 6 'HDD 고온'; & $find 'warn' 'DISK' "HDD 온도 높음 ($tc °C)" '하드디스크 앞쪽 케이스 팬·공기 흐름을 확인하세요.' 3 } }
@@ -1334,7 +1342,7 @@ function New-HtmlReport {
     $bugRows = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); C = (Get-Prop $_ 'Code'); N = $bi.N; D = $bi.D } })
     $dumpRows = @(Get-Arr (Get-Prop $Data 'Dumps') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); Name = (Get-Prop $_ 'Name'); C = (Get-Prop $_ 'Code'); N = $(if (Get-Prop $_ 'Code') { $bi.N } else { '' }); KB = "$(Get-Prop $_ 'SizeKB') KB" } })
     $dimmRows = @(Get-Arr (Get-Prop $Data 'Dimms') | ForEach-Object { [ordered]@{ Slot = (Get-Prop $_ 'Slot'); Sz = "$(Get-Prop $_ 'SizeGB') GB"; Ddr = (Get-Prop $_ 'DDR'); Sp = "$(Get-Prop $_ 'ConfiguredMHz') / $(Get-Prop $_ 'RatedMHz')"; Mk = (Get-Prop $_ 'Maker'); Pt = (Get-Prop $_ 'Part') } })
-    $diskRows = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { [ordered]@{ Name = (Get-Prop $_ 'Name'); Ty = "$(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus'))"; Sz = "$(Get-Prop $_ 'SizeGB') GB"; He = (Get-Prop $_ 'Health'); Tc = $(if ($null -ne (Get-Prop $_ 'TempC')) { "$(Get-Prop $_ 'TempC') °C" }); We = $(if ($null -ne (Get-Prop $_ 'WearPct')) { "$(Get-Prop $_ 'WearPct') %" }); Re = (Get-Prop $_ 'ReadErr'); Ph = (Get-Prop $_ 'PowerOnHours') } })
+    $diskRows = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { [ordered]@{ Name = (Get-Prop $_ 'Name'); Ty = "$(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus'))"; Sz = "$(Get-Prop $_ 'SizeGB') GB"; He = (Get-Prop $_ 'Health'); Tc = $(if ($null -ne (Get-Prop $_ 'TempC')) { "$(Get-Prop $_ 'TempC') °C" }); We = $(if ($null -ne (Get-Prop $_ 'WearPct')) { "$(Get-Prop $_ 'WearPct') %" }); Re = (Get-Prop $_ 'ReadErr'); Wr = (Get-Prop $_ 'WriteErr'); Tx = $(if ($null -ne (Get-Prop $_ 'TempMaxC')) { "$(Get-Prop $_ 'TempMaxC') °C" }); Ph = (Get-Prop $_ 'PowerOnHours') } })
     $memD = @(Get-Arr (Get-Prop $Data 'MemDiag'))
     $summary = Get-SummaryText $Data $Dx
     $c = $Dx.Counts
@@ -1481,7 +1489,7 @@ $(ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'Whea')) | Select-Object -First
 $(ConvertTo-HtmlTable $dimmRows @('Slot','Sz','Ddr','Sp','Mk','Pt') @('슬롯','용량','종류','속도 MHz (현재/정격)','제조사','모델'))
 <p class="sub">Windows 메모리 진단: $(HtmlEnc $memDiagText)</p></div></details>
 <details class="sec"><summary>저장장치<span class="cnt">$($diskRows.Count)</span></summary><div>
-$(ConvertTo-HtmlTable $diskRows @('Name','Ty','Sz','He','Tc','We','Re','Ph') @('이름','종류','용량','상태','온도','마모','읽기오류','사용시간(h)'))
+$(ConvertTo-HtmlTable $diskRows @('Name','Ty','Sz','He','Tc','Tx','We','Re','Wr','Ph') @('이름','종류','용량','상태','온도','최고온도','마모','읽기오류','쓰기오류','사용시간(h)'))
 <h4>디스크 오류 기록</h4>$(ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'DiskEvents')) | Select-Object -First 50) @('T','Source','Id','Msg') @('시간','출처','ID','내용'))</div></details>
 $(if (@(Get-Arr (Get-Prop $Data 'Blackbox')).Count) { '<details class="sec" open><summary>블랙박스 기록 (실시간 테스트)</summary><div>' + (ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | ForEach-Object { [ordered]@{ F = (Get-Prop $_ 'File'); S = ([string](Get-Prop $_ 'Start')).Replace('T', ' '); M = "$(Get-Prop $_ 'Minutes') 분"; R = $(if (Get-Prop $_ 'Abrupt') { '갑자기 끊김' } else { '정상 종료' }); G = $(if ($null -ne (Get-Prop $_ 'MaxGpuTempC')) { "$(Get-Prop $_ 'MaxGpuTempC') °C" } else { '-' }); V = (Get-Prop $_ 'Title') } }) @('F','S','M','R','G','V') @('파일','시작','길이','끝','GPU 최고','판정')) + '<h4>가장 최근 기록 그래프</h4>' + (Get-BlackboxChartSvg (@(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1)) + (Get-BlackboxStageTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1)) + '</div></details>' })
 <details class="sec"><summary>그래픽 드라이버 설치 이력 · 자주 충돌한 프로그램</summary><div>
@@ -3175,6 +3183,10 @@ $script:EnPairs = @(
     @('RE:SSD 수명 소진 \((.+?) (\d+)%\)', 'SSD worn out ($1 $2%)'),
     @('RE:복구 불가 읽기 오류 (\d+)', 'Uncorrectable read errors: $1'),
     @('RE:디스크 읽기 오류 \((.+?)\)', 'Disk read errors ($1)'),
+    @('RE:복구 불가 쓰기 오류 (\d+)', 'Uncorrectable write errors: $1'), @('RE:디스크 쓰기 오류 \((.+?)\)', 'Disk write errors ($1)'), @('RE:복구되지 않은 쓰기 오류 (\d+) 회\.', 'Uncorrected write errors: $1.'),
+    @('RE:오래 사용한 하드디스크 \((.+?), 약 ([\d\.]+) 년\)', 'Long-used hard disk ($1, about $2 years)'), @('고장률이 높아지는 시기입니다. 중요한 자료를 백업하고 교체를 계획하세요.', 'Failure rates rise at this age. Back up important data and plan a replacement.'),
+    @('RE:디스크 기록상 최고 온도 높음 \((.+?) ([\d\.]+) °C\)', 'Disk lifetime max temperature high ($1 $2 °C)'), @('과거에 매우 뜨거웠던 적이 있습니다. 공기 흐름·방열판을 확인하세요.', 'It has run very hot in the past. Check airflow and the heatsink.'),
+    @('최고온도', 'Max temp'), @('쓰기오류', 'Write errors'),
     @('RE:복구되지 않은 읽기 오류 (\d+) 회\.', 'Uncorrected read errors: $1.'),
     @('RE:SSD 온도 높음 \(([\d\.]+) °C\)', 'SSD temperature high ($1 °C)'),
     @('RE:HDD 온도 높음 \(([\d\.]+) °C\)', 'HDD temperature high ($1 °C)'),

@@ -611,6 +611,24 @@ It '견고성: 숫자 칸에 [N/A]·문자·빈 값이 있어도(손으로 고�
     $d = New-Scenario @{}; $d.Disks[0].WearPct = '95'
     Assert (@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match 'SSD 수명 소진' }) '문자 숫자 95 는 그대로 판정'
 }
+It '디스크 SMART 확장 (CrystalDiskInfo 방식): 쓰기 오류·오래 쓴 HDD·기록상 최고 온도 판정과 보고서 표시 (영어)' {
+    $d = New-Scenario @{}
+    $d.Disks = @([ordered]@{ Name = 'WDC WD10EZEX'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 1000; Health = 'Healthy'; TempC = 40; TempMaxC = 63; PowerOnHours = 43800; WriteErr = 2; ReadErr = 0 })
+    $dx = Get-Diagnosis -Data $d
+    $t = (@($dx.Findings) | ForEach-Object { $_.Title }) -join ' / '
+    Assert ($t -match '디스크 쓰기 오류 \(WDC WD10EZEX\)') "쓰기 오류: $t"
+    Assert ($t -match '오래 사용한 하드디스크 \(WDC WD10EZEX, 약 5 년\)') "오래 쓴 HDD: $t"
+    Assert ($t -match '디스크 기록상 최고 온도 높음 \(WDC WD10EZEX 63 °C\)') "최고 온도: $t"
+    Assert (@($dx.Causes) | Where-Object { $_.Key -eq 'DISK' }) '쓰기 오류는 디스크 원인'
+    $h = New-HtmlReport -Data $d -Dx $dx
+    Assert ($h -match '쓰기오류' -and $h -match '최고온도' -and $h -match '<td>63 &#176;C</td>' -and $h -match '<td>2</td>') '보고서 표 (최고 온도·쓰기 오류)'
+    $ssd = New-Scenario @{}; $ssd.Disks[0].PowerOnHours = 50000; $ssd.Disks[0].TempMaxC = 70
+    Assert (-not (@((Get-Diagnosis -Data $ssd).Findings) | Where-Object { $_.Title -match '오래 사용한|최고 온도' })) 'SSD 5만 시간·70°C 는 안내 없음'
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    Assert ($src -match 'WriteErr = \$r\.WriteErrorsUncorrected; TempMaxC = \$r\.TemperatureMax') '수집'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $he = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($he, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } finally { $script:UiLang = $old }
+}
 It '디스크 온도: HDD 는 55°C 부터 HDD 안내(NVMe 방열판 아님), SSD 는 70°C 부터 (영어 번역)' {
     $hdd = [ordered]@{ Name = 'WDC WD20EZAZ'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 2000; Health = 'Healthy'; TempC = 58 }
     $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($hdd)
