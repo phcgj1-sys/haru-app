@@ -557,6 +557,18 @@ It 'AMD/Intel: Windows GPU 센서 고온 판정 (NVIDIA 정보 없을 때만)' {
 It 'GPU 센서 읽기는 지원 안 되는 환경에서도 오류 없이 빈 결과' {
     $r = @(Get-GpuSensors); Assert ($r.Count -ge 0) 'ok'
 }
+It '디스크 온도: HDD 는 55°C 부터 HDD 안내(NVMe 방열판 아님), SSD 는 70°C 부터 (영어 번역)' {
+    $hdd = [ordered]@{ Name = 'WDC WD20EZAZ'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 2000; Health = 'Healthy'; TempC = 58 }
+    $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($hdd)
+    $f = @(@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match '온도 높음' })
+    Assert-Eq $f.Count 1 'HDD 58°C 경고'; Assert ($f[0].Title -match '^HDD 온도 높음 \(58 °C\)' -and $f[0].Detail -notmatch 'NVMe') "HDD 안내: $($f[0].Title) / $($f[0].Detail)"
+    $d.Disks[0].TempC = 65
+    Assert-Eq @(@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match 'SSD 온도' }).Count 0 'SSD 65°C 는 정상'
+    $d.Disks[0].TempC = 72
+    Assert-Eq @(@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match 'SSD 온도 높음' }).Count 1 'SSD 72°C 경고'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($h, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어 보고서 한글: $($ko -join ' | ')" } finally { $script:UiLang = $old }
+}
 It '디스크 상태: 고장 난 USB 메모리·카드는 안내만, PC 디스크 원인 점수·감점 없음 (영어 번역)' {
     $usbBad = [ordered]@{ Name = 'Generic USB Flash'; Media = 'Unspecified'; Bus = 'USB'; SizeGB = 16; Health = 'Unhealthy'; WearPct = 99 }
     $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($usbBad)

@@ -950,7 +950,9 @@ function Get-Diagnosis {
         $re = Get-Prop $dk 'ReadErr'
         if ($null -ne $re -and [int64]$re -gt 0) { & $add 'DISK' 15 "복구 불가 읽기 오류 $re"; & $find 'warn' 'DISK' "디스크 읽기 오류 ($(Get-Prop $dk 'Name'))" "복구되지 않은 읽기 오류 $re 회." 8 }
         $tc = Get-Prop $dk 'TempC'
-        if ($null -ne $tc -and [int]$tc -ge 70) { & $add 'THERMAL' 6 'SSD 고온'; & $find 'warn' 'DISK' "SSD 온도 높음 ($tc °C)" 'NVMe 방열판/공기 흐름을 확인하세요.' 3 }
+        # HDD 는 55°C 이상이면 수명이 크게 줄어듦 (SSD 는 70°C) — HDD 에 'NVMe 방열판' 안내를 하지 않도록 구분
+        if ([string](Get-Prop $dk 'Media') -match '(?i)^HDD$') { if ($null -ne $tc -and [int]$tc -ge 55) { & $add 'THERMAL' 6 'HDD 고온'; & $find 'warn' 'DISK' "HDD 온도 높음 ($tc °C)" '하드디스크 앞쪽 케이스 팬·공기 흐름을 확인하세요.' 3 } }
+        elseif ($null -ne $tc -and [int]$tc -ge 70) { & $add 'THERMAL' 6 'SSD 고온'; & $find 'warn' 'DISK' "SSD 온도 높음 ($tc °C)" 'NVMe 방열판/공기 흐름을 확인하세요.' 3 }
     }
     if ($extDiskEv.Count) {
         & $find 'info' 'DISK' "USB·카드 리더 디스크 오류 $($extDiskEv.Count) 건" 'PC 내부 디스크가 아니라 USB 메모리·외장 디스크·카드 리더에서 난 오류입니다. 해당 장치를 빼거나 바꿔 보세요 (PC 고장 원인으로 보지 않음).' 0
@@ -3045,6 +3047,7 @@ $script:EnPairs = @(
     @('RE:디스크 읽기 오류 \((.+?)\)', 'Disk read errors ($1)'),
     @('RE:복구되지 않은 읽기 오류 (\d+) 회\.', 'Uncorrected read errors: $1.'),
     @('RE:SSD 온도 높음 \(([\d\.]+) °C\)', 'SSD temperature high ($1 °C)'),
+    @('RE:HDD 온도 높음 \(([\d\.]+) °C\)', 'HDD temperature high ($1 °C)'),
     @('RE:디스크 오류 기록 (\d+) 건', 'Disk error records: $1'),
     @('RE:그래픽카드 ([\d\.]+) °C \(저부하인데 높음\)', 'Graphics card $1 °C (high at low load)'),
     @('RE:그래픽카드 ([\d\.]+) °C \(Windows 센서\)', 'Graphics card $1 °C (Windows sensor)'),
@@ -3155,7 +3158,7 @@ $script:EnPairs = @(
     @('서로 다른 RAM 모듈 혼용', 'Mixed RAM modules'), @('서로 다른 RAM 모듈을 섞어 사용 중', 'Different RAM modules are mixed'),
     @('용량/제품이 다른 RAM 혼용은 불안정의 원인이 될 수 있습니다.', 'Mixing RAM of different sizes/models can cause instability.'),
     @('SSD 수명 거의 소진', 'SSD nearly worn out'), @('교체를 준비하세요.', 'Plan a replacement.'), @('SSD 고온', 'SSD hot'),
-    @('NVMe 방열판/공기 흐름을 확인하세요.', 'Check the NVMe heatsink/airflow.'),
+    @('NVMe 방열판/공기 흐름을 확인하세요.', 'Check the NVMe heatsink/airflow.'), @('하드디스크 앞쪽 케이스 팬·공기 흐름을 확인하세요.', 'Check the front case fan/airflow over the hard disk.'), @('HDD 고온', 'HDD hot'),
     @('디스크/컨트롤러 오류는 멈춤·블루스크린의 원인이 됩니다. 케이블·펌웨어·SMART 를 확인하세요.', 'Disk/controller errors cause freezes and blue screens. Check cables, firmware and SMART.'),
     @('거의 쉬는 상태인데 온도가 높습니다. 팬 고장이나 먼지 막힘을 확인하세요.', 'Hot while nearly idle. Check for a failed fan or dust buildup.'),
     @('부하 중 온도입니다. 85°C 이상이 계속되면 쿨링을 개선하세요.', 'This is under load. If it stays above 85 °C, improve cooling.'),
