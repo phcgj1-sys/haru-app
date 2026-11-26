@@ -557,6 +557,18 @@ It 'AMD/Intel: Windows GPU 센서 고온 판정 (NVIDIA 정보 없을 때만)' {
 It 'GPU 센서 읽기는 지원 안 되는 환경에서도 오류 없이 빈 결과' {
     $r = @(Get-GpuSensors); Assert ($r.Count -ge 0) 'ok'
 }
+It '노하드 감지: 블랙박스용 USB 메모리·외장 SSD 를 꽂아도 노하드로 인식, USB 만 있는 경우는 아님' {
+    $iscsi = [ordered]@{ Name = 'MSFT Virtual HD'; Media = 'Unspecified'; Bus = 'iSCSI'; SizeGB = 120; Health = 'Healthy' }
+    $usb = [ordered]@{ Name = 'SanDisk Ultra'; Media = 'Unspecified'; Bus = 'USB'; SizeGB = 32; Health = 'Healthy' }
+    $sd = [ordered]@{ Name = 'Card Reader'; Media = 'Unspecified'; Bus = 'SD'; SizeGB = 64; Health = 'Healthy' }
+    Assert (Test-Diskless (New-Scenario @{ Disks = @($iscsi, $usb) })) 'iSCSI + USB = 노하드'
+    Assert (Test-Diskless (New-Scenario @{ Disks = @($iscsi, $usb, $sd) })) 'iSCSI + USB + SD = 노하드'
+    Assert (-not (Test-Diskless (New-Scenario @{ Disks = @($usb) }))) 'USB 만 = 판단 안 함'
+    $nvme = [ordered]@{ Name = 'Samsung SSD 990'; Media = 'SSD'; Bus = 'NVMe'; SizeGB = 1000; Health = 'Healthy' }
+    Assert (-not (Test-Diskless (New-Scenario @{ Disks = @($nvme, $usb) }))) '내장 SSD 있으면 노하드 아님'
+    $d = New-Scenario @{ Disks = @($iscsi, $usb) }
+    Assert-Eq (Get-ReportDir $d 'C:\Users\a\Desktop\PC진단' $true 'E:\') 'E:\PC진단_reports' 'USB 를 꽂은 노하드는 보고서를 USB 에'
+}
 It '노하드(iSCSI·가상 디스크만) 감지 → 블랙박스 안내, 기록 있으면 참고로' {
     $d = New-Scenario @{ Disks = @([ordered]@{ Name = 'CCBoot iSCSI Disk'; Media = 'Unspecified'; Bus = 'iSCSI'; SizeGB = 120; Health = 'Healthy' }) }
     $f = @((Get-Diagnosis -Data $d).Findings | Where-Object { $_.Title -match '노하드' })

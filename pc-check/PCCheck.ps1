@@ -616,7 +616,8 @@ function Split-DiskEvents($Data) {
 function Test-Diskless($Data) {
     # 노하드(네트워크 부팅): 디스크가 iSCSI·가상(파일) 디스크뿐 (가상 머신 제외)
     if ([bool](Get-Prop (Get-Prop $Data 'System') 'IsVM')) { return $false }
-    $busList = @(@(Get-Arr (Get-Prop $Data 'Disks')) | ForEach-Object { [string](Get-Prop $_ 'Bus') })
+    # USB 메모리·외장 SSD·카드 리더는 빼고 봄 (노하드에서 블랙박스용 USB 를 꽂으면 노하드로 인식하지 못하던 문제)
+    $busList = @(@(Get-Arr (Get-Prop $Data 'Disks')) | ForEach-Object { [string](Get-Prop $_ 'Bus') } | Where-Object { $_ -notmatch '(?i)^(USB|SD|MMC)$' })
     return ($busList.Count -gt 0 -and @($busList | Where-Object { $_ -notmatch '(?i)iSCSI|File Backed Virtual|Virtual' }).Count -eq 0)
 }
 function Get-ReportDir($Data, [string]$OutDir, [bool]$IsDefault, [string]$UsbRoot) {
