@@ -574,7 +574,7 @@ function Get-ProblemTrend($Data, [int]$RecentDays = 7) {
     # 꺼짐·블루스크린·그래픽 오류·WHEA 의 최근 7일 빈도와 그 이전 빈도 비교
     $m = Get-Prop $Data 'Meta'
     $now = ConvertTo-Date (Get-Prop $m 'Created'); if (-not $now) { $now = Get-Date }
-    $days = [int](Get-Prop $m 'Days'); if ($days -le $RecentDays) { return $null }
+    $days = [int](Get-Num (Get-Prop $m 'Days')); if ($days -le $RecentDays) { return $null }
     $cut = $now.AddDays(-$RecentDays)
     $ts = @()
     # 블루스크린은 BugCheck 와 코드가 있는 Kernel-Power 41 로 두 번 남으므로, 41 은 코드 없는 것(전원 끊김)만 셈
@@ -679,7 +679,7 @@ function Get-PsuEstimate($Data) {
     # 그래픽카드가 여러 장이면 합계 (가장 큰 한 장만 보면 파워를 작게 권함)
     $plSum = 0.0; foreach ($n in @(Get-Arr (Get-Prop $Data 'NvSmi'))) { $pl = Get-Num (Get-Prop $n 'PowerLimitW'); if ($null -ne $pl -and $pl -gt 0) { $plSum += [double]$pl } }
     if ($plSum -gt 0) { $gpuW = $plSum; $gpuSrc = '전력 제한값' }
-    foreach ($b in @(Get-Arr (Get-Prop $Data 'Blackbox'))) { $m = Get-Prop $b 'MaxGpuPowerW'; if ($null -ne $m -and [double]$m -gt $gpuW) { $gpuW = [double]$m; $gpuSrc = '블랙박스 측정' } }
+    foreach ($b in @(Get-Arr (Get-Prop $Data 'Blackbox'))) { $m = Get-Num (Get-Prop $b 'MaxGpuPowerW'); if ($null -ne $m -and $m -gt $gpuW) { $gpuW = $m; $gpuSrc = '블랙박스 측정' } }
     if ($gpuW -le 0) {
         # 제조사 기준 보드 전력(TBP/TGP). 'Ti'·'SUPER'·'XT' 변형이 기본 모델에 먼저 잡히지 않도록 긴 이름부터 비교
         $tbl = @(@('RTX 5090', 575), @('RTX 4090', 450), @('RTX 5080', 360), @('RTX 4080', 320), @('RTX 3090 Ti', 450), @('RTX 3090', 350), @('RTX 3080 Ti', 350), @('RTX 3080', 320),
@@ -734,7 +734,7 @@ function Get-Diagnosis {
     }
 
     $meta = Get-Prop $Data 'Meta'
-    $days = [int](Get-Prop $meta 'Days'); if ($days -le 0) { $days = 30 }
+    $days = [int](Get-Num (Get-Prop $meta 'Days')); if ($days -le 0) { $days = 30 }
     $shut = @(Get-Arr (Get-Prop $Data 'Shutdowns'))
     $bugEv = @(Get-Arr (Get-Prop $Data 'BugChecks'))
     $dumps = @(Get-Arr (Get-Prop $Data 'Dumps'))
@@ -819,7 +819,7 @@ function Get-Diagnosis {
         $tdr = @($gpuEv | Where-Object { (Get-Prop $_ 'Id') -eq 4101 -or (Get-Prop $_ 'Source') -eq 'LiveKernelEvent' }).Count
         & $add 'GPU_DRIVER' ([math]::Min(32, 4 * $gpuCount)) "그래픽 드라이버 응답 없음/오류 $gpuCount 건"
         & $add 'GPU_HW' ([math]::Min(18, 2 * $gpuCount)) "그래픽 드라이버 오류 $gpuCount 건"
-        $xids = @($gpuEv | ForEach-Object { Get-Prop $_ 'Xid' } | Where-Object { $null -ne $_ } | ForEach-Object { [int]$_ } | Sort-Object -Unique)
+        $xids = @($gpuEv | ForEach-Object { Get-Num (Get-Prop $_ 'Xid') } | Where-Object { $null -ne $_ } | ForEach-Object { [int]$_ } | Sort-Object -Unique)
         $detail = "그래픽 드라이버가 멈추거나 오류를 낸 기록입니다 (TDR $tdr 건)."
         foreach ($x in $xids) {
             if ($script:XidDb.ContainsKey($x)) {
@@ -942,11 +942,11 @@ function Get-Diagnosis {
     $parts = @($dimms | ForEach-Object { [string](Get-Prop $_ 'Part') } | Where-Object { $_ } | Sort-Object -Unique)
     # 블루스크린 기록이 남을 수 있는 설정인지 (꺼져 있으면 '문제 없음'으로 오판 가능)
     $cd = Get-Prop $sys 'CrashDump'
-    if ($null -ne $cd -and [int]$cd -eq 0) {
+    if ($null -ne (Get-Num $cd) -and (Get-Num $cd) -eq 0) {
         & $find 'warn' 'META' '블루스크린 덤프 저장이 꺼져 있음' '블루스크린이 나도 원인 기록이 남지 않습니다. 시스템 속성 > 고급 > 시작 및 복구 > "디버깅 정보 쓰기"를 "작은 메모리 덤프" 또는 "자동 메모리 덤프"로 바꾸세요.' 3
     }
     $pf = Get-Prop $sys 'PageFiles'
-    if ($null -ne $pf -and [int]$pf -eq 0) {
+    if ($null -ne (Get-Num $pf) -and (Get-Num $pf) -eq 0) {
         & $find 'warn' 'META' '페이지 파일(가상 메모리)이 꺼져 있음' '페이지 파일이 없으면 블루스크린 덤프를 저장하지 못하고, 메모리 부족 시 프로그램이 갑자기 종료될 수 있습니다. "시스템이 관리하는 크기"로 켜 두세요.' 3
     }
     $isVM = [bool](Get-Prop $sys 'IsVM')
@@ -1056,6 +1056,7 @@ function Get-Diagnosis {
     }
     foreach ($bb in $bbAll) {
         $lvl = [string](Get-Prop $bb 'Level'); $cz = [string](Get-Prop $bb 'Cause'); $tt = [string](Get-Prop $bb 'Title')
+        if ($cz -and -not $script:Causes.Contains($cz)) { $cz = '' }   # 알 수 없는 원인 이름(다른 버전·손으로 고친 기록)은 원인 없이 표시
         $be = ConvertTo-Date (Get-Prop $bb 'End')
         if ($passT -and $be -and $be -lt $passT -and $lvl -in 'bad', 'warn') {
             & $find 'info' 'META' "$tt (이후 테스트 통과)" ("$(Get-Prop $bb 'Detail') — $($passT.ToString('yyyy-MM-dd HH:mm', [Globalization.CultureInfo]::InvariantCulture)) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다.") 0
@@ -1130,7 +1131,7 @@ function Get-TimelineSeries($Data) {
     }
 }
 function Get-TimelineSvg($Data) {
-    $days = [int](Get-Prop (Get-Prop $Data 'Meta') 'Days'); if ($days -le 0) { $days = 30 }
+    $days = [int](Get-Num (Get-Prop (Get-Prop $Data 'Meta') 'Days')); if ($days -le 0) { $days = 30 }
     $end = (ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created')); if (-not $end) { $end = Get-Date }
     $end = $end.Date
     $series = Get-TimelineSeries $Data
@@ -2154,7 +2155,7 @@ function Get-GradeClass($Dx) {
 }
 function Get-ScanTimeText($Meta) {
     # 보고서 하단: 검사 소요 시간과 가장 오래 걸린 단계
-    $t = Get-Prop $Meta 'ScanSec'; if ($null -eq $t) { return '' }
+    $t = Get-Num (Get-Prop $Meta 'ScanSec'); if ($null -eq $t) { return '' }
     $txt = "검사 소요 $(([double]$t).ToString('0.#', [Globalization.CultureInfo]::InvariantCulture))초"
     $st = Get-Prop $Meta 'StepSec'
     if ($st) {

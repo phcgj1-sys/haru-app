@@ -597,6 +597,15 @@ It '견고성: 숫자 칸에 [N/A]·문자·빈 값이 있어도(손으로 고�
         try { $dx = Get-Diagnosis -Data $d; $null = New-HtmlReport -Data $d -Dx $dx; $null = Get-SummaryText $d $dx } catch { $fails += "$arr.$f='$v': $($_.Exception.Message)" }
     } } }
     foreach ($v in '[N/A]', 'abc') { $d = New-Scenario @{}; $d.Thermal = @($v); try { $null = Get-Diagnosis -Data $d } catch { $fails += "Thermal='$v'" } }
+    foreach ($v in '[N/A]', 'abc') {
+        $cases = @(
+            @('Meta.Days', { param($d) $d.Meta.Days = $v }), @('Meta.ScanSec', { param($d) $d.Meta.ScanSec = $v }),
+            @('System.CrashDump', { param($d) $d.System.CrashDump = $v }), @('System.PageFiles', { param($d) $d.System.PageFiles = $v }),
+            @('GpuEvents.Xid', { param($d) $d.GpuEvents = @([ordered]@{ T = (T 1); Source = 'nvlddmkm'; Id = 13; Xid = $v; Msg = 'x' }) }),
+            @('Blackbox.MaxGpuPowerW', { param($d) $d.Blackbox = @([ordered]@{ Level = 'ok'; Cause = ''; Title = 't'; End = (T 1); MaxGpuPowerW = $v }) }),
+            @('Blackbox.Cause', { param($d) $d.Blackbox = @([ordered]@{ Level = 'bad'; Cause = $v; Title = 't'; End = (T 1) }) }))
+        foreach ($c in $cases) { $d = New-Scenario @{}; & $c[1] $d; try { $dx = Get-Diagnosis -Data $d; $null = New-HtmlReport -Data $d -Dx $dx; $null = Get-SummaryText $d $dx } catch { $fails += "$($c[0])='$v': $($_.Exception.Message)" } }
+    }
     Assert-Eq $fails.Count 0 ($fails -join ' / ')
     Assert-Eq (Get-Num '12.5') 12.5 '숫자'; Assert ($null -eq (Get-Num '[N/A]')) '숫자 아님'; Assert ($null -eq (Get-Num $true)) 'bool 은 숫자 아님'
     $d = New-Scenario @{}; $d.Disks[0].WearPct = '95'
