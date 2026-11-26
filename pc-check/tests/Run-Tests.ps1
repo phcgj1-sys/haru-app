@@ -999,6 +999,40 @@ It 'USB 드라이브: 이동식 디스크뿐 아니라 USB 외장 SSD(로컬 디
         Remove-Item Function:\Get-CimInstance, Function:\Get-Disk, Function:\Get-Partition -ErrorAction SilentlyContinue
     }
 }
+It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시, 최고값, 고온 경고, 센서 없으면 안내 (영어도 한글 없음)' {
+    $old = $script:UiLang
+    try {
+        $script:UiLang = 'ko'
+        $smp = [ordered]@{ CpuPct = 37; CpuPerfPct = 112; MemPct = 61; BoardTempC = 52.5; GpuTempC = 71; GpuUtilPct = 98; GpuPowerW = 245.3; GpuClockMHz = 2610; GpuMemMB = 9800; GpuThrottle = 'PWRCAP' }
+        $max = @{}; Update-MonitorMax $max $smp
+        Update-MonitorMax $max ([ordered]@{ CpuPct = 5; BoardTempC = 40; GpuTempC = 60; GpuPowerW = 80 })
+        Assert-Eq $max.GpuTempC 71 '최고값 유지'; Assert-Eq $max.BoardTempC 52.5 '보드 최고'
+        $t = Get-MonitorText $smp $max
+        foreach ($k in 'CPU 사용률 37%', '클럭 112%', 'CPU·메인보드 온도 52.5 °C', '그래픽카드 온도 71 °C (최고 71 °C)', '전력 245.3 W', '클럭 2610 MHz', 'VRAM 사용 9800 MB', 'PWRCAP', 'RAM 사용 61%') { Assert ($t.Contains($k)) "표시: $k" }
+        Assert ($t -notmatch '높음') '정상 온도는 경고 없음'
+        $hot = Get-MonitorText ([ordered]@{ CpuPct = 100; BoardTempC = 95; GpuTempC = 88 }) @{ BoardTempC = 95; GpuTempC = 88 }
+        Assert-Eq ([regex]::Matches($hot, '높음 \(쿨링 점검\)').Count) 2 'CPU·GPU 고온 경고'
+        $none = Get-MonitorText ([ordered]@{ CpuPct = 3 }) @{}
+        Assert ($none -match 'Windows 기본 센서가 없습니다' -and $none -match '읽을 수 없음') '센서 없으면 안내'
+        $script:UiLang = 'en'
+        foreach ($x in (Get-MonitorText $smp $max), (Get-MonitorText ([ordered]@{ CpuPct = 100; BoardTempC = 95; GpuTempC = 88 }) @{}), (Get-MonitorText ([ordered]@{}) @{})) { Assert ($x -notmatch '[가-힣]') "영어: $x" }
+        Assert ((Get-MonitorText $smp $max) -match 'GPU temp 71 °C \(max 71 °C\)') '영어 문구'
+        $m = $script:ExternalTools | Where-Object { $_.Key -eq 'monitor' }
+        Assert ($m) '정밀 검사 버튼에 포함'; Assert-Eq @($script:ExternalTools).Count 6 '버튼 수 유지 (3x2 배치)'
+        Assert ((Tr $m.Label) -notmatch '[가-힣]' -and (Tr $m.Desc) -notmatch '[가-힣]') '버튼 이름 영어 번역'
+        $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+        Assert ($src -match 'Show-MonitorDialog -SmokeTest') 'GUI 자동 검사에서 창 배치 확인'
+    } finally { $script:UiLang = $old }
+}
+It 'CPU·메인보드 온도 센서: 관리자 ACPI 우선, 없으면 일반 권한 열 영역 카운터, 이상값 무시' {
+    function Get-CimInstance { param($ClassName, $Namespace, $Filter, $ErrorAction) if ($ClassName -eq 'MSAcpi_ThermalZoneTemperature') { if ($script:FakeAcpi) { return $script:FakeAcpi } else { throw 'access denied' } } else { return @([pscustomobject]@{ Temperature = 318 }, [pscustomobject]@{ Temperature = 0 }) } }
+    try {
+        $script:FakeAcpi = $null
+        $r = Get-BoardTemp; Assert-Eq $r.Source 'ThermalZone' '일반 권한 카운터'; Assert-Eq $r.TempC 44.9 '켈빈 → 섭씨'
+        $script:FakeAcpi = @([pscustomobject]@{ CurrentTemperature = 3282 }, [pscustomobject]@{ CurrentTemperature = 2732 }, [pscustomobject]@{ CurrentTemperature = 9999 })
+        $r = Get-BoardTemp; Assert-Eq $r.Source 'ACPI' 'ACPI 우선'; Assert-Eq $r.TempC 55.1 '가장 높은 정상값 (0도·이상값 제외)'
+    } finally { Remove-Item Function:\Get-CimInstance -ErrorAction SilentlyContinue; $script:FakeAcpi = $null }
+}
 It '폴더 이름에 [ ] 가 있어도: shop.txt·USB 이력·보고서 파일을 찾음' {
     $d = Join-Path $OutDir ('shop[2]_' + [guid]::NewGuid().ToString('N')); [void][IO.Directory]::CreateDirectory($d)
     [IO.File]::WriteAllText((Join-Path $d 'shop.txt'), "괄호컴퓨터`r`n", (New-Object Text.UTF8Encoding($true)))

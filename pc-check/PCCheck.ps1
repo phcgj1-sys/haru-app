@@ -31,7 +31,7 @@ param(
 )
 
 $script:AppName    = 'PC 원클릭 진단'
-$script:AppVersion = '2.6.0'
+$script:AppVersion = '2.7.0'
 $script:IsWin      = ($env:OS -eq 'Windows_NT')
 
 # =====================================================================
@@ -1734,12 +1734,98 @@ function ConvertFrom-NvThrottle([string]$Hex) {
     return ($o -join '+')
 }
 
+function Get-BoardTemp {
+    # CPU·메인보드 부근 온도 (Windows 기본 센서만 — 드라이버 설치 없음). ACPI 열 영역(관리자) → 성능 카운터 열 영역(일반 권한)
+    $pick = { param($vals) $m = $null; foreach ($v in @($vals)) { if ($null -ne $v -and $v -gt 0 -and $v -lt 130 -and ($null -eq $m -or $v -gt $m)) { $m = $v } }; $m }
+    try {
+        $t = & $pick @(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop | ForEach-Object { [math]::Round([double]$_.CurrentTemperature / 10 - 273.15, 1) })
+        if ($null -ne $t) { return @{ TempC = $t; Source = 'ACPI' } }
+    } catch {}
+    try {
+        $t = & $pick @(Get-CimInstance Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction Stop | ForEach-Object { [math]::Round([double]$_.Temperature - 273.15, 1) })
+        if ($null -ne $t) { return @{ TempC = $t; Source = 'ThermalZone' } }
+    } catch {}
+    return @{ TempC = $null; Source = '' }
+}
+function Update-MonitorMax([hashtable]$Max, $Sample) {
+    # 모니터 창의 최고값 (온도·전력)
+    foreach ($k in 'BoardTempC', 'GpuTempC', 'GpuPowerW', 'CpuPct') {
+        $v = $Sample[$k]; if ($null -eq $v -or "$v" -eq '') { continue }
+        if ($null -eq $Max[$k] -or [double]$v -gt [double]$Max[$k]) { $Max[$k] = [double]$v }
+    }
+}
+function Get-MonitorText($S, [hashtable]$Max) {
+    # 실시간 온도 모니터 표시 문구 (숫자가 많아 번역 표 대신 언어별로 직접 만듦)
+    $en = ($script:UiLang -eq 'en')
+    $w = { param($ko, $e) if ($en) { $e } else { $ko } }
+    $inv = [Globalization.CultureInfo]::InvariantCulture
+    $n = { param($v) if ($null -eq $v -or "$v" -eq '') { '-' } else { ([double]$v).ToString('0.#', $inv) } }
+    $hot = & $w ' — 높음 (쿨링 점검)' ' — high (check cooling)'
+    $mx = & $w '최고' 'max'
+    $l = @()
+    $cpu = "$(& $w 'CPU 사용률' 'CPU usage') $(& $n $S.CpuPct)%"; if ($null -ne $S.CpuPerfPct) { $cpu += " · $(& $w '클럭' 'clock') $(& $n $S.CpuPerfPct)%" }
+    $l += $cpu
+    if ($null -ne $S.BoardTempC) {
+        $l += "$(& $w 'CPU·메인보드 온도' 'CPU/board temp') $(& $n $S.BoardTempC) °C ($mx $(& $n $Max.BoardTempC) °C)$(if ([double]$S.BoardTempC -ge 90) { $hot })"
+    } else { $l += (& $w 'CPU·메인보드 온도: 이 PC 는 Windows 기본 센서가 없습니다 (HWiNFO 로 확인)' 'CPU/board temp: no built-in Windows sensor on this PC (check with HWiNFO)') }
+    if ($null -ne $S.GpuTempC -or $null -ne $S.GpuUtilPct) {
+        $l += "$(& $w '그래픽카드 온도' 'GPU temp') $(& $n $S.GpuTempC) °C ($mx $(& $n $Max.GpuTempC) °C)$(if ($null -ne $S.GpuTempC -and [double]$S.GpuTempC -ge 85) { $hot })"
+        $g2 = @()
+        if ($null -ne $S.GpuUtilPct) { $g2 += "$(& $w '사용률' 'load') $(& $n $S.GpuUtilPct)%" }
+        if ($null -ne $S.GpuPowerW) { $g2 += "$(& $w '전력' 'power') $(& $n $S.GpuPowerW) W ($mx $(& $n $Max.GpuPowerW) W)" }
+        if ($null -ne $S.GpuClockMHz) { $g2 += "$(& $w '클럭' 'clock') $(& $n $S.GpuClockMHz) MHz" }
+        if ($null -ne $S.GpuMemMB) { $g2 += "$(& $w 'VRAM 사용' 'VRAM used') $(& $n $S.GpuMemMB) MB" }
+        if ($g2.Count) { $l += ("$(& $w '그래픽카드' 'GPU'): " + ($g2 -join ' · ')) }
+        if ($S.GpuThrottle) { $l += "$(& $w '그래픽카드 감속' 'GPU throttling'): $($S.GpuThrottle)" }
+    } else { $l += (& $w '그래픽카드 온도: 읽을 수 없음 (가상 머신·구형 드라이버)' 'GPU temp: not available (virtual machine or old driver)') }
+    if ($null -ne $S.MemPct) { $l += "$(& $w 'RAM 사용' 'RAM used') $(& $n $S.MemPct)%" }
+    return ($l -join "`n")
+}
+function Show-MonitorDialog {
+    param([switch]$SmokeTest, [double]$SimScale = 1.0)
+    # 실시간 온도 모니터: 기록·부하 없이 지금 상태만 2초마다 표시 (외부 프로그램·드라이버 설치 없음)
+    Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+    $s = $SimScale
+    $font = New-Object Drawing.Font('Malgun Gothic', (10 * $s)); $big = New-Object Drawing.Font('Malgun Gothic', (11 * $s), [Drawing.FontStyle]::Bold)
+    $f = New-Object Windows.Forms.Form
+    $f.Text = '실시간 온도 모니터'; $f.Font = $font; $f.StartPosition = 'CenterParent'; $f.FormBorderStyle = 'FixedDialog'; $f.MaximizeBox = $false; $f.MinimizeBox = $false
+    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](560 * $s), [int](330 * $s))
+    $u = { param([double]$v) [int][math]::Round($v * $s) }
+    $mk = { param($type, $text, $x, $y, $w, $h) $c = New-Object $type; $c.Text = $text; $c.SetBounds((& $u $x), (& $u $y), (& $u $w), (& $u $h)); $f.Controls.Add($c); $c }
+    $live = & $mk Windows.Forms.Label '측정 중...' 16 12 528 176
+    $live.Font = $big
+    $note = & $mk Windows.Forms.Label 'CPU 온도는 Windows 기본 센서(ACPI)로 읽어 보드에 따라 메인보드 온도로 나오거나 표시되지 않을 수 있습니다. 전압·팬·코어별 온도는 HWiNFO 로 확인하세요.' 16 196 528 64
+    $note.ForeColor = [Drawing.Color]::DimGray
+    $resetB = & $mk Windows.Forms.Button '최고값 초기화' 16 270 170 44
+    $hwB = & $mk Windows.Forms.Button 'HWiNFO 열기 (전압·팬)' 196 270 200 44
+    $closeB = & $mk Windows.Forms.Button '닫기' 406 270 138 44
+    $max = @{}
+    $tick = {
+        try { $smp = Get-LiveSample; Update-MonitorMax $max $smp; $live.Text = Get-MonitorText $smp $max }
+        catch { Write-PCLog "monitor: $($_.Exception.Message)" }
+    }
+    $t = New-Object Windows.Forms.Timer; $t.Interval = 2000; $t.Add_Tick($tick)
+    $resetB.Add_Click({ foreach ($k in @($max.Keys)) { $max.Remove($k) } })
+    $hwB.Add_Click({ Start-Process 'https://www.hwinfo.com/download/' })
+    $closeB.Add_Click({ $f.Close() })
+    $f.Add_Shown({ & $tick; $t.Start() })
+    $f.Add_FormClosing({ $t.Stop() })
+    if ($script:UiLang -eq 'en') { $f.Text = Tr $f.Text; foreach ($c in $f.Controls) { if ($c.Text) { $c.Text = Tr $c.Text } } }
+    if ($SmokeTest) {
+        $f.CreateControl()
+        $issues = @(Test-GuiLayout $f)
+        $t.Dispose(); $f.Dispose()
+        return $issues
+    }
+    [void]$f.ShowDialog()
+    $t.Dispose(); $f.Dispose()
+}
 function Get-LiveSample {
     $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = '' }
     try { $s.CpuPct = [int](Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorTime } catch {}
     try { $s.CpuPerfPct = [int](Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorPerformance } catch {}
     try { $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop; $s.MemPct = [int](100 - 100 * $os.FreePhysicalMemory / $os.TotalVisibleMemorySize) } catch {}
-    try { $tz = @(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop | ForEach-Object { [math]::Round($_.CurrentTemperature / 10 - 273.15, 1) } | Where-Object { $_ -gt 0 -and $_ -lt 130 }); if ($tz.Count) { $s.BoardTempC = ($tz | Measure-Object -Maximum).Maximum } } catch {}
+    $bt = Get-BoardTemp; $s.BoardTempC = $bt.TempC
     $nv = $null
     foreach ($c in @("$env:SystemRoot\System32\nvidia-smi.exe", "$env:ProgramFiles\NVIDIA Corporation\NVSMI\nvidia-smi.exe")) { if ($c -and (Test-Path $c)) { $nv = $c; break } }
     if ($nv) {
@@ -2489,7 +2575,7 @@ $script:ExternalTools = @(
     @{ Key = 'vram';  Label = '그래픽카드 VRAM 검사';  Desc = 'memtest_vulkan (GitHub 오픈소스) · NVIDIA/AMD/Intel'; Help = "새 창에서 엔터를 누르면 시작합니다.`n최소 5~10분 실행 후 'PASSed' 가 나오면 정상, 'error' 가 보이면 VRAM 불량 의심입니다.`n끝내려면 그 창에서 Ctrl+C.`n테스트 중 PC 가 꺼지면 파워/그래픽카드 전원 문제일 가능성이 큽니다."; Run = { Start-MemtestVulkan } ; Fallback = 'https://github.com/GpuZelenograd/memtest_vulkan/releases' }
     @{ Key = 'bsv';   Label = '블루스크린 원인 드라이버'; Desc = 'NirSoft BlueScreenView'; Help = "아래쪽 목록에서 빨간색으로 표시된 파일이 원인 후보입니다.`nnvlddmkm.sys=NVIDIA, amdkmdag.sys=AMD, ntoskrnl.exe=하드웨어/RAM 가능성."; Run = { Start-BlueScreenView }; Fallback = 'https://www.nirsoft.net/utils/blue_screen_of_death_viewer.html' }
     @{ Key = 'ram';   Label = 'RAM 검사 (재부팅)';     Desc = 'Windows 메모리 진단 (기본 내장)'; Help = "작업을 저장한 뒤 '지금 다시 시작하여 문제 확인'을 선택하세요.`n결과는 재부팅 후 이 프로그램을 다시 실행하면 보고서에 표시됩니다."; Run = { Start-Process "$env:SystemRoot\System32\MdSched.exe" }; Fallback = $null }
-    @{ Key = 'hwinfo'; Label = '온도·전압 모니터링';     Desc = 'HWiNFO 공식 사이트'; Help = '공식 사이트에서 받아 "Sensors-only" 로 실행하세요.'; Run = { Start-Process 'https://www.hwinfo.com/download/' }; Fallback = $null }
+    @{ Key = 'monitor'; Label = '실시간 온도 모니터';     Desc = 'CPU·GPU 온도·사용률·전력 (설치 없이 프로그램 안에서)'; Help = ''; Run = { Show-MonitorDialog }; Fallback = 'https://www.hwinfo.com/download/' }
     @{ Key = 'blackbox'; Label = '블랙박스 기록 (노하드용)'; Desc = '부하 테스트 중 상태를 USB 에 실시간 기록'; Help = ''; Run = { Show-BlackboxDialog }; Fallback = $null }
     @{ Key = 'occt';  Label = '파워·GPU 부하 테스트';    Desc = 'OCCT 공식 사이트'; Help = "'Power' 테스트 10~20분 중 꺼지면 파워 문제, 'VRAM' 테스트에서 오류면 그래픽카드 문제입니다."; Run = { Start-Process 'https://www.ocbase.com/download' }; Fallback = $null }
 )
@@ -3203,7 +3289,12 @@ $script:EnPairs = @(
     @('대기 중', 'Idle'), @('기록 시작', 'Start'), @('중지', 'Stop'), @('기록 파일 분석', 'Analyze file'),
     @('기록을 마쳤습니다. memtest_vulkan 창은 Ctrl+C 로 닫으세요.', 'Recording finished. Close the memtest_vulkan window with Ctrl+C.'),
     @('기록 오류:', 'Recording error:'), @('GPU 부하 도구를 시작하지 못했습니다.', 'Could not start the GPU load tool.'),
-    @('기록을 시작하지 못했습니다.', 'Could not start recording.'), @('분석하지 못했습니다.', 'Could not analyze.')
+    @('기록을 시작하지 못했습니다.', 'Could not start recording.'), @('분석하지 못했습니다.', 'Could not analyze.'),
+    # ---- 실시간 온도 모니터
+    @('실시간 온도 모니터', 'Live temperature monitor'), @('CPU·GPU 온도·사용률·전력 (설치 없이 프로그램 안에서)', 'CPU/GPU temperature, load and power (built in, nothing to install)'),
+    @('CPU 온도는 Windows 기본 센서(ACPI)로 읽어 보드에 따라 메인보드 온도로 나오거나 표시되지 않을 수 있습니다. 전압·팬·코어별 온도는 HWiNFO 로 확인하세요.', 'CPU temperature comes from the built-in Windows (ACPI) sensor, so on some boards it shows the motherboard temperature or nothing. Check voltages, fans and per-core temperatures with HWiNFO.'),
+    @('최고값 초기화', 'Reset max'), @('HWiNFO 열기 (전압·팬)', 'Open HWiNFO (voltages/fans)'), @('측정 중...', 'Measuring...'),
+    @('닫기', 'Close')
 )
 
 function Get-EnTable {
@@ -3270,7 +3361,7 @@ if (-not $script:IsWin) { Write-Error 'Windows 에서만 검사할 수 있습니
 
 if ($Mode -eq 'Gui') {
     try {
-        if ($GuiSmokeTest) { foreach ($lg in 'ko', 'en') { $script:UiLang = $lg; foreach ($s in 1.0, 1.25, 1.5, 2.0) { Write-Output "[$lg] 배율 $([int]($s * 100))%"; Show-Gui -Days $Days -OutDir $OutDir -SmokeTest -SimScale $s; $bi = @(Show-BlackboxDialog -SmokeTest -SimScale $s); foreach ($i in $bi) { Write-Output "BLACKBOX LAYOUT ISSUE: $i" }; if ($bi.Count) { throw "블랙박스 창 레이아웃 문제 $($bi.Count) 건" } } } }
+        if ($GuiSmokeTest) { foreach ($lg in 'ko', 'en') { $script:UiLang = $lg; foreach ($s in 1.0, 1.25, 1.5, 2.0) { Write-Output "[$lg] 배율 $([int]($s * 100))%"; Show-Gui -Days $Days -OutDir $OutDir -SmokeTest -SimScale $s; $bi = @(Show-BlackboxDialog -SmokeTest -SimScale $s) + @(Show-MonitorDialog -SmokeTest -SimScale $s); foreach ($i in $bi) { Write-Output "BLACKBOX LAYOUT ISSUE: $i" }; if ($bi.Count) { throw "블랙박스 창 레이아웃 문제 $($bi.Count) 건" } } } }
         else { Show-Gui -Days $Days -OutDir $OutDir -Note $Note }
         return
     }
