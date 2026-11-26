@@ -1749,6 +1749,8 @@ public static class PCCheckRamTest {
     public static volatile bool Running;
     public static long Errors, TestedMB, Passes;
     public static string LastError = "";
+    public const int PatternCount = 7;   // MemTest86 처럼: 주소·반전 주소·교차·반전 교차·walking 1·walking 0·난수
+    public static long PatternValue(int p, long addr) { ulong x = 0x9E3779B97F4A7C15UL; return Pat(p, addr, ref x); }
     static Thread worker;
     public static void Start(int megabytes) {
         if (Running) return;
@@ -1773,7 +1775,7 @@ public static class PCCheckRamTest {
             if (blocks.Count == 0) { LastError = "memory allocation failed"; return; }
             ulong seed = 0x9E3779B97F4A7C15UL;
             while (!StopFlag) {
-                for (int p = 0; p < 4 && !StopFlag; p++) {
+                for (int p = 0; p < PatternCount && !StopFlag; p++) {
                     for (int b = 0; b < blocks.Count && !StopFlag; b++) {
                         long[] a = blocks[b]; long baseIx = (long)b * a.Length;
                         ulong x = seed ^ (ulong)(b + 1) * 0xBF58476D1CE4E5B9UL ^ (ulong)p;
@@ -1797,6 +1799,9 @@ public static class PCCheckRamTest {
             case 0: return addr;                                  // 주소 패턴
             case 1: return ~addr;                                 // 반전 주소
             case 2: return (addr & 1) == 0 ? 0x5555555555555555L : unchecked((long)0xAAAAAAAAAAAAAAAAUL);  // 교차 비트
+            case 3: return (addr & 1) == 0 ? unchecked((long)0xAAAAAAAAAAAAAAAAUL) : 0x5555555555555555L;  // 반전 교차 (각 비트를 0·1 모두 시험)
+            case 4: return 1L << (int)(addr & 63);                // walking 1 — 한 비트만 1 (이웃 비트 간섭)
+            case 5: return ~(1L << (int)(addr & 63));             // walking 0 — 한 비트만 0
             default: x ^= x << 13; x ^= x >> 7; x ^= x << 17; return unchecked((long)x);  // 난수
         }
     }

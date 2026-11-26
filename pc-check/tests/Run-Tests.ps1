@@ -821,6 +821,16 @@ It 'memtest_vulkan 최신판: 해시(SHA-256)가 없으면 검증 안 된 파일
         Assert-Eq $a.Source 'api' '해시 있으면 최신판'; Assert-Eq $a.Sha256 ('a' * 64) '해시 전달'
     } finally { Remove-Item Function:\Invoke-RestMethod -ErrorAction SilentlyContinue }
 }
+It 'Windows 안 RAM 검사 패턴 (MemTest86 방식): 7종 — walking 1·0 과 반전 교차 포함' {
+    Initialize-RamTest
+    Assert-Eq ([PCCheckRamTest]::PatternCount) 7 '패턴 수'
+    Assert-Eq ([PCCheckRamTest]::PatternValue(4, 3)) 8 'walking 1 (3번째 비트)'
+    Assert-Eq ([PCCheckRamTest]::PatternValue(4, 64)) 1 'walking 1 은 64칸마다 반복'
+    Assert-Eq ([PCCheckRamTest]::PatternValue(5, 0)) -2 'walking 0'
+    Assert-Eq ([PCCheckRamTest]::PatternValue(2, 0)) 0x5555555555555555 '교차'
+    Assert-Eq ([PCCheckRamTest]::PatternValue(3, 0)) ([PCCheckRamTest]::PatternValue(2, 1)) '반전 교차'
+    Assert-Eq ([PCCheckRamTest]::PatternValue(1, 5)) (-6) '반전 주소'
+}
 It 'RAM 검사 크기: 여유 메모리의 70% 이되 1.5GB 는 남기고 최소 256MB, 읽기 실패면 512MB' {
     $script:FakeFreeKB = 0
     function Get-CimInstance { param($ClassName, $Namespace, $Filter, $ErrorAction) if ($null -eq $script:FakeFreeKB) { throw 'wmi' }; return [pscustomobject]@{ FreePhysicalMemory = $script:FakeFreeKB } }
