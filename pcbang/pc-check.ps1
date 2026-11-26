@@ -406,6 +406,8 @@ try {
     elseif ($pn -match 'M\d[A-Z](\d{4})C\d') { $pr = [int]$matches[1] }
     elseif ($pn -match '^KF[345](\d{2})C') { $pr = [int]$matches[1] * 100 }
     elseif ($pn -match '^KHX(\d{4})C') { $pr = [int]$matches[1] }
+    elseif ($pn -match '^(BL|CP|CT)\d+G(\d{2})C') { $pr = [int]$matches[2] * 100 }   # 크루셜: BL16G32C16U4B → 3200, CP16G56C46U5 → 5600
+    elseif ($pn -match '(\d{4})HC\d{2}') { $pr = [int]$matches[1] }                  # 팀그룹: TLZGD416G3200HC16F01 → 3200
     if ($pr -ge 1600 -and $pr -le 10000 -and $pr -gt $rated) { $rated = $pr }
   }
   if ($rated -gt 0) { $result.ramRated = $rated }
@@ -628,7 +630,7 @@ if ($result.audio) { Say ("      오디오: {0}" -f ($result.audio -join ', ')) 
 Say '[7/9] 네트워크 연결 확인' Yellow
 # 기본 경로(메트릭이 가장 낮은 것) = 실제 인터넷으로 나가는 어댑터. VPN·가상 어댑터를 피함
 $rt = $null
-try { $rt = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Sort-Object { $_.RouteMetric + [int](Get-NetIPInterface -InterfaceIndex $_.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).InterfaceMetric } | Select-Object -First 1 } catch {}
+try { $rt = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -PolicyStore ActiveStore -ErrorAction Stop | Sort-Object { $_.RouteMetric + [int](Get-NetIPInterface -InterfaceIndex $_.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).InterfaceMetric } | Select-Object -First 1 } catch {}
 $cfg = $null
 if ($rt) { $cfg = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter ("InterfaceIndex={0}" -f $rt.ifIndex) }
 if (-not $cfg) { $cfg = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter 'IPEnabled=TRUE' | Where-Object { $_.DefaultIPGateway } | Select-Object -First 1 }
@@ -772,7 +774,9 @@ try {
   foreach ($pd in $physDisks) { if ($pd.health -and $pd.health -notmatch '^(Healthy|OK|Unknown)$') { [void]$warns.Add(("디스크 상태 이상: {0} ({1})" -f $pd.name, $pd.health)) } }
   # 그래픽 드라이버 날짜 (주 그래픽카드)
   $mainGpu = $null
-  foreach ($gp in $gpus) { if (-not $gp.virtual -and $gp.name -match 'NVIDIA|GeForce|Radeon|AMD|Arc') { $mainGpu = $gp; break } }
+  # 외장 그래픽 먼저(내장 'AMD Radeon(TM) Graphics' 가 목록 앞에 있어도 NVIDIA·Radeon RX·Arc 를 고르도록)
+  foreach ($gp in $gpus) { if (-not $gp.virtual -and $gp.name -match 'NVIDIA|GeForce|Radeon RX|Radeon Pro|Arc') { $mainGpu = $gp; break } }
+  if (-not $mainGpu) { foreach ($gp in $gpus) { if (-not $gp.virtual -and $gp.name -match 'Radeon|AMD') { $mainGpu = $gp; break } } }
   if (-not $mainGpu) { foreach ($gp in $gpus) { if (-not $gp.virtual) { $mainGpu = $gp; break } } }
   if ($mainGpu -and $mainGpu.driverDate) {
     $ddt = [datetime]::ParseExact($mainGpu.driverDate, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
