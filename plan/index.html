@@ -106,6 +106,7 @@ table.blocks td.ck{width:1%;padding-right:0}.bk{width:36px;height:36px;border-ra
 table.blocks tr[data-ok] td:not(.ck){opacity:.6}
 p.row .btn{margin-right:4px}a.btn{text-decoration:none}
 details.box>summary::after{content:'▾';margin-left:auto;padding-left:8px;color:var(--muted)}details.box[open]>summary::after{content:'▴'}
+/*seg3*/.seg{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.seg a{padding:7px 9px}.seg a b{font-size:14.5px}.seg a span{font-size:11.5px;line-height:1.35}
 </style>
 </head>
 <body>
@@ -125,7 +126,7 @@ var timerId = null;
 
 function seg() {
   return '<a class="back" href="../index.html">‹ 하루 학습</a>' +
-    '<nav class="seg" aria-label="학습 방식 고르기"><a href="../index.html"><b>앱별 학습</b><span>앱마다 모든 수업</span></a><a href="./" aria-current="page"><b>20시간 핵심 계획</b><span>2시간 × 10세션</span></a></nav>';
+    '<nav class="seg" aria-label="학습 방식 고르기"><a href="../index.html"><b>앱별 학습</b><span>앱마다 모든 수업</span></a><a href="../plan/index.html" aria-current="page"><b>20시간 계획</b><span>핵심 20% · 10세션</span></a><a href="../sum/index.html"><b>핵심 요약</b><span>전체를 10분에</span></a></nav>';
 }
 
 function renderList() {
