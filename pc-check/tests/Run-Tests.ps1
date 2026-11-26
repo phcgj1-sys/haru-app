@@ -1225,6 +1225,21 @@ It '실시간 측정: NVIDIA 카드가 여러 장이면 가장 뜨거운 카드 
     $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
     Assert ([regex]::Match($src, '(?s)function Get-LiveSample.*?\n\}').Value -match 'Select-HottestNvRow') '실시간 측정에서 사용'
 }
+It '온도 모니터: 측정은 별도 실행 공간에서 (멈춘 드라이버로 화면이 얼지 않게), 끝나기 전에는 빈 값' {
+    $rs = New-PCRunspace
+    try {
+        $j = Start-LiveSampleJob $rs
+        $sw = [Diagnostics.Stopwatch]::StartNew(); $smp = $null
+        while ($null -eq $smp -and $sw.Elapsed.TotalSeconds -lt 30) { $smp = Receive-LiveSampleJob $j; if ($null -eq $smp) { Start-Sleep -Milliseconds 100 } }
+        Assert ($null -ne $smp) '측정값 받음'
+        Assert ($smp.Contains('CpuPct') -and $smp.Contains('GpuTempC')) '측정 항목'
+        $slow = @{ PS = $null; Handle = [pscustomobject]@{ IsCompleted = $false } }
+        Assert ($null -eq (Receive-LiveSampleJob $slow)) '진행 중이면 기다리지 않고 빈 값'
+        $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+        $dlg = [regex]::Match($src, '(?s)function Show-MonitorDialog.*?\n\}').Value
+        Assert ($dlg -match 'Start-LiveSampleJob' -and $dlg -notmatch '\$smp = Get-LiveSample') '화면 스레드에서 직접 측정하지 않음'
+    } finally { $rs.Dispose() }
+}
 It '실시간 측정: GPU 센서가 여럿(내장+외장)이면 가장 뜨거운 값으로 (과열 보호가 늦지 않게)' {
     function Get-GpuSensors { return @([ordered]@{ Index = 0; TempC = 41.0; FanRPM = $null }, [ordered]@{ Index = 1; TempC = 93.5; FanRPM = 2100 }) }
     try {

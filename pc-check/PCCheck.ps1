@@ -1846,6 +1846,16 @@ function Get-MonitorText($S, [hashtable]$Max) {
     if ($null -ne $S.MemPct) { $l += "$(& $w 'RAM 사용' 'RAM used') $(& $n $S.MemPct)%" }
     return ($l -join "`n")
 }
+function Start-LiveSampleJob($Runspace) {
+    # 측정을 별도 실행 공간에서 (드라이버가 멈춰 nvidia-smi 가 응답하지 않아도 화면이 얼지 않게)
+    $ps = [powershell]::Create(); $ps.Runspace = $Runspace; [void]$ps.AddScript('Get-LiveSample')
+    return @{ PS = $ps; Handle = $ps.BeginInvoke() }
+}
+function Receive-LiveSampleJob($Job) {
+    # 끝났으면 측정값, 아직이면 $null (다음 틱에 다시)
+    if (-not $Job -or -not $Job.Handle.IsCompleted) { return $null }
+    try { $r = @($Job.PS.EndInvoke($Job.Handle)); return $(if ($r.Count) { $r[0] } else { $null }) } finally { $Job.PS.Dispose() }
+}
 function Show-MonitorDialog {
     param([switch]$SmokeTest, [double]$SimScale = 1.0)
     # 실시간 온도 모니터: 기록·부하 없이 지금 상태만 2초마다 표시 (외부 프로그램·드라이버 설치 없음)
@@ -1864,17 +1874,24 @@ function Show-MonitorDialog {
     $resetB = & $mk Windows.Forms.Button '최고값 초기화' 16 270 150 44
     $hwB = & $mk Windows.Forms.Button 'HWiNFO 열기 (전압·팬)' 176 270 250 44   # 영어 'Open HWiNFO (voltages/fans)' 가 잘리지 않는 폭
     $closeB = & $mk Windows.Forms.Button '닫기' 436 270 108 44
-    $max = @{}
+    $max = @{}; $mon = @{ Rs = $null; Job = $null }
     $tick = {
-        try { $smp = Get-LiveSample; Update-MonitorMax $max $smp; $live.Text = Get-MonitorText $smp $max }
-        catch { Write-PCLog "monitor: $($_.Exception.Message)" }
+        try {
+            if (-not $mon.Rs) { $mon.Rs = New-PCRunspace }
+            if ($mon.Job) {
+                $smp = Receive-LiveSampleJob $mon.Job
+                if ($null -eq $smp) { return }   # 이전 측정이 아직 진행 중 (멈춘 드라이버 등) — 화면은 그대로 응답
+                $mon.Job = $null; Update-MonitorMax $max $smp; $live.Text = Get-MonitorText $smp $max
+            }
+            $mon.Job = Start-LiveSampleJob $mon.Rs
+        } catch { Write-PCLog "monitor: $($_.Exception.Message)" }
     }
-    $t = New-Object Windows.Forms.Timer; $t.Interval = 2000; $t.Add_Tick($tick)
+    $t = New-Object Windows.Forms.Timer; $t.Interval = 1000; $t.Add_Tick($tick)
     $resetB.Add_Click({ foreach ($k in @($max.Keys)) { $max.Remove($k) } })
     $hwB.Add_Click({ Start-Process 'https://www.hwinfo.com/download/' })
     $closeB.Add_Click({ $f.Close() })
     $f.Add_Shown({ & $tick; $t.Start() })
-    $f.Add_FormClosing({ $t.Stop() })
+    $f.Add_FormClosing({ $t.Stop(); if ($mon.Job) { try { $mon.Job.PS.Stop() } catch {} }; if ($mon.Rs) { try { $mon.Rs.Dispose() } catch {} } })
     if ($script:UiLang -eq 'en') { $f.Text = Tr $f.Text; foreach ($c in $f.Controls) { if ($c.Text) { $c.Text = Tr $c.Text } } }
     if ($SmokeTest) {
         $f.CreateControl()
