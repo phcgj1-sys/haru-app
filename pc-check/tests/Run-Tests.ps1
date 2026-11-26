@@ -1314,10 +1314,10 @@ It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시,
         Assert ($src -match 'Show-MonitorDialog -SmokeTest') 'GUI 자동 검사에서 창 배치 확인'
         # 111회 CI: 영어 'Open HWiNFO (voltages/fans)' 가 190px 에서 잘림 (198px 필요) — 버튼 폭과 겹침 확인
         $btn = @([regex]::Matches([regex]::Match($src, '(?s)function Show-MonitorDialog.*?\n\}').Value, "Windows\.Forms\.Button '[^']+' (\d+) (\d+) (\d+) (\d+)") | ForEach-Object { , @([int]$_.Groups[1].Value, [int]$_.Groups[3].Value) })
-        Assert-Eq $btn.Count 3 '버튼 3개'
-        Assert ($btn[1][1] -ge 230) "HWiNFO 버튼 폭 $($btn[1][1])"
+        Assert-Eq $btn.Count 4 '버튼 4개'
+        Assert ($btn[2][1] -ge 230) "HWiNFO 버튼 폭 $($btn[2][1])"
         for ($i = 1; $i -lt $btn.Count; $i++) { Assert ($btn[$i][0] -ge $btn[$i - 1][0] + $btn[$i - 1][1]) "버튼 $i 겹침 없음" }
-        Assert (($btn[-1][0] + $btn[-1][1]) -le 584) '창 안에 들어감'
+        Assert (($btn[-1][0] + $btn[-1][1]) -le 644) '창 안에 들어감'
     } finally { $script:UiLang = $old }
 }
 It '보고서 온도 수집: 관리자 권한이 없어(ACPI 거부) 도 열 영역 카운터로 온도를 남김' {
@@ -1342,6 +1342,16 @@ It '실시간 측정: NVIDIA 카드가 여러 장이면 가장 뜨거운 카드 
     Assert ($null -eq (Select-HottestNvRow @('No devices were found') $num)) '형식 아님'
     $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
     Assert ([regex]::Match($src, '(?s)function Get-LiveSample.*?\n\}').Value -match 'Select-HottestNvRow') '실시간 측정에서 사용'
+}
+It '온도 모니터 기록 저장 (HWiNFO 로깅 방식): CSV 한 줄에 모든 측정값, 지역 설정과 무관한 소수점, 사용자가 고른 파일에만' {
+    $line = ConvertTo-MonitorCsvLine ([ordered]@{ Time = '2026-11-26T10:00:00'; CpuPct = 37; BoardTempC = 52.5; GpuTempC = 71; GpuPowerW = 245.3; GpuFanRPM = 1450; GpuThrottle = 'PWRCAP' })
+    Assert-Eq ($line.Split(',').Count) ($script:MonitorCsvCols.Split(',').Count) '열 개수 = 머리말'
+    Assert ($line.StartsWith('2026-11-26T10:00:00,37,') -and $line -match ',52\.5,71,' -and $line.EndsWith(',1450,PWRCAP')) "줄: $line"
+    $old = [Threading.Thread]::CurrentThread.CurrentCulture
+    try { [Threading.Thread]::CurrentThread.CurrentCulture = New-Object Globalization.CultureInfo('de-DE'); Assert ((ConvertTo-MonitorCsvLine ([ordered]@{ BoardTempC = 52.5 })) -match ',52\.5,') '독일어 Windows 에서도 소수점 .' } finally { [Threading.Thread]::CurrentThread.CurrentCulture = $old }
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    $dlg = [regex]::Match($src, '(?s)function Show-MonitorDialog.*?\n\}').Value
+    Assert ($dlg -match 'SaveFileDialog' -and $dlg -match 'Log\.Dispose') '저장 창으로 고른 파일, 닫을 때 정리'
 }
 It '온도 모니터: 측정은 별도 실행 공간에서 (멈춘 드라이버로 화면이 얼지 않게), 끝나기 전에는 빈 값' {
     $rs = New-PCRunspace

@@ -1915,6 +1915,11 @@ function Receive-LiveSampleJob($Job) {
     catch { Write-PCLog "live sample: $($_.Exception.Message)"; return [ordered]@{} }
     finally { try { $Job.PS.Dispose() } catch {} }
 }
+$script:MonitorCsvCols = 'Time,CpuPct,CpuPerfPct,MemPct,BoardTempC,GpuTempC,GpuUtilPct,GpuPowerW,GpuClockMHz,GpuMemMB,GpuFanRPM,GpuThrottle'
+function ConvertTo-MonitorCsvLine($Sample) {
+    # 온도 모니터 기록 한 줄 (HWiNFO 로깅처럼 — 엑셀로 열어 그래프를 그릴 수 있게, 소수점은 항상 '.')
+    return (@($script:MonitorCsvCols.Split(',') | ForEach-Object { ConvertTo-CsvField $Sample[$_] }) -join ',')
+}
 function Show-MonitorDialog {
     param([switch]$SmokeTest, [double]$SimScale = 1.0)
     # 실시간 온도 모니터: 기록·부하 없이 지금 상태만 2초마다 표시 (외부 프로그램·드라이버 설치 없음)
@@ -1923,17 +1928,18 @@ function Show-MonitorDialog {
     $font = New-Object Drawing.Font('Malgun Gothic', (10 * $s)); $big = New-Object Drawing.Font('Malgun Gothic', (11 * $s), [Drawing.FontStyle]::Bold)
     $f = New-Object Windows.Forms.Form
     $f.Text = '실시간 온도 모니터'; $f.Font = $font; $f.StartPosition = 'CenterParent'; $f.FormBorderStyle = 'FixedDialog'; $f.MaximizeBox = $false; $f.MinimizeBox = $false
-    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](600 * $s), [int](380 * $s))
+    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](660 * $s), [int](380 * $s))
     $u = { param([double]$v) [int][math]::Round($v * $s) }
     $mk = { param($type, $text, $x, $y, $w, $h) $c = New-Object $type; $c.Text = $text; $c.SetBounds((& $u $x), (& $u $y), (& $u $w), (& $u $h)); $f.Controls.Add($c); $c }
-    $live = & $mk Windows.Forms.Label '측정 중...' 16 12 568 226
+    $live = & $mk Windows.Forms.Label '측정 중...' 16 12 628 226
     $live.Font = $big
-    $note = & $mk Windows.Forms.Label 'CPU 온도는 Windows 기본 센서(ACPI)로 읽어 보드에 따라 메인보드 온도로 나오거나 표시되지 않을 수 있습니다. 전압·팬·코어별 온도는 HWiNFO 로 확인하세요.' 16 246 568 64
+    $note = & $mk Windows.Forms.Label 'CPU 온도는 Windows 기본 센서(ACPI)로 읽어 보드에 따라 메인보드 온도로 나오거나 표시되지 않을 수 있습니다. 전압·팬·코어별 온도는 HWiNFO 로 확인하세요.' 16 246 628 64
     $note.ForeColor = [Drawing.Color]::DimGray
-    $resetB = & $mk Windows.Forms.Button '최고값 초기화' 16 320 170 44
-    $hwB = & $mk Windows.Forms.Button 'HWiNFO 열기 (전압·팬)' 196 320 260 44   # 영어 'Open HWiNFO (voltages/fans)' 가 잘리지 않는 폭
-    $closeB = & $mk Windows.Forms.Button '닫기' 466 320 118 44
-    $max = @{}; $mon = @{ Rs = $null; Job = $null }
+    $resetB = & $mk Windows.Forms.Button '최고값 초기화' 16 320 130 44
+    $logB = & $mk Windows.Forms.Button '기록 저장 시작' 156 320 160 44
+    $hwB = & $mk Windows.Forms.Button 'HWiNFO 열기 (전압·팬)' 326 320 230 44   # 영어 'Open HWiNFO (voltages/fans)' 가 잘리지 않는 폭
+    $closeB = & $mk Windows.Forms.Button '닫기' 566 320 78 44
+    $max = @{}; $mon = @{ Rs = $null; Job = $null; Log = $null }
     $tick = {
         try {
             if (-not $mon.Rs) { $mon.Rs = New-PCRunspace }
@@ -1941,16 +1947,27 @@ function Show-MonitorDialog {
                 $smp = Receive-LiveSampleJob $mon.Job
                 if ($null -eq $smp) { return }   # 이전 측정이 아직 진행 중 (멈춘 드라이버 등) — 화면은 그대로 응답
                 $mon.Job = $null; Update-MonitorMax $max $smp; $live.Text = Get-MonitorText $smp $max
+                if ($mon.Log -and $smp.Count) { try { $mon.Log.WriteLine((ConvertTo-MonitorCsvLine $smp)); $mon.Log.Flush() } catch { Write-PCLog "monitor log: $($_.Exception.Message)" } }
             }
             $mon.Job = Start-LiveSampleJob $mon.Rs
         } catch { Write-PCLog "monitor: $($_.Exception.Message)"; $mon.Job = $null }
     }
     $t = New-Object Windows.Forms.Timer; $t.Interval = 1000; $t.Add_Tick($tick)
     $resetB.Add_Click({ foreach ($k in @($max.Keys)) { $max.Remove($k) } })
+    # 사용자가 고른 파일에만 저장 (덮어쓰기 여부는 Windows 저장 창이 물어봄)
+    $logB.Add_Click({
+        if ($mon.Log) { try { $mon.Log.Dispose() } catch {}; $mon.Log = $null; $logB.Text = Tr '기록 저장 시작'; return }
+        $d = New-Object Windows.Forms.SaveFileDialog; $d.Filter = 'CSV (*.csv)|*.csv'; $d.FileName = "PCCheck_monitor_$(Get-FileStamp (Get-Date)).csv"
+        if ($d.ShowDialog($f) -ne 'OK') { return }
+        try {
+            $mon.Log = New-Object IO.StreamWriter($d.FileName, $false, (New-Object Text.UTF8Encoding($true)))
+            $mon.Log.WriteLine($script:MonitorCsvCols); $logB.Text = Tr '기록 저장 중지'
+        } catch { $mon.Log = $null; [void][Windows.Forms.MessageBox]::Show($f, (Tr "저장하지 못했습니다.`n$($_.Exception.Message)"), (Tr $script:AppName)) }
+    })
     $hwB.Add_Click({ Start-Process 'https://www.hwinfo.com/download/' })
     $closeB.Add_Click({ $f.Close() })
     $f.Add_Shown({ & $tick; $t.Start() })
-    $f.Add_FormClosing({ $t.Stop(); if ($mon.Job) { try { $mon.Job.PS.Stop() } catch {} }; if ($mon.Rs) { try { $mon.Rs.Dispose() } catch {} } })
+    $f.Add_FormClosing({ $t.Stop(); if ($mon.Log) { try { $mon.Log.Dispose() } catch {} }; if ($mon.Job) { try { $mon.Job.PS.Stop() } catch {} }; if ($mon.Rs) { try { $mon.Rs.Dispose() } catch {} } })
     if ($script:UiLang -eq 'en') { $f.Text = Tr $f.Text; foreach ($c in $f.Controls) { if ($c.Text) { $c.Text = Tr $c.Text } } }
     if ($SmokeTest) {
         $f.CreateControl()
@@ -3521,6 +3538,7 @@ $script:EnPairs = @(
     # ---- 실시간 온도 모니터
     @('실시간 온도 모니터', 'Live temperature monitor'), @('CPU·GPU 온도·사용률·전력 (설치 없이 프로그램 안에서)', 'CPU/GPU temperature, load and power (built in, nothing to install)'),
     @('CPU 온도는 Windows 기본 센서(ACPI)로 읽어 보드에 따라 메인보드 온도로 나오거나 표시되지 않을 수 있습니다. 전압·팬·코어별 온도는 HWiNFO 로 확인하세요.', 'CPU temperature comes from the built-in Windows (ACPI) sensor, so on some boards it shows the motherboard temperature or nothing. Check voltages, fans and per-core temperatures with HWiNFO.'),
+    @('기록 저장 시작', 'Start logging'), @('기록 저장 중지', 'Stop logging'), @('저장하지 못했습니다.', 'Could not save.'),
     @('최고값 초기화', 'Reset max'), @('HWiNFO 열기 (전압·팬)', 'Open HWiNFO (voltages/fans)'), @('측정 중...', 'Measuring...'),
     @('닫기', 'Close')
 )
