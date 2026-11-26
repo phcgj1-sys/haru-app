@@ -1022,6 +1022,14 @@ It '블랙박스: 직접 고른 폴더에 기록해도 다음 검사에서 찾�
         foreach ($i in 1..12) { Add-BlackboxDirMemory "X$i" }; Assert-Eq @(Get-BlackboxDirMemory).Count 10 '최근 10개만'
     } finally { $script:WorkDir = $oldWd }
 }
+It '블랙박스 실시간 오류 감시: 최신 AMD 드라이버(amdwddmg) 오류도 기록 (AMD 로 표시, 그래픽카드 판정)' {
+    Assert ((Get-HwEventFilter (Get-Date)).ProviderName -contains 'amdwddmg') '감시 목록'
+    function Get-WinEvent { param($FilterHashtable, $MaxEvents, $ErrorAction) return @([pscustomobject]@{ ProviderName = 'amdwddmg'; Id = 4101; Message = 'x' }) }
+    try { Assert-Eq ((Get-RecentHwEvents (Get-Date).AddMinutes(-1)) -join ',') 'AMD 4101' 'AMD 로 표시' }
+    finally { Remove-Item Function:\Get-WinEvent -ErrorAction SilentlyContinue }
+    $a = Read-BlackboxAnalysis (New-Bb2File 'bb_amd.csv' (@(,@('gpu', 5, 99, 60, 99, 200, '', 0, 'AMD 4101')) + (Rep 3 @('gpu', 5, 99, 60, 99, 200, '', 0, ''))) -Stop)
+    Assert-Eq $a.Cause 'GPU_HW' 'AMD 오류는 그래픽카드 판정'
+}
 It '블랙박스 실시간 오류 감시: USB 를 뽑을 때의 disk 157(갑자기 제거됨)은 디스크 오류로 세지 않음' {
     function Get-WinEvent { param($FilterHashtable, $MaxEvents, $ErrorAction) return @([pscustomobject]@{ ProviderName = 'disk'; Id = 157; Message = 'Disk 2 has been surprise removed.' }, [pscustomobject]@{ ProviderName = 'disk'; Id = 7; Message = 'bad block' }, [pscustomobject]@{ ProviderName = 'Microsoft-Windows-WHEA-Logger'; Id = 18; Message = 'x' }) }
     try { Assert-Eq ((Get-RecentHwEvents (Get-Date).AddMinutes(-1)) -join ',') 'DISK 7,WHEA 18' '157 제외, 다른 오류는 그대로' }
