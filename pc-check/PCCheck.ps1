@@ -431,7 +431,7 @@ function Invoke-Collect {
         } }
         @{ Name = 'RAM';                    Run = {
             $D.Dimms = @(Get-CimInstance Win32_PhysicalMemory | ForEach-Object {
-                $ddr = switch ([int]$_.SMBIOSMemoryType) { 26 { 'DDR4' } 34 { 'DDR5' } 24 { 'DDR3' } default { '' } }
+                $ddr = switch ([int]$_.SMBIOSMemoryType) { 26 { 'DDR4' } 34 { 'DDR5' } 24 { 'DDR3' } 29 { 'LPDDR3' } 30 { 'LPDDR4' } 35 { 'LPDDR5' } default { '' } }   # LPDDR: 노트북 온보드 (XMP 없음)
                 [ordered]@{ Slot = $_.DeviceLocator; SizeGB = [math]::Round($_.Capacity / 1GB, 0); ConfiguredMHz = $_.ConfiguredClockSpeed; RatedMHz = $_.Speed; Maker = ([string]$_.Manufacturer).Trim(); Part = ([string]$_.PartNumber).Trim(); DDR = $ddr }
             })
         } }
@@ -911,6 +911,7 @@ function Get-Diagnosis {
     $ddr5Std = $(if ([string](Get-Prop $sys 'CPU') -match 'Ultra [579] 2\d{2}') { 6400 } else { 5600 })
     foreach ($m in $dimms) {
         $cfg = [int](Get-Prop $m 'ConfiguredMHz'); $ddr = [string](Get-Prop $m 'DDR')
+        if ($ddr -match '^LPDDR') { continue }   # 온보드 저전력 메모리는 XMP 가 없음 (LPDDR4X-4266 을 오버클럭으로 오판하지 않게)
         if (($ddr -eq 'DDR4' -and $cfg -gt 3200) -or ($ddr -eq 'DDR5' -and $cfg -gt $ddr5Std) -or ($ddr -eq '' -and $cfg -gt 3200 -and $cfg -lt 4400)) { $xmp = $true }
     }
     if ($xmp) {

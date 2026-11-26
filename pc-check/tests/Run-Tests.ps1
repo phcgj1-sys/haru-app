@@ -203,6 +203,16 @@ It 'Windows 메모리 진단: 최근 통과보다 오래된 실패는 해결된 
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { $e = Tr "$($f[0].Title) $($f[0].Detail)"; Assert ($e -notmatch '[가-힣]') "영어: $e" } finally { $script:UiLang = $lg }
 }
+It 'XMP 판정: 노트북 온보드 LPDDR4X-4266·LPDDR5 는 XMP 로 보지 않음' {
+    foreach ($m in @(@('LPDDR4', 4266), @('LPDDR5', 6400))) {
+        $d = New-Scenario @{}; $d.Dimms = @([ordered]@{ Slot = 'ChannelA'; SizeGB = 8; ConfiguredMHz = $m[1]; RatedMHz = $m[1]; Maker = 'Samsung'; Part = 'K4U'; DDR = $m[0] })
+        Assert (-not (@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match 'XMP' })) "$($m[0])-$($m[1]) XMP 아님"
+    }
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+    Assert ($src -match "30 \{ 'LPDDR4' \}") '수집 단계에서 LPDDR4 이름'
+    $d = New-Scenario @{}; $d.Dimms = @([ordered]@{ Slot = 'A'; SizeGB = 16; ConfiguredMHz = 3600; RatedMHz = 3600; Maker = 'x'; Part = 'y'; DDR = 'DDR4' })
+    Assert (@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match 'XMP' }) 'DDR4-3600 은 그대로 XMP'
+}
 It 'XMP 판정: Core Ultra 200S 의 기본 DDR5-6400 은 XMP 아님, 다른 CPU 는 5600 초과면 XMP' {
     $mk = { param($cpu, $mhz) $d = New-Scenario @{ Dimms = @([ordered]@{ Slot = 'A2'; SizeGB = 16; ConfiguredMHz = $mhz; RatedMHz = 4800; Maker = 'X'; Part = 'P'; DDR = 'DDR5' }) }; $d.System.CPU = $cpu
         @((Get-Diagnosis -Data $d).Findings | Where-Object { $_.Title -match 'XMP' }).Count }
