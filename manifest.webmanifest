@@ -47,17 +47,17 @@
       "sizes": "1080x2220",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "35가지 학습 앱 홈"
+      "label": "35가지 학습 앱 홈과 오늘 15분 목표"
     },
     {
-      "src": "store/raw/03-lesson.png",
+      "src": "store/raw/02-plan.png",
       "sizes": "1080x2220",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "핵심 3줄로 시작하는 수업"
+      "label": "20시간 핵심 계획"
     },
     {
-      "src": "store/raw/04-quiz.png",
+      "src": "store/raw/05-quiz.png",
       "sizes": "1080x2220",
       "type": "image/png",
       "form_factor": "narrow",
