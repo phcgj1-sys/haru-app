@@ -593,6 +593,17 @@ It '권장 파워 용량: Ti·SUPER·XT 변형은 기본 모델보다 먼저, �
         Assert-Eq (Get-PsuEstimate $d).GpuW $c[1] $c[0]
     }
 }
+It '권장 파워 용량: 노트북 그래픽카드(Laptop GPU·Max-Q)는 데스크톱 파워를 권하지 않음' {
+    foreach ($nm in 'NVIDIA GeForce RTX 4090 Laptop GPU', 'NVIDIA GeForce RTX 2080 with Max-Q Design', 'AMD Radeon RX 6800M Mobile') {
+        $d = New-Scenario @{}; $d.Gpus = @([ordered]@{ Name = $nm; Vendor = 'NVIDIA'; VramGB = 16; Driver = '1'; DriverDate = (T 10); Status = 'OK' })
+        $d.NvSmi = @([ordered]@{ PowerLimitW = 150 })
+        $e = Get-PsuEstimate $d
+        Assert-Eq $e.RecommendW 0 "$nm 권장 없음"; Assert ($e.IsLaptop) '노트북 표시'
+        Assert (-not (@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match '권장 파워' })) "$nm 보고서에 권장 파워 없음"
+    }
+    $d = New-Scenario @{}; $d.Gpus = @([ordered]@{ Name = 'NVIDIA GeForce RTX 4090'; Vendor = 'NVIDIA'; VramGB = 24; Driver = '1'; DriverDate = (T 10); Status = 'OK' })
+    Assert ((Get-PsuEstimate $d).RecommendW -ge 750) '데스크톱은 그대로'
+}
 It '권장 파워 용량: Intel Core Ultra CPU 전력 반영' {
     foreach ($c in @(@('Intel(R) Core(TM) Ultra 9 285K', 253), @('Intel(R) Core(TM) Ultra 7 265KF', 253), @('Intel(R) Core(TM) Ultra 5 245K', 160), @('Intel(R) Core(TM) Ultra 7 155H', 125), @('Intel(R) Core(TM) Ultra 5 125U', 95), @('AMD Ryzen 7 9800X3D 8-Core Processor', 120))) {
         $d = New-Scenario @{}; $d.System.CPU = $c[0]; Assert-Eq (Get-PsuEstimate $d).CpuW $c[1] $c[0]

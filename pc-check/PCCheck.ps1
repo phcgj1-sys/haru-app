@@ -645,6 +645,8 @@ function Get-UsbRoot {
 function Get-PsuEstimate($Data) {
     # 최대 소비전력 추정과 권장 파워 용량 (측정값 우선, 없으면 모델별 대표값). 순간 전력 급증 대비 30% 여유
     $gpuW = 0.0; $gpuSrc = ''
+    # 노트북(그래픽카드 이름에 Laptop·Mobile·Max-Q)은 교체용 파워가 없으므로 권장 용량을 내지 않음 (데스크톱 표로 750W 를 권하던 오판 방지)
+    if (@(Get-Arr (Get-Prop $Data 'Gpus') | Where-Object { [string](Get-Prop $_ 'Name') -match '(?i)\b(Laptop|Mobile)\b|Max-Q' }).Count) { return [pscustomobject]@{ GpuW = 0; GpuSource = ''; CpuW = 0; OtherW = 0; PeakW = 0; RecommendW = 0; IsLaptop = $true } }
     foreach ($n in @(Get-Arr (Get-Prop $Data 'NvSmi'))) { $pl = Get-Prop $n 'PowerLimitW'; if ($null -ne $pl -and [double]$pl -gt $gpuW) { $gpuW = [double]$pl; $gpuSrc = '전력 제한값' } }
     foreach ($b in @(Get-Arr (Get-Prop $Data 'Blackbox'))) { $m = Get-Prop $b 'MaxGpuPowerW'; if ($null -ne $m -and [double]$m -gt $gpuW) { $gpuW = [double]$m; $gpuSrc = '블랙박스 측정' } }
     if ($gpuW -le 0) {
