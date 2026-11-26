@@ -1393,6 +1393,14 @@ It '노하드 + 블랙박스 기록 없음: 기록이 비어도 양호라고 하
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert ((Tr "상태: $($dx.Grade)") -notmatch '[가-힣]') "영어: $(Tr $dx.Grade)" } finally { $script:UiLang = $lg }
 }
+It '최근 추세: 검사 시각보다 나중으로 찍힌 기록(시계가 과거로 돌아간 PC)은 최근 급증으로 세지 않음' {
+    $d = New-Scenario @{ Shutdowns = @(1..4 | ForEach-Object { [ordered]@{ T = (T (-30 - $_)); Code = ''; PowerButton = $false } }) }
+    $tr = Get-ProblemTrend $d
+    Assert ($tr -and -not $tr.Rising) "미래 기록 4건은 급증 아님 (최근 $($tr.Recent))"
+    Assert-Eq $tr.Recent 0 '최근 0'
+    $d2 = New-Scenario @{ Shutdowns = @(1..4 | ForEach-Object { [ordered]@{ T = (T ($_ / 2)); Code = ''; PowerButton = $false } }) }
+    Assert ((Get-ProblemTrend $d2).Rising) '실제 최근 4건은 급증'
+}
 It '지난 검사 대비: 시계가 과거로 돌아가(CMOS 배터리 방전) 이번보다 나중 시각인 기록은 비교에서 제외, 깨진 점수도 오류 없이' {
     $d = New-Scenario @{}; $d.Meta.Computer = 'PC1'
     $fut = @([pscustomobject]@{ Computer = 'PC1'; Created = (T -5); Health = 40; Fp = '' })

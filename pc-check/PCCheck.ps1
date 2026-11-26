@@ -581,7 +581,7 @@ function Get-ProblemTrend($Data, [int]$RecentDays = 7) {
     $ts += @(@(Get-Arr (Get-Prop $Data 'Shutdowns')) | Where-Object { -not (Format-BugCode (Get-Prop $_ 'Code')) } | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') })
     foreach ($k in 'BugChecks', 'Whea') { $ts += @(@(Get-Arr (Get-Prop $Data $k)) | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') }) }
     $ts += @(@(Merge-GpuEvents (Get-Prop $Data 'GpuEvents')) | ForEach-Object { ConvertTo-Date (Get-Prop $_ 'T') })
-    $ts = @($ts | Where-Object { $_ -and $_ -ge $now.AddDays(-$days) })
+    $ts = @($ts | Where-Object { $_ -and $_ -ge $now.AddDays(-$days) -and $_ -le $now.AddMinutes(10) })   # 검사 시각보다 나중(시계가 과거로 돌아간 PC)은 '최근'으로 세지 않음
     $recent = @($ts | Where-Object { $_ -ge $cut }).Count; $earlier = $ts.Count - $recent
     $earlierDays = $days - $RecentDays
     $rising = ($recent -ge 3) -and (($recent / [double]$RecentDays) -ge 2.0 * ($earlier / [double]$earlierDays))
