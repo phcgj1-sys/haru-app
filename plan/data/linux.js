@@ -209,7 +209,7 @@ window.PLAN_DATA["linux"]={
    "blocks": [
     [
      "0:00–0:20",
-     "개념: messages(일반)·syslog(경고 이상, 장애 때 먼저)·secure(로그인), dmesg -T의 찾을 단어(Out of memory·I/O error·link is down)를 읽어요.",
+     "개념: messages(일반)·syslog(경고 이상, 장애 때 먼저)·secure(PAM 인증·su. sshd 의 Failed password·Accepted 줄은 messages), dmesg -T의 찾을 단어(Out of memory·I/O error·link is down)를 읽어요.",
      "l06,l07"
     ],
     [
@@ -247,7 +247,7 @@ window.PLAN_DATA["linux"]={
      ],
      [
       "ssh 로그인·인증 기록은 어디에 있나요?",
-      "/var/log/secure예요."
+      "sshd 의 Failed password·Accepted 줄은 /var/log/messages, PAM 인증 줄(pam_unix)은 /var/log/secure예요. 두 파일을 같이 봐요."
      ],
      [
       "syslog를 날짜로 grep할 때 한 자리 날짜의 주의점은?",
@@ -609,7 +609,7 @@ window.PLAN_DATA["linux"]={
     ],
     [
      "0:25–1:00",
-     "따라 하기: grep 'Failed password' /var/log/secure | wc -l, lastb | head, w, ss -tulpn, crontab -l, authorized_keys, ls -l /etc/rc.d/ | grep '^-rwx'를 시각과 함께 기록해요.",
+     "따라 하기: grep -h 'Failed password' /var/log/messages /var/log/secure | wc -l, lastb | head, w, ss -tulpn, crontab -l, authorized_keys, ls -l /etc/rc.d/ | grep '^-rwx'를 시각과 함께 기록해요.",
      "l21"
     ],
     [
