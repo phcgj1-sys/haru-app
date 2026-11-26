@@ -2006,6 +2006,7 @@ function Get-MonitorText($S, [hashtable]$Max) {
     $stat = { param($k, $unit) $t = "$mx $(& $n $Max[$k])"; if ([int]$Max["N$k"] -ge 2) { $t += " · $(& $w '평균' 'avg') $(& $n ([double]$Max["Sum$k"] / [int]$Max["N$k"])) · $(& $w '최저' 'min') $(& $n $Max["Min$k"])" }; "($t$unit)" }
     $l = @()
     $cpu = "$(& $w 'CPU 사용률' 'CPU usage') $(& $n $S.CpuPct)%"; if ($null -ne $S.CpuPerfPct) { $cpu += " · $(& $w '클럭' 'clock') $(& $n $S.CpuPerfPct)%" }
+    if ($null -ne $S.CpuMHz) { $cpu += " ($(& $w '약' 'about') $(([double]$S.CpuMHz / 1000).ToString('0.00', $inv)) GHz)" }
     $l += $cpu
     if ($null -ne $S.BoardTempC) {
         $l += "$(& $w 'CPU·메인보드 온도' 'CPU/board temp') $(& $n $S.BoardTempC) °C $(& $stat 'BoardTempC' ' °C')$(if ([double]$S.BoardTempC -ge 90) { $hot })$(if ($Max.BoardStatic) { & $w ' — 값이 변하지 않아 실제 CPU 온도가 아닐 수 있음 (HWiNFO 로 확인)' ' — value never changes, may not be the real CPU temperature (check with HWiNFO)' })"
@@ -2037,7 +2038,7 @@ function Receive-LiveSampleJob($Job) {
     catch { Write-PCLog "live sample: $($_.Exception.Message)"; return [ordered]@{} }
     finally { try { $Job.PS.Dispose() } catch {} }
 }
-$script:MonitorCsvCols = 'Time,CpuPct,CpuPerfPct,MemPct,BoardTempC,GpuTempC,GpuUtilPct,GpuPowerW,GpuClockMHz,GpuMemMB,GpuFanRPM,GpuThrottle'
+$script:MonitorCsvCols = 'Time,CpuPct,CpuPerfPct,CpuMHz,MemPct,BoardTempC,GpuTempC,GpuUtilPct,GpuPowerW,GpuClockMHz,GpuMemMB,GpuFanRPM,GpuThrottle'
 function ConvertTo-MonitorCsvLine($Sample) {
     # 온도 모니터 기록 한 줄 (HWiNFO 로깅처럼 — 엑셀로 열어 그래프를 그릴 수 있게, 소수점은 항상 '.')
     return (@($script:MonitorCsvCols.Split(',') | ForEach-Object { ConvertTo-CsvField $Sample[$_] }) -join ',')
@@ -2110,10 +2111,18 @@ function Select-HottestNvRow([object[]]$Rows, [scriptblock]$Num) {
     }
     return $best
 }
+function Get-CpuMHz($BaseMHz, $PerfPct) {
+    $b = Get-Num $BaseMHz; $p = Get-Num $PerfPct
+    if ($null -eq $b -or $null -eq $p -or $b -le 0 -or $p -le 0) { return $null }
+    return [int][math]::Round($b * $p / 100.0)
+}
 function Get-LiveSample {
-    $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = ''; GpuFanRPM = $null }
+    $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = ''; GpuFanRPM = $null; CpuMHz = $null }
     try { $s.CpuPct = [int](Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorTime } catch {}
     try { $s.CpuPerfPct = [int](Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorPerformance } catch {}
+    # HWiNFO 의 Core Clock 처럼 실제 클럭(MHz) ≈ 기준 클럭 × 성능 % (기준 클럭은 한 번만 읽음)
+    if ($null -eq $script:CpuBaseMHz) { $script:CpuBaseMHz = 0; try { $script:CpuBaseMHz = [int](@(Get-CimInstance Win32_Processor -ErrorAction Stop)[0].MaxClockSpeed) } catch {} }
+    $s.CpuMHz = Get-CpuMHz $script:CpuBaseMHz $s.CpuPerfPct
     try { $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop; $s.MemPct = [int](100 - 100 * $os.FreePhysicalMemory / $os.TotalVisibleMemorySize) } catch {}
     $bt = Get-BoardTemp; $s.BoardTempC = $bt.TempC
     $nv = $null
