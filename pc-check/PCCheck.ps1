@@ -1860,6 +1860,9 @@ function Update-MonitorMax([hashtable]$Max, $Sample) {
     foreach ($k in 'BoardTempC', 'GpuTempC', 'GpuPowerW', 'CpuPct') {
         $v = $Sample[$k]; if ($null -eq $v -or "$v" -eq '') { continue }
         if ($null -eq $Max[$k] -or [double]$v -gt [double]$Max[$k]) { $Max[$k] = [double]$v }
+        # HWiNFO 처럼 최저·평균도 (평균은 합계/개수)
+        if ($null -eq $Max["Min$k"] -or [double]$v -lt [double]$Max["Min$k"]) { $Max["Min$k"] = [double]$v }
+        $Max["Sum$k"] = [double]$Max["Sum$k"] + [double]$v; $Max["N$k"] = 1 + [int]$Max["N$k"]
     }
     # 보드에 따라 ACPI 열 영역이 고정값(예: 27.8 °C)만 내므로, CPU 를 많이 쓰는데도 전혀 변하지 않으면 표시
     $bt = $Sample['BoardTempC']
@@ -1877,17 +1880,20 @@ function Get-MonitorText($S, [hashtable]$Max) {
     $n = { param($v) if ($null -eq $v -or "$v" -eq '') { '-' } else { ([double]$v).ToString('0.#', $inv) } }
     $hot = & $w ' — 높음 (쿨링 점검)' ' — high (check cooling)'
     $mx = & $w '최고' 'max'
+    # 'X °C (최고 · 평균 · 최저)' — 표본이 2개 이상일 때만 평균·최저
+    $stat = { param($k, $unit) $t = "$mx $(& $n $Max[$k])"; if ([int]$Max["N$k"] -ge 2) { $t += " · $(& $w '평균' 'avg') $(& $n ([double]$Max["Sum$k"] / [int]$Max["N$k"])) · $(& $w '최저' 'min') $(& $n $Max["Min$k"])" }; "($t$unit)" }
     $l = @()
     $cpu = "$(& $w 'CPU 사용률' 'CPU usage') $(& $n $S.CpuPct)%"; if ($null -ne $S.CpuPerfPct) { $cpu += " · $(& $w '클럭' 'clock') $(& $n $S.CpuPerfPct)%" }
     $l += $cpu
     if ($null -ne $S.BoardTempC) {
-        $l += "$(& $w 'CPU·메인보드 온도' 'CPU/board temp') $(& $n $S.BoardTempC) °C ($mx $(& $n $Max.BoardTempC) °C)$(if ([double]$S.BoardTempC -ge 90) { $hot })$(if ($Max.BoardStatic) { & $w ' — 값이 변하지 않아 실제 CPU 온도가 아닐 수 있음 (HWiNFO 로 확인)' ' — value never changes, may not be the real CPU temperature (check with HWiNFO)' })"
+        $l += "$(& $w 'CPU·메인보드 온도' 'CPU/board temp') $(& $n $S.BoardTempC) °C $(& $stat 'BoardTempC' ' °C')$(if ([double]$S.BoardTempC -ge 90) { $hot })$(if ($Max.BoardStatic) { & $w ' — 값이 변하지 않아 실제 CPU 온도가 아닐 수 있음 (HWiNFO 로 확인)' ' — value never changes, may not be the real CPU temperature (check with HWiNFO)' })"
     } else { $l += (& $w 'CPU·메인보드 온도: 이 PC 는 Windows 기본 센서가 없습니다 (HWiNFO 로 확인)' 'CPU/board temp: no built-in Windows sensor on this PC (check with HWiNFO)') }
     if ($null -ne $S.GpuTempC -or $null -ne $S.GpuUtilPct) {
-        $l += "$(& $w '그래픽카드 온도' 'GPU temp') $(& $n $S.GpuTempC) °C ($mx $(& $n $Max.GpuTempC) °C)$(if ($null -ne $S.GpuTempC -and [double]$S.GpuTempC -ge 85) { $hot })"
+        $l += "$(& $w '그래픽카드 온도' 'GPU temp') $(& $n $S.GpuTempC) °C $(& $stat 'GpuTempC' ' °C')$(if ($null -ne $S.GpuTempC -and [double]$S.GpuTempC -ge 85) { $hot })"
         $g2 = @()
         if ($null -ne $S.GpuUtilPct) { $g2 += "$(& $w '사용률' 'load') $(& $n $S.GpuUtilPct)%" }
         if ($null -ne $S.GpuPowerW) { $g2 += "$(& $w '전력' 'power') $(& $n $S.GpuPowerW) W ($mx $(& $n $Max.GpuPowerW) W)" }
+        if ($null -ne $S.GpuFanRPM) { $g2 += "$(& $w '팬' 'fan') $(& $n $S.GpuFanRPM) RPM" }
         if ($null -ne $S.GpuClockMHz) { $g2 += "$(& $w '클럭' 'clock') $(& $n $S.GpuClockMHz) MHz" }
         if ($null -ne $S.GpuMemMB) { $g2 += "$(& $w 'VRAM 사용' 'VRAM used') $(& $n $S.GpuMemMB) MB" }
         if ($g2.Count) { $l += ("$(& $w '그래픽카드' 'GPU'): " + ($g2 -join ' · ')) }
@@ -1917,16 +1923,16 @@ function Show-MonitorDialog {
     $font = New-Object Drawing.Font('Malgun Gothic', (10 * $s)); $big = New-Object Drawing.Font('Malgun Gothic', (11 * $s), [Drawing.FontStyle]::Bold)
     $f = New-Object Windows.Forms.Form
     $f.Text = '실시간 온도 모니터'; $f.Font = $font; $f.StartPosition = 'CenterParent'; $f.FormBorderStyle = 'FixedDialog'; $f.MaximizeBox = $false; $f.MinimizeBox = $false
-    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](560 * $s), [int](330 * $s))
+    $f.AutoScaleMode = 'None'; $f.ClientSize = New-Object Drawing.Size([int](600 * $s), [int](380 * $s))
     $u = { param([double]$v) [int][math]::Round($v * $s) }
     $mk = { param($type, $text, $x, $y, $w, $h) $c = New-Object $type; $c.Text = $text; $c.SetBounds((& $u $x), (& $u $y), (& $u $w), (& $u $h)); $f.Controls.Add($c); $c }
-    $live = & $mk Windows.Forms.Label '측정 중...' 16 12 528 176
+    $live = & $mk Windows.Forms.Label '측정 중...' 16 12 568 226
     $live.Font = $big
-    $note = & $mk Windows.Forms.Label 'CPU 온도는 Windows 기본 센서(ACPI)로 읽어 보드에 따라 메인보드 온도로 나오거나 표시되지 않을 수 있습니다. 전압·팬·코어별 온도는 HWiNFO 로 확인하세요.' 16 196 528 64
+    $note = & $mk Windows.Forms.Label 'CPU 온도는 Windows 기본 센서(ACPI)로 읽어 보드에 따라 메인보드 온도로 나오거나 표시되지 않을 수 있습니다. 전압·팬·코어별 온도는 HWiNFO 로 확인하세요.' 16 246 568 64
     $note.ForeColor = [Drawing.Color]::DimGray
-    $resetB = & $mk Windows.Forms.Button '최고값 초기화' 16 270 150 44
-    $hwB = & $mk Windows.Forms.Button 'HWiNFO 열기 (전압·팬)' 176 270 250 44   # 영어 'Open HWiNFO (voltages/fans)' 가 잘리지 않는 폭
-    $closeB = & $mk Windows.Forms.Button '닫기' 436 270 108 44
+    $resetB = & $mk Windows.Forms.Button '최고값 초기화' 16 320 170 44
+    $hwB = & $mk Windows.Forms.Button 'HWiNFO 열기 (전압·팬)' 196 320 260 44   # 영어 'Open HWiNFO (voltages/fans)' 가 잘리지 않는 폭
+    $closeB = & $mk Windows.Forms.Button '닫기' 466 320 118 44
     $max = @{}; $mon = @{ Rs = $null; Job = $null }
     $tick = {
         try {
@@ -1966,7 +1972,7 @@ function Select-HottestNvRow([object[]]$Rows, [scriptblock]$Num) {
     return $best
 }
 function Get-LiveSample {
-    $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = '' }
+    $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = ''; GpuFanRPM = $null }
     try { $s.CpuPct = [int](Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorTime } catch {}
     try { $s.CpuPerfPct = [int](Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorPerformance } catch {}
     try { $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop; $s.MemPct = [int](100 - 100 * $os.FreePhysicalMemory / $os.TotalVisibleMemorySize) } catch {}
@@ -1988,7 +1994,13 @@ function Get-LiveSample {
         } catch {}
     }
     # 내장+외장 그래픽처럼 센서가 여럿이면 가장 뜨거운 값 (첫 번째가 덜 뜨거운 내장 그래픽이면 과열 보호가 늦게 작동)
-    if ($null -eq $s.GpuTempC) { foreach ($g in @(Get-GpuSensors)) { if ($null -ne $g.TempC -and ($null -eq $s.GpuTempC -or [double]$g.TempC -gt [double]$s.GpuTempC)) { $s.GpuTempC = $g.TempC } } }
+    $hotT = $null
+    foreach ($g in @(Get-GpuSensors)) {
+        if ($null -ne $g.TempC -and ($null -eq $hotT -or [double]$g.TempC -gt $hotT)) {
+            $hotT = [double]$g.TempC; $s.GpuFanRPM = $g.FanRPM   # 가장 뜨거운 그래픽카드의 팬 회전수 (HWiNFO 처럼, 제조사 무관 Windows 센서)
+        }
+    }
+    if ($null -eq $s.GpuTempC -and $null -ne $hotT) { $s.GpuTempC = $hotT }
     return $s
 }
 

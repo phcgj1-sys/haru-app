@@ -1293,8 +1293,12 @@ It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시,
         $max = @{}; Update-MonitorMax $max $smp
         Update-MonitorMax $max ([ordered]@{ CpuPct = 5; BoardTempC = 40; GpuTempC = 60; GpuPowerW = 80 })
         Assert-Eq $max.GpuTempC 71 '최고값 유지'; Assert-Eq $max.BoardTempC 52.5 '보드 최고'
+        Assert-Eq $max.MinGpuTempC 60 '최저'; Assert-Eq ([double]$max.SumGpuTempC / $max.NGpuTempC) 65.5 '평균'
+        $fan = Get-MonitorText ([ordered]@{ CpuPct = 5; GpuTempC = 50; GpuUtilPct = 3; GpuFanRPM = 1450 }) @{ GpuTempC = 50 }
+        Assert ($fan -match '팬 1450 RPM') "GPU 팬: $fan"
+        Assert ((Get-MonitorText ([ordered]@{ CpuPct = 5; GpuTempC = 50 }) @{ GpuTempC = 50; NGpuTempC = 1 }) -notmatch '평균') '표본 1개면 평균 없음'
         $t = Get-MonitorText $smp $max
-        foreach ($k in 'CPU 사용률 37%', '클럭 112%', 'CPU·메인보드 온도 52.5 °C', '그래픽카드 온도 71 °C (최고 71 °C)', '전력 245.3 W', '클럭 2610 MHz', 'VRAM 사용 9800 MB', 'PWRCAP', 'RAM 사용 61%') { Assert ($t.Contains($k)) "표시: $k" }
+        foreach ($k in 'CPU 사용률 37%', '클럭 112%', 'CPU·메인보드 온도 52.5 °C', '그래픽카드 온도 71 °C (최고 71 · 평균 65.5 · 최저 60 °C)', '전력 245.3 W', '클럭 2610 MHz', 'VRAM 사용 9800 MB', 'PWRCAP', 'RAM 사용 61%') { Assert ($t.Contains($k)) "표시: $k" }
         Assert ($t -notmatch '높음') '정상 온도는 경고 없음'
         $hot = Get-MonitorText ([ordered]@{ CpuPct = 100; BoardTempC = 95; GpuTempC = 88 }) @{ BoardTempC = 95; GpuTempC = 88 }
         Assert-Eq ([regex]::Matches($hot, '높음 \(쿨링 점검\)').Count) 2 'CPU·GPU 고온 경고'
@@ -1302,7 +1306,7 @@ It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시,
         Assert ($none -match 'Windows 기본 센서가 없습니다' -and $none -match '읽을 수 없음') '센서 없으면 안내'
         $script:UiLang = 'en'
         foreach ($x in (Get-MonitorText $smp $max), (Get-MonitorText ([ordered]@{ CpuPct = 100; BoardTempC = 95; GpuTempC = 88 }) @{}), (Get-MonitorText ([ordered]@{}) @{})) { Assert ($x -notmatch '[가-힣]') "영어: $x" }
-        Assert ((Get-MonitorText $smp $max) -match 'GPU temp 71 °C \(max 71 °C\)') '영어 문구'
+        Assert ((Get-MonitorText $smp $max) -match 'GPU temp 71 °C \(max 71 · avg 65.5 · min 60 °C\)') '영어 문구'
         $m = $script:ExternalTools | Where-Object { $_.Key -eq 'monitor' }
         Assert ($m) '정밀 검사 버튼에 포함'; Assert-Eq @($script:ExternalTools).Count 6 '버튼 수 유지 (3x2 배치)'
         Assert ((Tr $m.Label) -notmatch '[가-힣]' -and (Tr $m.Desc) -notmatch '[가-힣]') '버튼 이름 영어 번역'
@@ -1313,7 +1317,7 @@ It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시,
         Assert-Eq $btn.Count 3 '버튼 3개'
         Assert ($btn[1][1] -ge 230) "HWiNFO 버튼 폭 $($btn[1][1])"
         for ($i = 1; $i -lt $btn.Count; $i++) { Assert ($btn[$i][0] -ge $btn[$i - 1][0] + $btn[$i - 1][1]) "버튼 $i 겹침 없음" }
-        Assert (($btn[-1][0] + $btn[-1][1]) -le 544) '창 안에 들어감'
+        Assert (($btn[-1][0] + $btn[-1][1]) -le 584) '창 안에 들어감'
     } finally { $script:UiLang = $old }
 }
 It '보고서 온도 수집: 관리자 권한이 없어(ACPI 거부) 도 열 영역 카운터로 온도를 남김' {
@@ -1364,6 +1368,7 @@ It '실시간 측정: GPU 센서가 여럿(내장+외장)이면 가장 뜨거운
     try {
         $smp = Get-LiveSample
         Assert-Eq $smp.GpuTempC 93.5 '가장 뜨거운 그래픽카드'
+        Assert-Eq $smp.GpuFanRPM 2100 '그 카드의 팬 회전수'
         $st = @{ Hot = 0 }; foreach ($i in 1..3) { $r = Test-OverheatGuard $st 96 }; Assert $r '과열 보호 동작'
     } finally { Remove-Item Function:\Get-GpuSensors -ErrorAction SilentlyContinue }
 }
