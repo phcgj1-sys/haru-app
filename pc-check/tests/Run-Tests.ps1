@@ -639,6 +639,16 @@ It '권장 파워 용량: Ti·SUPER·XT 변형은 기본 모델보다 먼저, �
         Assert-Eq (Get-PsuEstimate $d).GpuW $c[1] $c[0]
     }
 }
+It '권장 파워 용량: 그래픽카드 2장이면 합계로 계산 (가장 큰 한 장만 보지 않음), 내장 그래픽은 0' {
+    $g = { param($n, $v) [ordered]@{ Name = $n; Vendor = $v; VramGB = 8; Driver = '1'; DriverDate = (T 10); Status = 'OK' } }
+    $d = New-Scenario @{}; $d.Gpus = @((& $g 'NVIDIA GeForce RTX 4070' 'NVIDIA'), (& $g 'NVIDIA GeForce RTX 3060' 'NVIDIA'), (& $g 'Intel(R) UHD Graphics 770' 'Intel'))
+    $e = Get-PsuEstimate $d
+    Assert-Eq $e.GpuW 370 '200 + 170 (내장 0)'
+    $d.NvSmi = @([ordered]@{ PowerLimitW = 220 }, [ordered]@{ PowerLimitW = 170 })
+    Assert-Eq (Get-PsuEstimate $d).GpuW 390 '전력 제한값 합계'
+    $one = New-Scenario @{}; $one.Gpus = @((& $g 'NVIDIA GeForce RTX 4070' 'NVIDIA'))
+    Assert-Eq (Get-PsuEstimate $one).GpuW 200 '한 장은 그대로'
+}
 It '권장 파워 용량: 노트북 그래픽카드(Laptop GPU·Max-Q)는 데스크톱 파워를 권하지 않음' {
     foreach ($nm in 'NVIDIA GeForce RTX 4090 Laptop GPU', 'NVIDIA GeForce RTX 2080 with Max-Q Design', 'AMD Radeon RX 6800M Mobile') {
         $d = New-Scenario @{}; $d.Gpus = @([ordered]@{ Name = $nm; Vendor = 'NVIDIA'; VramGB = 16; Driver = '1'; DriverDate = (T 10); Status = 'OK' })
