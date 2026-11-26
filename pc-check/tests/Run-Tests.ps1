@@ -1047,7 +1047,7 @@ It '검사 이력: USB 블랙박스 폴더에도 저장해 노하드 재부팅 �
     $usb = Join-Path $OutDir ('usb_' + [guid]::NewGuid().ToString('N')); New-Item -ItemType Directory -Path $usb | Out-Null
     try {
         $script:WorkDir = Join-Path $OutDir ('wd1_' + [guid]::NewGuid().ToString('N')); $script:ExtraHistoryDirs = @($usb)
-        $d1 = New-Scenario @{}; $d1.Meta.Created = Format-T (Get-Date).AddDays(-3)
+        $d1 = New-Scenario @{}; $d1.Meta.Created = Format-T $now.AddDays(-3)   # 테스트 기준 시각 (실제 시계를 쓰면 d2 보다 '미래'가 됨)
         [void](Save-Results -Data $d1 -Dx (Get-Diagnosis -Data $d1) -Dir $OutDir -Track)
         Assert (Test-Path (Join-Path $usb 'history.json')) 'USB 사본 저장'
         # 재부팅으로 기본 위치가 비워진 상황
@@ -1371,6 +1371,17 @@ It '노하드 + 블랙박스 기록 없음: 기록이 비어도 양호라고 하
     Assert ((New-HtmlReport -Data $dl -Dx $dx) -match 'class="ring warn"') '보고서 점수 원도 주의 색'
     $lg = $script:UiLang; $script:UiLang = 'en'
     try { Assert ((Tr "상태: $($dx.Grade)") -notmatch '[가-힣]') "영어: $(Tr $dx.Grade)" } finally { $script:UiLang = $lg }
+}
+It '지난 검사 대비: 시계가 과거로 돌아가(CMOS 배터리 방전) 이번보다 나중 시각인 기록은 비교에서 제외, 깨진 점수도 오류 없이' {
+    $d = New-Scenario @{}; $d.Meta.Computer = 'PC1'
+    $fut = @([pscustomobject]@{ Computer = 'PC1'; Created = (T -5); Health = 40; Fp = '' })
+    $dx = Get-Diagnosis -Data $d; Add-Comparison $d $dx $fut
+    Assert ($null -eq $dx.Previous) '미래 기록은 지난 검사 아님'
+    $mix = @([pscustomobject]@{ Computer = 'PC1'; Created = (T 3); Health = 'abc'; Fp = '' }, [pscustomobject]@{ Computer = 'PC1'; Created = (T -5); Health = 40; Fp = '' })
+    $dx = Get-Diagnosis -Data $d; Add-Comparison $d $dx $mix
+    Assert ($dx.Previous -and $dx.Previous.Health -eq 0) '과거 기록(점수 깨짐 → 0)을 지난 검사로'
+    Assert-Eq @($dx.Trend).Count 1 '추세에도 미래 기록 없음'
+    $null = New-HtmlReport -Data $d -Dx $dx
 }
 It '지난 검사 대비: 같은 이름이라도 하드웨어가 다른 PC 의 기록과 섞지 않음' {
     $a = New-Scenario @{}; $b = New-Scenario @{}; $b.System.CPU = 'Different CPU'

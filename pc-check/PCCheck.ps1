@@ -1571,15 +1571,18 @@ function Add-Comparison($Data, $Dx, $History) {
     $me = [string](Get-Prop (Get-Prop $Data 'Meta') 'Computer')
     # 같은 이름이라도 다른 PC(같은 이미지로 부팅한 노하드 PC 등)의 기록과 섞이지 않도록 하드웨어 지문도 비교 (예전 기록엔 지문이 없으면 이름만)
     $fp = Get-HwFingerprint $Data
-    $mine = @($History | Where-Object { [string](Get-Prop $_ 'Computer') -eq $me -and (-not $fp -or -not (Get-Prop $_ 'Fp') -or [string](Get-Prop $_ 'Fp') -eq $fp) })
+    # 이번 검사보다 나중 시각의 기록은 제외 (CMOS 배터리 방전 등으로 시계가 과거로 돌아가면 '미래' 기록을 지난 검사로 오인)
+    $nowT = ConvertTo-Date (Get-Prop (Get-Prop $Data 'Meta') 'Created'); if (-not $nowT) { $nowT = Get-Date }
+    $mine = @($History | Where-Object { $_ -and [string](Get-Prop $_ 'Computer') -eq $me -and (-not $fp -or -not (Get-Prop $_ 'Fp') -or [string](Get-Prop $_ 'Fp') -eq $fp) } |
+        Where-Object { $t = ConvertTo-Date (Get-Prop $_ 'Created'); $t -and $t -le $nowT.AddMinutes(10) })
     $prev = $mine | Select-Object -Last 1
     if (-not $prev) { return }
     # 최근 검사 점수 변화 (최대 5회) — 수리 전후 비교용
-    $Dx.Trend = @($mine | Select-Object -Last 5 | ForEach-Object { [ordered]@{ Created = (Format-T (ConvertTo-Date (Get-Prop $_ 'Created'))); Health = [int](Get-Prop $_ 'Health') } })   # PS7 은 JSON 날짜를 DateTime 으로 읽으므로 형식 통일
+    $Dx.Trend = @($mine | Select-Object -Last 5 | ForEach-Object { [ordered]@{ Created = (Format-T (ConvertTo-Date (Get-Prop $_ 'Created'))); Health = [int](Get-Num (Get-Prop $_ 'Health')) } })   # PS7 은 JSON 날짜를 DateTime 으로 읽으므로 형식 통일
     $pt = ConvertTo-Date (Get-Prop $prev 'Created'); if (-not $pt) { return }
     $new = Get-NewSince $Data $pt
     $total = 0; foreach ($k in $new.Keys) { $total += $new[$k] }
-    $Dx.Previous = [ordered]@{ Created = (Format-T $pt); Health = [int](Get-Prop $prev 'Health'); New = $new; NewTotal = $total }
+    $Dx.Previous = [ordered]@{ Created = (Format-T $pt); Health = [int](Get-Num (Get-Prop $prev 'Health')); New = $new; NewTotal = $total }
 }
 function Add-History($Data, $Dx) {
     $h = @(Read-History) + @([ordered]@{ Created = (Get-Prop (Get-Prop $Data 'Meta') 'Created'); Computer = (Get-Prop (Get-Prop $Data 'Meta') 'Computer'); Fp = (Get-HwFingerprint $Data); Health = $Dx.Health; Counts = $Dx.Counts })
