@@ -1030,6 +1030,14 @@ It '블랙박스 실시간 오류 감시: 최신 AMD 드라이버(amdwddmg) 오�
     $a = Read-BlackboxAnalysis (New-Bb2File 'bb_amd.csv' (@(,@('gpu', 5, 99, 60, 99, 200, '', 0, 'AMD 4101')) + (Rep 3 @('gpu', 5, 99, 60, 99, 200, '', 0, ''))) -Stop)
     Assert-Eq $a.Cause 'GPU_HW' 'AMD 오류는 그래픽카드 판정'
 }
+It '블랙박스 실시간 오류 감시: Intel 그래픽 드라이버(igfx·Arc) 오류도 기록하고 그래픽카드 판정' {
+    $f = (Get-HwEventFilter (Get-Date)).ProviderName; Assert ($f -contains 'igfx' -and $f -contains 'igfxn') '감시 목록'
+    function Get-WinEvent { param($FilterHashtable, $MaxEvents, $ErrorAction) return @([pscustomobject]@{ ProviderName = 'igfxn'; Id = 4101; Level = 2; Message = 'x' }, [pscustomobject]@{ ProviderName = 'igfx'; Id = 9999; Level = 3; Message = 'warning' }) }
+    try { Assert-Eq ((Get-RecentHwEvents (Get-Date).AddMinutes(-1)) -join ',') 'INTEL 4101' 'INTEL 로 표시, 경고(Level 3)는 제외' }
+    finally { Remove-Item Function:\Get-WinEvent -ErrorAction SilentlyContinue }
+    $a = Read-BlackboxAnalysis (New-Bb2File 'bb_intel.csv' (@(,@('gpu', 5, 99, 60, 99, 200, '', 0, 'INTEL 4101')) + (Rep 3 @('gpu', 5, 99, 60, 99, 200, '', 0, ''))) -Stop)
+    Assert-Eq $a.Cause 'GPU_HW' 'Intel 오류는 그래픽카드 판정 (디스크 아님)'
+}
 It '블랙박스 실시간 오류 감시: USB 를 뽑을 때의 disk 157(갑자기 제거됨)은 디스크 오류로 세지 않음' {
     function Get-WinEvent { param($FilterHashtable, $MaxEvents, $ErrorAction) return @([pscustomobject]@{ ProviderName = 'disk'; Id = 157; Message = 'Disk 2 has been surprise removed.' }, [pscustomobject]@{ ProviderName = 'disk'; Id = 7; Message = 'bad block' }, [pscustomobject]@{ ProviderName = 'Microsoft-Windows-WHEA-Logger'; Id = 18; Message = 'x' }) }
     try { Assert-Eq ((Get-RecentHwEvents (Get-Date).AddMinutes(-1)) -join ',') 'DISK 7,WHEA 18' '157 제외, 다른 오류는 그대로' }

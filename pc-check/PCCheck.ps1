@@ -1904,7 +1904,7 @@ function Get-LiveSample {
 
 function Get-HwEventFilter([datetime]$Since) {
     # 위험·오류·경고만 (USB 를 꽂을 때 생기는 'Ntfs 98: 볼륨 정상' 같은 정보 이벤트를 오류로 세지 않도록)
-    return @{ LogName = 'System'; StartTime = $Since; Level = @(1, 2, 3); ProviderName = @('Microsoft-Windows-WHEA-Logger', 'Display', 'nvlddmkm', 'amdkmdag', 'amdwddmg', 'disk', 'Ntfs') }   # amdwddmg: 최신 AMD 드라이버 (보고서 수집과 같은 목록)
+    return @{ LogName = 'System'; StartTime = $Since; Level = @(1, 2, 3); ProviderName = @('Microsoft-Windows-WHEA-Logger', 'Display', 'nvlddmkm', 'amdkmdag', 'amdwddmg', 'igfx', 'igfxn', 'disk', 'Ntfs') }   # amdwddmg: 최신 AMD 드라이버 (보고서 수집과 같은 목록)
 }
 function Get-RecentHwEvents([datetime]$Since) {
     # 기록 중 새로 생긴 하드웨어/그래픽 오류 (짧은 코드로)
@@ -1914,11 +1914,14 @@ function Get-RecentHwEvents([datetime]$Since) {
         foreach ($e in $ev) {
             # disk 157 '장치가 갑자기 제거됨' 은 USB 를 뽑을 때 생기는 경고 — 디스크 오류로 세면 블랙박스가 디스크 탓으로 오판
             if ($e.ProviderName -eq 'disk' -and $e.Id -eq 157) { continue }
+            # AMD·Intel 드라이버의 '경고'는 흔한 정보성 기록 — 보고서 수집과 같게 오류(위험·오류)만
+            if ($e.ProviderName -in 'amdkmdag', 'amdwddmg', 'igfx', 'igfxn' -and $e.Level -eq 3) { continue }
             $code = switch ($e.ProviderName) {
                 'Microsoft-Windows-WHEA-Logger' { "WHEA $($e.Id)" }
                 'Display' { 'TDR' }
                 'nvlddmkm' { $t = Get-EventText $e; if ($t -match 'Xid[^:\d]*(?:\([^)]*\))?\s*:?\s*(\d{1,3})\b') { "Xid $($Matches[1])" } else { "NVIDIA $($e.Id)" } }
                 { $_ -in 'amdkmdag', 'amdwddmg' } { "AMD $($e.Id)" }
+                { $_ -in 'igfx', 'igfxn' } { "INTEL $($e.Id)" }
                 default { "DISK $($e.Id)" }
             }
             $out += $code
@@ -2355,7 +2358,7 @@ function Read-BlackboxAnalysis([string]$Path) {
     } elseif ($hwEvKeys.Count -or $thr.ContainsKey('HWSLOW') -or $thr.ContainsKey('PBRAKE')) {
         $res.Level = 'warn'; $res.Title = "블랙박스: 테스트 중 오류 기록 ($([math]::Round($res.Minutes)) 분)"
         $res.Detail = "꺼지지는 않았지만 테스트 중 이상 신호가 기록되었습니다$(if ($hwEvText) { ": $hwEvText" })."
-        if ($hwEvText -match 'Xid|TDR|NVIDIA|AMD') { $res.Cause = 'GPU_HW' } elseif ($hwEvText -match 'WHEA') { $res.Cause = 'CPU_OC' } elseif ($hwEvText) { $res.Cause = 'DISK' } else { $res.Cause = 'PSU' }
+        if ($hwEvText -match 'Xid|TDR|NVIDIA|AMD|INTEL') { $res.Cause = 'GPU_HW' } elseif ($hwEvText -match 'WHEA') { $res.Cause = 'CPU_OC' } elseif ($hwEvText) { $res.Cause = 'DISK' } else { $res.Cause = 'PSU' }
         $res.Detail += $noteText
     } else {
         $res.Level = 'ok'
