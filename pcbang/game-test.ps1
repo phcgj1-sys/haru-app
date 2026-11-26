@@ -367,7 +367,7 @@ if ($clkOk.Count -ge 30) {
 if ((Mx $memA) -ge 90) { [void]$verd.Add(('메모리 사용 최고 {0}% - 램 부족으로 끊김 가능' -f (Mx $memA))) }
 # 응답이 하나도 없으면(100% 손실) 핑 차단이거나 연결 끊김 → 불안정과 구분
 if ($ping.gw -and $ping.gw.loss -ge 100) { [void]$verd.Add('게임 중 게이트웨이 핑 응답 없음 - 공유기·스위치가 핑을 막았거나 연결 문제(게임이 정상이면 핑 차단)') }
-elseif ($ping.gw -and ($ping.gw.loss -gt 0 -or ($ping.gw.avg -gt 5))) { [void]$verd.Add(('게임 중 게이트웨이 핑 이상(평균 {0}ms, 손실 {1}%) - 매장 안 네트워크 문제' -f $ping.gw.avg, $ping.gw.loss)) }
+elseif ($ping.gw -and ($ping.gw.loss -ge 2 -or ($ping.gw.avg -gt 5))) {  # 120번 넘게 재므로 한 번 손실(1% 미만)은 공유기 특성일 수 있어 제외 (웹 판정과 같음) [void]$verd.Add(('게임 중 게이트웨이 핑 이상(평균 {0}ms, 손실 {1}%) - 매장 안 네트워크 문제' -f $ping.gw.avg, $ping.gw.loss)) }
 if ($ping.ext -and $ping.ext.loss -ge 100) { [void]$verd.Add('게임 중 외부(KT DNS) 핑 응답 없음 - 방화벽의 핑 차단 또는 인터넷 끊김(게임이 정상이면 핑 차단)') }
 elseif ($ping.ext -and ($ping.ext.loss -ge 2 -or $ping.ext.spikes -ge 3)) { $sp = ''; if ($null -ne $ping.ext.spikes) { $sp = (', 튐 {0}회' -f $ping.ext.spikes) }; [void]$verd.Add(('게임 중 외부 핑 불안정(손실 {0}%{1})' -f $ping.ext.loss, $sp)) }
 if (-not $verd.Count) { [void]$verd.Add('측정 중 눈에 띄는 문제가 없어요') }

@@ -675,9 +675,10 @@ foreach ($t in $targets) {
     $o.avg = Round1 (($rtts | Measure-Object -Average).Average)
     $o.min = [double]($rtts | Measure-Object -Minimum).Minimum
     $o.max = [double]($rtts | Measure-Object -Maximum).Maximum
+    $srt = @($rtts | Sort-Object); $o.med = Round1 $srt[[int][math]::Floor(($srt.Count - 1) / 2)]  # 중간값: 한두 번 튐에 흔들리지 않는 기준
     $j = 0; for ($k = 1; $k -lt $recv; $k++) { $j += [math]::Abs($rtts[$k] - $rtts[$k - 1]) }
     if ($recv -gt 1) { $o.jitter = Round1 ($j / ($recv - 1)) } else { $o.jitter = 0 }
-    $col = 'Green'; if ($o.loss -gt 0 -or ($t[2] -and $o.avg -gt 3) -or $o.avg -gt 60) { $col = 'Red' }
+    $col = 'Green'; if ($o.loss -ge 10 -or ($t[2] -and $o.med -gt 3) -or $o.avg -gt 60) { $col = 'Red' } elseif ($o.loss -gt 0 -or ($t[2] -and $o.avg -gt 3)) { $col = 'Yellow' }
     Say ("      {0,-22} 평균 {1,5}ms  최소 {2,4}  최대 {3,4}  지터 {4,4}ms  손실 {5}%" -f $t[0], $o.avg, $o.min, $o.max, $o.jitter, $o.loss) $col
   } else {
     Say ("      {0,-22} 응답 없음 (손실 100%)" -f $t[0]) Red
@@ -793,7 +794,9 @@ try {
   if (-not $gateway) { [void]$warns.Add('게이트웨이(공유기/스위치)를 찾지 못함 - 랜선·네트워크 설정 확인') }
   elseif ($gwp) {
     if ($gwp.recv -eq 0) { [void]$warns.Add('게이트웨이 핑 응답 없음 (장비가 핑을 막았거나 연결 문제)') }
-    elseif ($gwp.loss -gt 0 -or $gwp.avg -gt 3) { [void]$warns.Add(("게이트웨이 핑 불안정 (평균 {0}ms, 손실 {1}%) - 랜선·스위치 점검" -f $gwp.avg, $gwp.loss)) }
+    # 공유기·스위치는 자기 앞으로 온 핑을 늦게·가끔 버리며 답하기도 함 → 1번 손실·몇 번 튐은 참고, 2/20 이상 손실이나 중간값이 느리면 문제
+    elseif ($gwp.loss -ge 10 -or $gwp.med -gt 3) { [void]$warns.Add(("게이트웨이 핑 불안정 (중간값 {0}ms, 손실 {1}%) - 랜선·스위치 점검" -f $gwp.med, $gwp.loss)) }
+    elseif ($gwp.loss -gt 0 -or $gwp.avg -gt 3) { [void]$oks.Add(("게이트웨이 핑 대체로 정상 (중간값 {0}ms, 최대 {1}ms, 손실 {2}%) - 가끔 튐은 공유기 특성일 수 있음" -f $gwp.med, $gwp.max, $gwp.loss)) }
     else { [void]$oks.Add(("게이트웨이 핑 정상 ({0}ms)" -f $gwp.avg)) }
   }
 } catch {}

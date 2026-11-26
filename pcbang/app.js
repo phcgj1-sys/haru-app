@@ -571,7 +571,7 @@ function sanitizeNative(o) {
   o.topProcs = arr1(o.topProcs).slice(0, 10).map(function (t) { return { name: str(t.name), pct: num(t.pct) }; });
   if (o.gpuLive && typeof o.gpuLive === 'object') { var gl = o.gpuLive, nl = { name: str(gl.name), driver: str(gl.driver) }; ['tempC', 'util', 'clockMHz', 'clockMaxMHz', 'powerW', 'powerLimitW', 'pcieGen', 'pcieWidth', 'pcieWidthMax', 'fanPct'].forEach(function (k) { nl[k] = num(gl[k]); }); o.gpuLive = nl; } else delete o.gpuLive;
   o.disks = arr(o.disks).map(function (d) { return { name: str(d.name), size: num(d.size), free: num(d.free) }; });
-  o.pings = arr(o.pings).map(function (p) { return { name: str(p.name), host: str(p.host), isGateway: p.isGateway === true, sent: num(p.sent), recv: num(p.recv) || 0, loss: num(p.loss) || 0, avg: num(p.avg), min: num(p.min), max: num(p.max), jitter: num(p.jitter) }; });
+  o.pings = arr(o.pings).map(function (p) { return { name: str(p.name), host: str(p.host), isGateway: p.isGateway === true, sent: num(p.sent), recv: num(p.recv) || 0, loss: num(p.loss) || 0, avg: num(p.avg), med: num(p.med), min: num(p.min), max: num(p.max), jitter: num(p.jitter) }; });
   o.tcp = arr(o.tcp).map(function (t) { return { name: str(t.name), host: str(t.host), port: num(t.port), ok: t.ok === true, n: num(t.n) || 0, fail: num(t.fail) || 0, avg: num(t.avg), min: num(t.min) }; });
   // 배열은 길이를 제한(저장 공간 보호)
   [['pings', 20], ['tcp', 20], ['disks', 20], ['gpus', 8], ['physDisks', 12], ['displays', 6]].forEach(function (x) { o[x[0]] = (Array.isArray(o[x[0]]) ? o[x[0]] : []).slice(0, x[1]); });
@@ -1088,7 +1088,7 @@ $('#netRun').addEventListener('click', async function () {
 function renderNativeNet() {
   var n = S.native; if (!n) return;
   var rows = (n.pings || []).map(function (p) {
-    var g = p.recv === 0 ? (p.isGateway ? ['warn', '응답 없음(핑 차단?)'] : ['bad', '응답 없음']) : (p.isGateway ? (p.avg > 3 || p.loss > 0 ? ['bad', '내부망 문제'] : ['ok', '좋음']) : netGrade({ med: p.avg, jitter: p.jitter, loss: p.loss / 100 }));
+    var g = p.recv === 0 ? (p.isGateway ? ['warn', '응답 없음(핑 차단?)'] : ['bad', '응답 없음']) : (p.isGateway ? ({ bad: ['bad', '내부망 문제'], warn: ['warn', '가끔 튐'], ok: ['ok', '좋음'] })[gwGrade(p)] : netGrade({ med: p.avg, jitter: p.jitter, loss: p.loss / 100 }));
     return '<tr><td>' + esc(p.name) + (p.isGateway ? ' <span class="pill info">게이트웨이</span>' : '') + '<div class="xs muted mono">' + esc(p.host) + '</div></td><td class="num">' + (p.recv ? fmt(p.avg, p.avg < 10 ? 1 : 0) + 'ms' : '-') + '</td><td class="num">' + (p.recv ? fmt(p.min) + '/' + fmt(p.max) : '-') + '</td><td class="num">' + (p.recv ? fmt(p.jitter, 1) + 'ms' : '-') + '</td><td class="num">' + fmt(p.loss) + '%</td><td><span class="pill ' + g[0] + '">' + g[1] + '</span></td></tr>';
   }).join('');
   var tcp = (n.tcp || []).map(function (p) {
@@ -1100,7 +1100,7 @@ function renderNativeNet() {
   var extAvg = ext.length ? median(ext.map(function (p) { return p.avg; })) : null;
   var v = '';
   if (gw && !gw.recv) v = '<div class="warnbox">게이트웨이(공유기/스위치)가 핑에 응답하지 않았어요. 장비가 핑을 막아 둔 경우가 많아요. 외부 핑이 정상이면 인터넷은 문제없어요.</div>';
-  else if (gw && (gw.loss > 0 || gw.avg > 3)) v = '<div class="badbox">게이트웨이(공유기/스위치)까지 ' + (gw.loss > 0 ? '손실 ' + gw.loss + '%' : fmt(gw.avg) + 'ms') + ' — 매장 안 네트워크 문제예요. 랜선 교체, 허브 포트 변경, 랜카드 드라이버를 확인하세요.</div>';
+  else if (gw && gwGrade(gw) === 'bad') v = '<div class="badbox">게이트웨이(공유기/스위치)까지 ' + (gw.loss > 0 ? '손실 ' + gw.loss + '%' : fmt(gw.avg) + 'ms') + ' — 매장 안 네트워크 문제예요. 랜선 교체, 허브 포트 변경, 랜카드 드라이버를 확인하세요.</div>';
   else if (gw && extAvg != null && extAvg > 40) v = '<div class="warnbox">매장 안은 정상인데 외부가 느려요(중간값 ' + fmt(extAvg) + 'ms). 통신사 회선이나 공유기 바깥쪽 문제예요.</div>';
   else if (ext.some(function (p) { return p.loss >= 5; }) || (n.pings || []).some(function (p) { return !p.isGateway && !p.recv; })) v = '<div class="warnbox">매장 안(게이트웨이)은 정상인데 일부 외부 대상에서 손실이 있어요. 한 곳만 응답이 없으면 그 서버가 핑을 막은 것일 수 있어요. 여러 곳에서 손실이 나면 통신사 회선을 확인하세요.</div>';
   else if (gw && extAvg != null) v = '<div class="okbox">게이트웨이 ' + fmt(gw.avg, 1) + 'ms, 외부 ' + fmt(extAvg) + 'ms — 정상이에요.</div>';
@@ -1168,7 +1168,8 @@ function problems(st) {
   // 윈도우 점검 프로그램 결과
   var gw = (nat.pings || []).filter(function (x) { return x.isGateway; })[0];
   if (gw && !gw.recv) add('gwdead', 'warn', '게이트웨이(공유기) 응답 없음', '랜선·허브 포트·랜카드를 확인하세요. 공유기가 핑을 막아 둔 경우도 있으니 인터넷이 되는지 함께 보세요.', '게이트웨이 무응답');
-  else if (gw && (gw.loss > 0 || gw.avg > 3)) add('gw', 'bad', '게이트웨이 핑 이상 (평균 ' + fmt(gw.avg, 1) + 'ms, 손실 ' + gw.loss + '%)', '매장 안 네트워크 문제예요. 랜선 교체(Cat5e 이상), 허브 포트 변경, 랜카드 드라이버 업데이트 순서로 확인하세요.', '게이트웨이 핑');
+  else if (gw && gwGrade(gw) === 'warn') add('gwwarn', 'info', '게이트웨이 핑이 가끔 튐 (평균 ' + fmt(gw.avg, 1) + 'ms, 최대 ' + fmt(gw.max) + 'ms, 손실 ' + gw.loss + '%)', '공유기·스위치는 자기 앞으로 온 핑에 늦게 답하기도 해서 한두 번은 정상일 수 있어요. 게임 중 끊김이 있으면 실전 테스트로 게임 중 핑을 확인하세요.', '게이트웨이 가끔 튐');
+  else if (gw && gwGrade(gw) === 'bad') add('gw', 'bad', '게이트웨이 핑 이상 (' + (gw.med != null ? '중간값 ' + fmt(gw.med, 1) : '평균 ' + fmt(gw.avg, 1)) + 'ms, 손실 ' + gw.loss + '%)', '매장 안 네트워크 문제예요. 랜선 교체(Cat5e 이상), 허브 포트 변경, 랜카드 드라이버 업데이트 순서로 확인하세요.', '게이트웨이 핑');
   var ext = (nat.pings || []).filter(function (x) { return !x.isGateway && x.recv; });
   var extAll = (nat.pings || []).filter(function (x) { return !x.isGateway; });
   if (extAll.length && !ext.length) {
@@ -1176,7 +1177,7 @@ function problems(st) {
     if (tcpOk) add('extping', 'info', '외부 핑이 모두 막힘 (게임사 서버 접속은 정상)', '인터넷은 되고 있어요. 매장 방화벽·공유기가 외부 핑(ICMP)을 막아 둔 경우라 게임에는 보통 문제없어요.', '외부 핑 차단');
     else add('extdead', 'bad', '외부 인터넷 응답 없음' + (gw && gw.recv ? ' (매장 안 게이트웨이는 정상)' : ''), gw && gw.recv ? '매장 안 네트워크는 정상이고 공유기 바깥(통신사 회선)이 끊겼을 수 있어요. 공유기·모뎀 WAN 표시등, 통신사 장애 공지를 확인하고, 공유기를 껐다 켜 보세요.' : '랜선·공유기·모뎀 전원과 연결을 확인하세요.', '외부 인터넷 끊김');
   }
-  if (gw && gw.recv && !(gw.loss > 0 || gw.avg > 3) && ext.length && median(ext.map(function (x) { return x.avg; })) > 40) add('ext', 'warn', '외부 핑이 높음 (중간값 ' + fmt(median(ext.map(function (x) { return x.avg; }))) + 'ms)', '매장 안은 정상이에요. 통신사 회선 상태를 문의하세요.', '외부 핑 높음');
+  if (gw && gw.recv && gwGrade(gw) !== 'bad' && ext.length && median(ext.map(function (x) { return x.avg; })) > 40) add('ext', 'warn', '외부 핑이 높음 (중간값 ' + fmt(median(ext.map(function (x) { return x.avg; }))) + 'ms)', '매장 안은 정상이에요. 통신사 회선 상태를 문의하세요.', '외부 핑 높음');
   if (nat.adapter) {
     var isWifi = /무선|wi-?fi|wireless|wlan|802\.11/i.test(nat.adapter);
     if (isWifi) add('wifi', 'warn', '와이파이로 연결됨', '게임용 좌석은 유선 랜 연결을 권장해요.', '와이파이');
@@ -1322,6 +1323,15 @@ var CHK = [
   { id: 'keys', n: '게임 필수 키 ' + ESS_KEYS.length + '개', manual: true, auto: function (d) { if (d.kbChat) return ['bad', '채터링 의심 ' + d.kbChat + '회']; var m = d.kbMissing; if (!m) return [null, '키보드 그림을 누르고 키를 눌러 보세요']; return m.length ? [null, '남은 키: ' + m.slice(0, 8).map(KEY_NAME).join(' ') + (m.length > 8 ? ' 외 ' + (m.length - 8) + '개' : '')] : ['ok', '모두 입력됨']; } }
 ];
 // 주 모니터가 메인보드(내장 그래픽) 단자에 연결됐는지 (점검 프로그램 판정, 또는 디스플레이 어댑터 이름 + 외장 그래픽 유무로)
+// 게이트웨이 핑(점검 프로그램 20회) 판정: 'dead' 응답 없음 | 'bad' 손실 2/20 이상 또는 중간값 3ms 초과 | 'warn' 손실 1번·가끔 튐 | 'ok'
+// (공유기·스위치는 자기 앞으로 온 핑에 늦게·가끔 안 답하기도 해서 한두 번은 고장으로 보지 않음. 예전 결과엔 중간값이 없어 최소값으로 튐 여부 추정)
+function gwGrade(p) {
+  if (!p || !p.recv) return 'dead';
+  var base = p.med != null ? p.med : (p.min != null && p.min <= 2 && p.avg <= 6 ? Math.min(p.avg, 3) : p.avg);
+  if (p.loss >= 10 || base > 3) return 'bad';
+  if (p.loss > 0 || p.avg > 3) return 'warn';
+  return 'ok';
+}
 function monOnIgpu(nat) {
   if (!nat) return false; if (nat.monitorOnIgpu) return true;
   var p = (nat.displays || []).filter(function (x) { return x.primary; })[0];
@@ -1821,7 +1831,7 @@ function gtProblems(g) {
   if (g.gpu.tempMax >= 85) out.push({ id: 'gt-hot', lv: 'bad', t: '게임 중 그래픽 ' + g.gpu.tempMax + '°C', short: '게임 중 과열', fix: '먼지 청소, 그래픽카드·케이스 팬 확인, 서멀 재도포.' });
   if (g.gpu.clockStart && g.gpu.clockEnd && g.gpu.clockEnd < g.gpu.clockStart * 0.9 && g.gpu.tempMax >= 80) out.push({ id: 'gt-thr', lv: 'bad', t: '발열로 그래픽 클럭 저하(' + g.gpu.clockStart + '→' + g.gpu.clockEnd + 'MHz)', short: '스로틀링', fix: '냉각을 개선해야 해요. 먼지·팬·서멀 확인.' });
   if (g.ping.gw && (g.ping.gw.loss >= 100 || g.ping.gw.avg == null)) out.push({ id: 'gt-gwnone', lv: 'warn', t: '게임 중 게이트웨이 핑 응답 없음', short: '게이트웨이 핑 차단', fix: '공유기·스위치가 핑(ICMP)을 막아 둔 경우가 많아요. 게임이 정상이었다면 무시해도 되고, 끊김이 있었다면 랜선·허브 포트를 확인하세요.' });
-  else if (g.ping.gw && (g.ping.gw.loss > 0 || g.ping.gw.avg > 3)) out.push({ id: 'gt-gw', lv: 'bad', t: '게임 중 게이트웨이 핑 이상 (평균 ' + g.ping.gw.avg + 'ms, 손실 ' + g.ping.gw.loss + '%)', short: '게임 중 내부망', fix: '랜선·허브 포트·랜카드를 확인하세요.' });
+  else if (g.ping.gw && (g.ping.gw.loss >= 2 || g.ping.gw.avg > 5)) out.push({ id: 'gt-gw', lv: 'bad', t: '게임 중 게이트웨이 핑 이상 (평균 ' + g.ping.gw.avg + 'ms, 손실 ' + g.ping.gw.loss + '%)', short: '게임 중 내부망', fix: '랜선·허브 포트·랜카드를 확인하세요.' });
   if (g.ping.ext && g.ping.ext.loss >= 100) out.push({ id: 'gt-extnone', lv: 'warn', t: '게임 중 외부(KT DNS) 핑 응답 없음', short: '외부 핑 응답 없음', fix: '매장 방화벽이 핑(ICMP)을 막았거나 인터넷이 끊긴 상태예요. 게임이 정상이었다면 핑 차단이니 무시해도 돼요.' });
   else if (g.ping.ext && (g.ping.ext.loss >= 2 || g.ping.ext.spikes >= 3)) out.push({ id: 'gt-ext', lv: 'warn', t: '게임 중 외부 핑 불안정 (손실 ' + g.ping.ext.loss + '%' + (g.ping.ext.spikes != null ? ', 튐 ' + g.ping.ext.spikes + '회' : '') + ')', short: '게임 중 핑 튐', fix: '매장 다른 PC의 대용량 다운로드(패치) 여부, 통신사 회선을 확인하세요.' });
   if (g.mem.max >= 90) out.push({ id: 'gt-mem', lv: 'warn', t: '게임 중 메모리 ' + g.mem.max + '%', short: '게임 중 램 부족', fix: '램 증설 또는 백그라운드 프로그램 정리.' });

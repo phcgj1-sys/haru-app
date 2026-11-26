@@ -354,6 +354,13 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(tp.join() === 'true,true', 'TPM 1.2 경고·노하드 보안 부팅 안내 (' + tp.join() + ')');
   }
 
+  // 게이트웨이 핑: 1번 손실·한 번 튐은 참고, 2/20 손실·계속 느림은 고칠 것
+  {
+    const gg = await page.evaluate(() => { const P = window.__pcbang; const run = g => P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: { pings: [Object.assign({ name: 'gw', isGateway: true, recv: 20 }, g)] } }).filter(x => /^gw/.test(x.id)).map(x => x.lv).join() || '-';
+      return [run({ loss: 5, recv: 19, avg: 0.9, med: 1, min: 0 }), run({ loss: 0, avg: 3.9, med: 1, min: 0, max: 60 }), run({ loss: 10, recv: 18, avg: 1, med: 1 }), run({ loss: 0, avg: 8.2, med: 8, min: 6 })]; });
+    ok(gg.join('/') === 'info/info/bad/bad', '게이트웨이 핑: 1번 손실·한 번 튐 참고, 2번 손실·계속 느림 고칠 것 (' + gg.join('/') + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],
