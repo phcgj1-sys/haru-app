@@ -1372,6 +1372,18 @@ function Get-BlackboxChartSvg($A) {
     return $sb.ToString()
 }
 
+function Get-PassCertificateHtml($Data) {
+    # OCCT 결과 인증처럼: 블랙박스 '전 단계 통과' 기록이 있으면 수리 후 고객에게 보여 줄 확인서 (가장 최근 통과)
+    $pass = @(Get-Arr (Get-Prop $Data 'Blackbox') | Where-Object { [string](Get-Prop $_ 'Level') -eq 'ok' -and [string](Get-Prop $_ 'Title') -match '전 단계 통과' } |
+        Sort-Object { [string](Get-Prop $_ 'End') } | Select-Object -Last 1)
+    if (-not $pass.Count) { return '' }
+    $p = $pass[0]; $end = ([string](Get-Prop $p 'End')).Replace('T', ' '); $min = [int](Get-Num (Get-Prop $p 'Minutes'))
+    $shop = [string](Get-Prop (Get-Prop $Data 'Meta') 'Shop')
+    $err = "CPU 연산 오류 $([int](Get-Num (Get-Prop $p 'CpuErrors'))) · RAM 검사 오류 $([int](Get-Num (Get-Prop $p 'RamErrors'))) · VRAM 검사 오류 $([int](Get-Num (Get-Prop $p 'GpuTestErrors')))"
+    return "<h2>정밀 테스트 통과 확인서</h2><div class='card cmp ok'><p><b>$(HtmlEnc "이 PC 는 $end 에 끝난 단계별 정밀 테스트($min 분)를 모두 통과했습니다.")</b></p>" +
+        "<p>$(HtmlEnc '대기 → CPU(연산 검증) → RAM 검사 → GPU·VRAM → 전체 부하 → 전력 출렁임 단계를 꺼짐·오류 없이 마쳤습니다.')</p><p>$(HtmlEnc $err)</p>" +
+        (Get-BlackboxStageTable $p) + "$(if ($shop) { "<p>$(HtmlEnc "점검: $shop")</p>" })<p class='sub'>$(HtmlEnc '확인자 서명: ____________________')</p></div>"
+}
 function Get-BlackboxStageTable($A) {
     # 단계별 최고값 표 (단계별 정밀 테스트 기록일 때)
     $st = @(Get-Arr (Get-Prop $A 'Stages')); if ($st.Count -eq 0) { return '' }
@@ -1574,6 +1586,7 @@ function openAll(v){document.querySelectorAll('details').forEach(function(d){d.o
  <div class="stat$(if ($c.Disk) { ' hot' })"><b>$($c.Disk)</b><span>디스크 오류</span></div>
 </div>
 
+$(Get-PassCertificateHtml $Data)
 $(if (($parts = @(Get-PartsSummary $Data)).Count) { "<h2>부품 요약</h2><div class='card'><table class='kv'>" + (($parts | ForEach-Object { "<tr><td>$(HtmlEnc $_[0])</td><td>$(HtmlEnc $_[1])</td></tr>" }) -join '') + '</table></div>' })
 $cmpHtml
 <h2>가장 의심되는 원인</h2>
@@ -3616,6 +3629,11 @@ $script:EnPairs = @(
     @('정상 SSD 는 수백 MB/s 이상, 하드디스크도 100 MB/s 안팎입니다. 다른 작업(업데이트·백신 검사)이 없을 때 다시 검사해도 느리면 디스크 노후·불량을 의심하세요.', 'A healthy SSD reads hundreds of MB/s and even a hard disk about 100 MB/s. If it is still slow when nothing else is running (updates, antivirus scans), suspect an aging or failing disk.'),
     @('RE: · 읽기 ([\d\.]+) MB/s', ' · read $1 MB/s'),
     @('종합', 'Overall'), @('좋음', 'Good'), @('나쁨', 'Bad'),
+    @('정밀 테스트 통과 확인서', 'Detailed test pass certificate'),
+    @('RE:이 PC 는 ([\d\- :]+) 에 끝난 단계별 정밀 테스트\((\d+) 분\)를 모두 통과했습니다\.', 'This PC passed every stage of the detailed test ($2 min) that ended at $1.'),
+    @('대기 → CPU(연산 검증) → RAM 검사 → GPU·VRAM → 전체 부하 → 전력 출렁임 단계를 꺼짐·오류 없이 마쳤습니다.', 'It completed idle → CPU (verified) → RAM test → GPU/VRAM → full load → power swings without shutting off or errors.'),
+    @('RE:CPU 연산 오류 (\d+) · RAM 검사 오류 (\d+) · VRAM 검사 오류 (\d+)', 'CPU calculation errors $1 · RAM test errors $2 · VRAM test errors $3'),
+    @('RE:^점검: ', 'Checked by: '), @('확인자 서명: ____________________', 'Signature: ____________________'),
     @('부품 요약', 'Parts summary'), @('전원', 'Power'), @('노트북', 'Laptop'), @('RE:노트북 \(배터리 마모 (\d+)%\)', 'Laptop (battery wear $1%)'), @('RE:권장 파워 (\d+) W 이상', 'Recommended PSU $1 W or more'),
     @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
     @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),

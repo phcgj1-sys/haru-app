@@ -1325,6 +1325,22 @@ It 'CPU 부하 연산 검증 (Prime95·OCCT 방식): 정상 CPU 는 오류 0, �
     $old = $script:UiLang; $script:UiLang = 'en'
     try { foreach ($x in $ab.Title, $ab.Detail, $ok.Detail, (Tr ' · CPU 연산 오류 3 건')) { Assert ((Tr $x) -notmatch '[가-힣]') "영어: $(Tr $x)" } } finally { $script:UiLang = $old }
 }
+It '정밀 테스트 통과 확인서 (OCCT 인증 방식): 전 단계 통과 기록이 있으면 보고서에 날짜·단계별 최고값·오류 0·매장·서명란, 없으면 표시 안 함 (영어)' {
+    $rows = @(); foreach ($st in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse') { $rows += (Rep 3 @($st, 50, 99, 66, 50, 180, '', 0, '')) }
+    $bb = Read-BlackboxAnalysis (New-Bb2File 'bb_cert.csv' $rows -Stop)
+    Assert ($bb.Title -match '전 단계 통과') '통과 기록'
+    $d = New-Scenario @{ Blackbox = @($bb) }; $d.Meta.Shop = 'OO컴퓨터 · 010-0000-0000'
+    $c = Get-PassCertificateHtml $d
+    Assert ($c -match '정밀 테스트 통과 확인서' -and $c -match '2026-11-14 10:00:1\d 에 끝난' -and $c -match 'CPU 연산 오류 0 &#183; RAM 검사 오류 0 &#183; VRAM 검사 오류 0') "확인서: $c"
+    Assert ($c -match '단계별 최고값' -and $c -match '점검: OO컴퓨터' -and $c -match '확인자 서명') '단계표·매장·서명란'
+    $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)
+    Assert ($h.IndexOf('정밀 테스트 통과 확인서') -gt 0 -and $h.IndexOf('정밀 테스트 통과 확인서') -lt $h.IndexOf('가장 의심되는 원인')) '보고서 위쪽'
+    $fail = Read-BlackboxAnalysis (New-Bb2File 'bb_cert2.csv' (Rep 5 @('full', 100, 99, 70, 99, 150, '', 0, '')))
+    Assert-Eq (Get-PassCertificateHtml (New-Scenario @{ Blackbox = @($fail) })) '' '통과 기록 없으면 없음'
+    Assert-Eq (Get-PassCertificateHtml (New-Scenario @{})) '' '블랙박스 없으면 없음'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $he = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($he, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value } | Where-Object { $_ -notmatch 'OO컴퓨터' }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')"; Assert ($he -match 'Detailed test pass certificate') '영어 제목' } finally { $script:UiLang = $old }
+}
 It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드카드로 해석하지 않음)' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usb[1]_' + [guid]::NewGuid().ToString('N'))
