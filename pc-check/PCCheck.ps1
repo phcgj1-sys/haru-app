@@ -932,6 +932,11 @@ function Get-Diagnosis {
     # ---- 9) 디스크
     foreach ($dk in $disks) {
         $h = [string](Get-Prop $dk 'Health')
+        # USB 메모리·외장 SSD·카드는 PC 꺼짐·블루스크린의 원인이 아니므로 디스크 원인 점수 없이 안내만 (자료 보호용)
+        if ([string](Get-Prop $dk 'Bus') -match '(?i)^(USB|SD|MMC)$') {
+            if ($h -and $h -notmatch '^(Healthy|0|Unknown|5)$') { & $find 'warn' 'DISK' "외장 저장장치 상태 이상: $(Get-Prop $dk 'Name')" "상태: $h — USB·카드 장치라 PC 문제의 원인은 아니지만, 안의 자료를 백업하고 교체하세요." 0 }
+            continue
+        }
         # 'Unknown'(5)은 고장이 아니라 상태를 알려 주지 않는 디스크(iSCSI·가상·일부 USB) — 경고하지 않음
         if ($h -match '^(Warning|1)$') {
             & $add 'DISK' 25 "디스크 상태 경고: $(Get-Prop $dk 'Name')"
@@ -3025,6 +3030,8 @@ $script:EnPairs = @(
     @('RE:디스크 상태 이상: ', 'Disk health problem: '),
     @('RE:상태: (\S+) — 즉시 백업하세요\.', 'Status: $1 — back up now.'),
     @('RE:디스크 상태 경고: ', 'Disk health warning: '),
+    @('RE:외장 저장장치 상태 이상: ', 'External storage health problem: '),
+    @('RE:상태: (\S+) — USB·카드 장치라 PC 문제의 원인은 아니지만, 안의 자료를 백업하고 교체하세요\.', 'Status: $1 — a USB/card device, so not the cause of the PC problem, but back up its data and replace it.'),
     @('RE:상태: (\S+) — 백업해 두고 SMART 를 확인하세요\.', 'Status: $1 — back up your data and check SMART.'),
     @('RE:SSD 수명 소진 \((.+?) (\d+)%\)', 'SSD worn out ($1 $2%)'),
     @('RE:복구 불가 읽기 오류 (\d+)', 'Uncorrectable read errors: $1'),

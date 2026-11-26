@@ -557,6 +557,19 @@ It 'AMD/Intel: Windows GPU 센서 고온 판정 (NVIDIA 정보 없을 때만)' {
 It 'GPU 센서 읽기는 지원 안 되는 환경에서도 오류 없이 빈 결과' {
     $r = @(Get-GpuSensors); Assert ($r.Count -ge 0) 'ok'
 }
+It '디스크 상태: 고장 난 USB 메모리·카드는 안내만, PC 디스크 원인 점수·감점 없음 (영어 번역)' {
+    $usbBad = [ordered]@{ Name = 'Generic USB Flash'; Media = 'Unspecified'; Bus = 'USB'; SizeGB = 16; Health = 'Unhealthy'; WearPct = 99 }
+    $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($usbBad)
+    $dx = Get-Diagnosis -Data $d
+    Assert (-not (@($dx.Causes) | Where-Object { $_.Key -eq 'DISK' })) '디스크 원인 없음'
+    Assert-Eq $dx.Health 100 '감점 없음'
+    $f = @($dx.Findings) | Where-Object { $_.Title -match '외장 저장장치 상태 이상: Generic USB Flash' }
+    Assert ($f -and $f.Level -eq 'warn') '안내 표시'
+    $d2 = New-Scenario @{}; $d2.Disks[0].Health = 'Unhealthy'
+    Assert (@((Get-Diagnosis -Data $d2).Causes) | Where-Object { $_.Key -eq 'DISK' }) '내장 디스크는 그대로 원인'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($h, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어 보고서 한글: $($ko -join ' | ')" } finally { $script:UiLang = $old }
+}
 It '노하드 감지: 블랙박스용 USB 메모리·외장 SSD 를 꽂아도 노하드로 인식, USB 만 있는 경우는 아님' {
     $iscsi = [ordered]@{ Name = 'MSFT Virtual HD'; Media = 'Unspecified'; Bus = 'iSCSI'; SizeGB = 120; Health = 'Healthy' }
     $usb = [ordered]@{ Name = 'SanDisk Ultra'; Media = 'Unspecified'; Bus = 'USB'; SizeGB = 32; Health = 'Healthy' }
