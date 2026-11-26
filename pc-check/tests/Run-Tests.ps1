@@ -1148,6 +1148,22 @@ It '노트북: 블랙박스가 파워 탓으로 판정해도 어댑터·배터�
     Assert ($f2.Detail -notmatch '노트북') '데스크톱은 그대로'
     $old = $script:UiLang; $script:UiLang = 'en'; try { Assert ((Tr $f.Detail) -notmatch '[가-힣]') "영어: $(Tr $f.Detail)" } finally { $script:UiLang = $old }
 }
+It '견고성: 깨진 블랙박스 파일(빈 파일·머리말만·머리말 없음·숫자 아님·시간 아님·칸 초과·STOP 만·이진)도 예외 없이 판정' {
+    $cols = $script:BlackboxCols; $n = $cols.Split(',').Count
+    $good = '2026-11-14T10:00:01,full,' + ((@('50') * ($n - 3)) -join ',') + ','
+    $cases = [ordered]@{
+        empty = @(); headerOnly = @('# PCCheck blackbox,v2,PC,2026-11-14T10:00:00,2.7.0', $cols); noHeader = @($good, $good)
+        garbageNums = @('# h', $cols, ('2026-11-14T10:00:01,full,' + ((@('[N/A]') * ($n - 3)) -join ',') + ','))
+        badTime = @('# h', $cols, ('notatime,full,' + ((@('50') * ($n - 3)) -join ',') + ','), $good); extraCols = @('# h', $cols, ($good + ',x,y,z'))
+        onlyStop = @('# h', $cols, ('2026-11-14T10:00:01' + (',' * ($n - 2)) + 'STOP')); binary = @([string][char]0 + 'abc')
+    }
+    $fails = @()
+    foreach ($k in $cases.Keys) {
+        $p = Join-Path $OutDir "bbfz_$k.csv"; [void][IO.Directory]::CreateDirectory($OutDir); [IO.File]::WriteAllLines($p, [string[]]$cases[$k])
+        try { $a = Read-BlackboxAnalysis $p; if (-not $a.Title) { $fails += "$k 제목 없음" }; $d = New-Scenario @{ Blackbox = @($a) }; $dx = Get-Diagnosis -Data $d; $null = New-HtmlReport -Data $d -Dx $dx } catch { $fails += "$k`: $($_.Exception.Message)" }
+    }
+    Assert-Eq $fails.Count 0 ($fails -join ' / ')
+}
 It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드카드로 해석하지 않음)' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usb[1]_' + [guid]::NewGuid().ToString('N'))
