@@ -513,7 +513,7 @@ function Invoke-Collect {
             $D.AppCrashes = @($crash | Group-Object | Sort-Object Count -Descending | Select-Object -First 8 | ForEach-Object { [ordered]@{ App = $_.Name; Count = $_.Count } })
             $oc = 'MSIAfterburner', 'EVGAPrecisionX1', 'ThrottleStop', 'XTU', 'RyzenMaster', 'AsusGpuTweakII', 'GPUTweakIII', 'AISuite3', 'ArmouryCrate.Service'
             $D.OcTools = @(Get-Process -ErrorAction SilentlyContinue | Where-Object { $oc -contains $_.ProcessName } | Select-Object -ExpandProperty ProcessName -Unique)
-            $D.Thermal = @(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Where-Object { $_.CurrentTemperature } | ForEach-Object { [math]::Round($_.CurrentTemperature / 10 - 273.15, 1) } | Where-Object { $_ -gt 0 -and $_ -lt 130 })
+            $D.Thermal = @(Get-ThermalReadings)
         } }
     )
 
@@ -1736,6 +1736,13 @@ function ConvertFrom-NvThrottle([string]$Hex) {
     return ($o -join '+')
 }
 
+function Get-ThermalReadings {
+    # 보고서용 열 영역 온도 목록 (°C): 관리자 ACPI → 없으면 일반 권한 열 영역 카운터 (관리자 권한 없이 실행해도 온도 판정이 빠지지 않게)
+    $ok = { param($v) $null -ne $v -and $v -gt 0 -and $v -lt 130 }
+    try { $a = @(Get-CimInstance -Namespace root/wmi -ClassName MSAcpi_ThermalZoneTemperature -ErrorAction Stop | ForEach-Object { [math]::Round([double]$_.CurrentTemperature / 10 - 273.15, 1) } | Where-Object { & $ok $_ }); if ($a.Count) { return $a } } catch {}
+    try { return @(Get-CimInstance Win32_PerfFormattedData_Counters_ThermalZoneInformation -ErrorAction Stop | ForEach-Object { [math]::Round([double]$_.Temperature - 273.15, 1) } | Where-Object { & $ok $_ }) } catch {}
+    return @()
+}
 function Get-BoardTemp {
     # CPU·메인보드 부근 온도 (Windows 기본 센서만 — 드라이버 설치 없음). ACPI 열 영역(관리자) → 성능 카운터 열 영역(일반 권한)
     $pick = { param($vals) $m = $null; foreach ($v in @($vals)) { if ($null -ne $v -and $v -gt 0 -and $v -lt 130 -and ($null -eq $m -or $v -gt $m)) { $m = $v } }; $m }

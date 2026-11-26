@@ -1041,6 +1041,17 @@ It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시,
         Assert (($btn[-1][0] + $btn[-1][1]) -le 544) '창 안에 들어감'
     } finally { $script:UiLang = $old }
 }
+It '보고서 온도 수집: 관리자 권한이 없어(ACPI 거부) 도 열 영역 카운터로 온도를 남김' {
+    function Get-CimInstance { param($ClassName, $Namespace, $Filter, $ErrorAction) if ($ClassName -eq 'MSAcpi_ThermalZoneTemperature') { if ($script:FakeAcpi) { return $script:FakeAcpi } else { throw 'access denied' } } else { return @([pscustomobject]@{ Temperature = 361 }, [pscustomobject]@{ Temperature = 310 }) } }
+    try {
+        $script:FakeAcpi = $null
+        $r = @(Get-ThermalReadings); Assert-Eq ($r -join ',') '87.9,36.9' '카운터 값 (모든 영역)'
+        $script:FakeAcpi = @([pscustomobject]@{ CurrentTemperature = 3132 })
+        Assert-Eq (@(Get-ThermalReadings) -join ',') '40.1' 'ACPI 우선'
+        $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
+        Assert ($src -match '\$D\.Thermal = @\(Get-ThermalReadings\)') '수집 단계에서 사용'
+    } finally { Remove-Item Function:\Get-CimInstance -ErrorAction SilentlyContinue; $script:FakeAcpi = $null }
+}
 It 'CPU·메인보드 온도 센서: 관리자 ACPI 우선, 없으면 일반 권한 열 영역 카운터, 이상값 무시' {
     function Get-CimInstance { param($ClassName, $Namespace, $Filter, $ErrorAction) if ($ClassName -eq 'MSAcpi_ThermalZoneTemperature') { if ($script:FakeAcpi) { return $script:FakeAcpi } else { throw 'access denied' } } else { return @([pscustomobject]@{ Temperature = 318 }, [pscustomobject]@{ Temperature = 0 }) } }
     try {
