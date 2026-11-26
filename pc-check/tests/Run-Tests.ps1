@@ -1113,6 +1113,17 @@ It '블랙박스: 매장 USB 에 다른 PC 의 기록이 있어도 이 PC(또는
         Assert-Eq (@($found | ForEach-Object { $_.File }) -join ',') 'PCCheck_blackbox_GAME-01_20991201_101010.csv' '이 PC 기록만'
     } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
 }
+It '노트북: 블랙박스가 파워 탓으로 판정해도 어댑터·배터리 안내를 덧붙임 (데스크톱은 그대로, 영어)' {
+    $bb = Read-BlackboxAnalysis (New-Bb2File 'bb_lap.csv' (Rep 5 @('full', 100, 99, 70, 99, 150, '', 0, '')))
+    Assert-Eq $bb.Cause 'PSU' '파워 판정'
+    $d = New-Scenario @{ Blackbox = @($bb) }; $d.System.IsLaptop = $true
+    $f = @(@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match '블랙박스' })[0]
+    Assert ($f.Detail -match '노트북: 파워 대신 전원 어댑터·배터리') "노트북 안내: $($f.Detail)"
+    $d.System.IsLaptop = $false
+    $f2 = @(@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match '블랙박스' })[0]
+    Assert ($f2.Detail -notmatch '노트북') '데스크톱은 그대로'
+    $old = $script:UiLang; $script:UiLang = 'en'; try { Assert ((Tr $f.Detail) -notmatch '[가-힣]') "영어: $(Tr $f.Detail)" } finally { $script:UiLang = $old }
+}
 It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드카드로 해석하지 않음)' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usb[1]_' + [guid]::NewGuid().ToString('N'))

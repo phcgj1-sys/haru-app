@@ -1041,6 +1041,7 @@ function Get-Diagnosis {
     # ---- 블랙박스(실시간 기록) — 노하드 등 이벤트 기록이 남지 않는 PC
     # 수리 후 더 새로운 '전 단계 통과' 기록이 있으면, 그 이전 실패 기록은 해결된 것으로 보고 참고로만 표시
     $bbAll = @(Get-Arr (Get-Prop $Data 'Blackbox'))
+    $bbLaptop = Test-Laptop $Data
     $passT = $null
     foreach ($bb in $bbAll) {
         if ([string](Get-Prop $bb 'Level') -eq 'ok' -and [string](Get-Prop $bb 'Title') -match '전 단계 통과') {
@@ -1054,12 +1055,14 @@ function Get-Diagnosis {
             & $find 'info' 'META' "$tt (이후 테스트 통과)" ("$(Get-Prop $bb 'Detail') — $($passT.ToString('yyyy-MM-dd HH:mm', [Globalization.CultureInfo]::InvariantCulture)) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다.") 0
             continue
         }
+        # 노트북은 교체용 파워가 없음 — 블랙박스의 '파워' 판정 문구 뒤에 어댑터·배터리 안내를 덧붙임
+        $bbDet = [string](Get-Prop $bb 'Detail'); if ($cz -eq 'PSU' -and $bbLaptop) { $bbDet += ' (노트북: 파워 대신 전원 어댑터·배터리를 점검하세요.)' }
         if ($lvl -eq 'bad') {
             if ($cz) { & $add $cz 45 $tt }
-            & $find 'bad' $(if ($cz) { $cz } else { 'META' }) $tt ([string](Get-Prop $bb 'Detail')) 20
+            & $find 'bad' $(if ($cz) { $cz } else { 'META' }) $tt $bbDet 20
         } elseif ($lvl -eq 'warn') {
             if ($cz) { & $add $cz 20 $tt }
-            & $find 'warn' $(if ($cz) { $cz } else { 'META' }) $tt ([string](Get-Prop $bb 'Detail')) 8
+            & $find 'warn' $(if ($cz) { $cz } else { 'META' }) $tt $bbDet 8
         } elseif ($tt) { & $find 'info' 'META' $tt ([string](Get-Prop $bb 'Detail')) 0 }
     }
     $errs = @(Get-Arr (Get-Prop $Data 'Errors'))
@@ -3354,6 +3357,7 @@ $script:EnPairs = @(
     @('RE: — ([\d\- :]+) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다\.', ' — passed every stage of the detailed test at $1, so treated as resolved.'),
     @('그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.', 'The graphics memory test (memtest_vulkan) found errors. If they persist with overclocking disabled, the card needs warranty service.'),
     @('그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)', 'Graphics card connection lost (ERROR_DEVICE_LOST)'),
+    @(' (노트북: 파워 대신 전원 어댑터·배터리를 점검하세요.)', ' (Laptop: check the power adapter and battery instead of a PSU.)'),
     @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
     @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),
     @('배터리 상태 확인: 명령 프롬프트에서 powercfg /batteryreport (마모가 심하면 배터리 교체)', 'Check battery health: run powercfg /batteryreport in a command prompt (replace the battery if heavily worn)'),
