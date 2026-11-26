@@ -2023,6 +2023,7 @@ function Get-MonitorText($S, [hashtable]$Max) {
         if ($S.GpuThrottle) { $l += "$(& $w '그래픽카드 감속' 'GPU throttling'): $($S.GpuThrottle)" }
     } else { $l += (& $w '그래픽카드 온도: 읽을 수 없음 (가상 머신·구형 드라이버)' 'GPU temp: not available (virtual machine or old driver)') }
     if ($null -ne $S.MemPct) { $l += "$(& $w 'RAM 사용' 'RAM used') $(& $n $S.MemPct)%" }
+    if ($null -ne $S.BatteryPct) { $l += "$(& $w '배터리' 'battery') $(& $n $S.BatteryPct)% · $(if ($S.OnAC) { & $w '어댑터 연결' 'on AC adapter' } else { & $w '배터리로 사용 중' 'running on battery' })" }
     return ($l -join "`n")
 }
 function Start-LiveSampleJob($Runspace) {
@@ -2038,7 +2039,7 @@ function Receive-LiveSampleJob($Job) {
     catch { Write-PCLog "live sample: $($_.Exception.Message)"; return [ordered]@{} }
     finally { try { $Job.PS.Dispose() } catch {} }
 }
-$script:MonitorCsvCols = 'Time,CpuPct,CpuPerfPct,CpuMHz,MemPct,BoardTempC,GpuTempC,GpuUtilPct,GpuPowerW,GpuClockMHz,GpuMemMB,GpuFanRPM,GpuThrottle'
+$script:MonitorCsvCols = 'Time,CpuPct,CpuPerfPct,CpuMHz,MemPct,BoardTempC,GpuTempC,GpuUtilPct,GpuPowerW,GpuClockMHz,GpuMemMB,GpuFanRPM,GpuThrottle,BatteryPct,OnAC'
 function ConvertTo-MonitorCsvLine($Sample) {
     # 온도 모니터 기록 한 줄 (HWiNFO 로깅처럼 — 엑셀로 열어 그래프를 그릴 수 있게, 소수점은 항상 '.')
     return (@($script:MonitorCsvCols.Split(',') | ForEach-Object { ConvertTo-CsvField $Sample[$_] }) -join ',')
@@ -2117,12 +2118,14 @@ function Get-CpuMHz($BaseMHz, $PerfPct) {
     return [int][math]::Round($b * $p / 100.0)
 }
 function Get-LiveSample {
-    $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = ''; GpuFanRPM = $null; CpuMHz = $null }
+    $s = [ordered]@{ Time = (Format-T (Get-Date)); CpuPct = $null; CpuPerfPct = $null; MemPct = $null; BoardTempC = $null; GpuTempC = $null; GpuUtilPct = $null; GpuPowerW = $null; GpuClockMHz = $null; GpuMemMB = $null; GpuThrottle = ''; GpuFanRPM = $null; CpuMHz = $null; BatteryPct = $null; OnAC = $null }
     try { $s.CpuPct = [int](Get-CimInstance Win32_PerfFormattedData_PerfOS_Processor -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorTime } catch {}
     try { $s.CpuPerfPct = [int](Get-CimInstance Win32_PerfFormattedData_Counters_ProcessorInformation -Filter "Name='_Total'" -ErrorAction Stop).PercentProcessorPerformance } catch {}
     # HWiNFO 의 Core Clock 처럼 실제 클럭(MHz) ≈ 기준 클럭 × 성능 % (기준 클럭은 한 번만 읽음)
     if ($null -eq $script:CpuBaseMHz) { $script:CpuBaseMHz = 0; try { $script:CpuBaseMHz = [int](@(Get-CimInstance Win32_Processor -ErrorAction Stop)[0].MaxClockSpeed) } catch {} }
     $s.CpuMHz = Get-CpuMHz $script:CpuBaseMHz $s.CpuPerfPct
+    # 노트북 전원 상태 (BatteryInfoView 처럼): 잔량 %, 어댑터 연결 여부 (BatteryStatus 1 = 배터리로 사용 중)
+    try { $b = @(Get-CimInstance Win32_Battery -ErrorAction Stop) | Select-Object -First 1; if ($b) { $s.BatteryPct = Get-Num $b.EstimatedChargeRemaining; $s.OnAC = ([int]$b.BatteryStatus -ne 1) } } catch {}
     try { $os = Get-CimInstance Win32_OperatingSystem -ErrorAction Stop; $s.MemPct = [int](100 - 100 * $os.FreePhysicalMemory / $os.TotalVisibleMemorySize) } catch {}
     $bt = Get-BoardTemp; $s.BoardTempC = $bt.TempC
     $nv = $null

@@ -1405,6 +1405,9 @@ It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시,
         $max = @{}; Update-MonitorMax $max $smp
         Assert-Eq (Get-CpuMHz 3600 112) 4032 'CPU 실제 클럭 = 기준 × 성능%'; Assert ($null -eq (Get-CpuMHz 0 112)) '기준 클럭 없음'; Assert ($null -eq (Get-CpuMHz 3600 $null)) '성능% 없음'
         Assert ((Get-MonitorText ([ordered]@{ CpuPct = 50; CpuPerfPct = 112; CpuMHz = 4032 }) @{}) -match '클럭 112% \(약 4\.03 GHz\)') 'GHz 표시'
+        Assert ((Get-MonitorText ([ordered]@{ CpuPct = 5; BatteryPct = 64; OnAC = $false }) @{}) -match '배터리 64% · 배터리로 사용 중') '노트북 배터리 사용'
+        Assert ((Get-MonitorText ([ordered]@{ CpuPct = 5; BatteryPct = 100; OnAC = $true }) @{}) -match '배터리 100% · 어댑터 연결') '어댑터 연결'
+        Assert ((Get-MonitorText ([ordered]@{ CpuPct = 5 }) @{}) -notmatch '배터리') '데스크톱은 표시 없음'
         Update-MonitorMax $max ([ordered]@{ CpuPct = 5; BoardTempC = 40; GpuTempC = 60; GpuPowerW = 80 })
         Assert-Eq $max.GpuTempC 71 '최고값 유지'; Assert-Eq $max.BoardTempC 52.5 '보드 최고'
         Assert-Eq $max.MinGpuTempC 60 '최저'; Assert-Eq ([double]$max.SumGpuTempC / $max.NGpuTempC) 65.5 '평균'
@@ -1419,7 +1422,7 @@ It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시,
         $none = Get-MonitorText ([ordered]@{ CpuPct = 3 }) @{}
         Assert ($none -match 'Windows 기본 센서가 없습니다' -and $none -match '읽을 수 없음') '센서 없으면 안내'
         $script:UiLang = 'en'
-        foreach ($x in (Get-MonitorText $smp $max), (Get-MonitorText ([ordered]@{ CpuPct = 100; BoardTempC = 95; GpuTempC = 88 }) @{}), (Get-MonitorText ([ordered]@{}) @{})) { Assert ($x -notmatch '[가-힣]') "영어: $x" }
+        foreach ($x in (Get-MonitorText $smp $max), (Get-MonitorText ([ordered]@{ CpuPct = 100; BoardTempC = 95; GpuTempC = 88 }) @{}), (Get-MonitorText ([ordered]@{}) @{}), (Get-MonitorText ([ordered]@{ BatteryPct = 50; OnAC = $false; CpuMHz = 3000; CpuPerfPct = 90 }) @{}), (Get-MonitorText ([ordered]@{ BatteryPct = 50; OnAC = $true }) @{})) { Assert ($x -notmatch '[가-힣]') "영어: $x" }
         Assert ((Get-MonitorText $smp $max) -match 'GPU temp 71 °C \(max 71 · avg 65.5 · min 60 °C\)') '영어 문구'
         $m = $script:ExternalTools | Where-Object { $_.Key -eq 'monitor' }
         Assert ($m) '정밀 검사 버튼에 포함'; Assert-Eq @($script:ExternalTools).Count 6 '버튼 수 유지 (3x2 배치)'
@@ -1460,7 +1463,7 @@ It '실시간 측정: NVIDIA 카드가 여러 장이면 가장 뜨거운 카드 
 It '온도 모니터 기록 저장 (HWiNFO 로깅 방식): CSV 한 줄에 모든 측정값, 지역 설정과 무관한 소수점, 사용자가 고른 파일에만' {
     $line = ConvertTo-MonitorCsvLine ([ordered]@{ Time = '2026-11-26T10:00:00'; CpuPct = 37; CpuMHz = 4032; BoardTempC = 52.5; GpuTempC = 71; GpuPowerW = 245.3; GpuFanRPM = 1450; GpuThrottle = 'PWRCAP' })
     Assert-Eq ($line.Split(',').Count) ($script:MonitorCsvCols.Split(',').Count) '열 개수 = 머리말'
-    Assert ($line.StartsWith('2026-11-26T10:00:00,37,,4032,') -and $line -match ',52\.5,71,' -and $line.EndsWith(',1450,PWRCAP')) "줄: $line"
+    Assert ($line.StartsWith('2026-11-26T10:00:00,37,,4032,') -and $line -match ',52\.5,71,' -and $line.EndsWith(',1450,PWRCAP,,')) "줄: $line"
     $old = [Threading.Thread]::CurrentThread.CurrentCulture
     try { [Threading.Thread]::CurrentThread.CurrentCulture = New-Object Globalization.CultureInfo('de-DE'); Assert ((ConvertTo-MonitorCsvLine ([ordered]@{ BoardTempC = 52.5 })) -match ',52\.5,') '독일어 Windows 에서도 소수점 .' } finally { [Threading.Thread]::CurrentThread.CurrentCulture = $old }
     $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
