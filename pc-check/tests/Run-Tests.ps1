@@ -646,6 +646,24 @@ It '디스크 읽기 속도 (CrystalDiskMark 대신, 읽기 전용): 기존 파�
     $old = $script:UiLang; $script:UiLang = 'en'
     try { foreach ($x in $d, $ok) { $h = New-HtmlReport -Data $x -Dx (Get-Diagnosis -Data $x); $ko = @([regex]::Matches($h, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } } finally { $script:UiLang = $old }
 }
+It '디스크 종합 상태 (CrystalDiskInfo 방식): 좋음·주의·나쁨 한 단어로, 보고서 표·부품 요약에 (영어)' {
+    $g = { param($h) $o = [ordered]@{ Name = 'D'; Media = 'SSD'; Bus = 'NVMe'; SizeGB = 500; Health = 'Healthy'; TempC = 40; WearPct = 3; ReadErr = 0 }; foreach ($k in $h.Keys) { $o[$k] = $h[$k] }; $o }
+    Assert-Eq (Get-DiskStatus (& $g @{})) '좋음' '정상'
+    Assert-Eq (Get-DiskStatus (& $g @{ Health = 'Warning' })) '주의' '상태 경고'
+    Assert-Eq (Get-DiskStatus (& $g @{ WearPct = 85 })) '주의' '마모 85%'
+    Assert-Eq (Get-DiskStatus (& $g @{ ReadErr = 2 })) '주의' '읽기 오류'
+    Assert-Eq (Get-DiskStatus (& $g @{ WriteErr = 1 })) '주의' '쓰기 오류'
+    Assert-Eq (Get-DiskStatus (& $g @{ Media = 'HDD'; TempC = 57 })) '주의' 'HDD 57°C'
+    Assert-Eq (Get-DiskStatus (& $g @{ Health = 'Unhealthy' })) '나쁨' '상태 이상'
+    Assert-Eq (Get-DiskStatus (& $g @{ WearPct = 99 })) '나쁨' '수명 소진'
+    Assert-Eq (Get-DiskStatus ([ordered]@{ Name = 'iSCSI'; Health = 'Unknown' })) '' '정보 없음'
+    $d = New-Scenario @{}; $d.Disks[0].WearPct = 85
+    $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)
+    Assert ($h -match '<th>종합</th>' -and $h -match '<td>주의</td>') '보고서 표'
+    Assert ((@(Get-PartsSummary $d) | Where-Object { $_[0] -eq '저장장치' })[1] -match '\[주의\]') '부품 요약'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $he = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); Assert ($he -match '<td>Warning</td>' -and $he -match '\[Warning\]') '영어 표시'; $ko = @([regex]::Matches($he, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } finally { $script:UiLang = $old }
+}
 It '디스크 온도: HDD 는 55°C 부터 HDD 안내(NVMe 방열판 아님), SSD 는 70°C 부터 (영어 번역)' {
     $hdd = [ordered]@{ Name = 'WDC WD20EZAZ'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 2000; Health = 'Healthy'; TempC = 58 }
     $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($hdd)

@@ -700,6 +700,16 @@ function Get-Num($v) {
     $d = 0.0; if ([double]::TryParse([string]$v, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $d }
     return $null
 }
+function Get-DiskStatus($Disk) {
+    # CrystalDiskInfo 의 건강 상태처럼 한 단어로: 좋음 / 주의 / 나쁨 (정보가 하나도 없으면 빈 값)
+    $h = [string](Get-Prop $Disk 'Health'); $we = Get-Num (Get-Prop $Disk 'WearPct')
+    $re = Get-Num (Get-Prop $Disk 'ReadErr'); $wr = Get-Num (Get-Prop $Disk 'WriteErr'); $tc = Get-Num (Get-Prop $Disk 'TempC')
+    $hdd = (Format-DiskMedia (Get-Prop $Disk 'Media')) -match '(?i)^HDD$'
+    if (($h -and $h -notmatch '^(Healthy|0|Unknown|5|Warning|1)$') -or ($null -ne $we -and $we -ge 98)) { return '나쁨' }
+    if ($h -match '^(Warning|1)$' -or ($null -ne $we -and $we -ge 80) -or ($null -ne $re -and $re -gt 0) -or ($null -ne $wr -and $wr -gt 0) -or ($null -ne $tc -and $tc -ge $(if ($hdd) { 55 } else { 70 }))) { return '주의' }
+    if ($h -match '^(Healthy|0)$' -or $null -ne $we) { return '좋음' }
+    return ''
+}
 function Measure-FileReadSpeed([string]$Path, [int]$MaxMB = 128, [double]$MaxSec = 2.0) {
     # 순차 읽기 속도 (MB/s) — 읽기만 함 (파일을 만들거나 지우지 않음). 캐시 때문에 높게 나올 수는 있어도 낮게 나오지는 않음
     try {
@@ -754,7 +764,7 @@ function Get-PartsSummary($Data) {
     } elseif (Get-Num (Get-Prop $s 'RamGB')) { $rows += , @('RAM', "$(Get-Prop $s 'RamGB') GB") }
     $gp = @(Get-Arr (Get-Prop $Data 'Gpus') | ForEach-Object { "$(Get-Prop $_ 'Name')$(if (Get-Num (Get-Prop $_ 'VramGB')) { " ($(Get-Prop $_ 'VramGB') GB)" })" })
     if ($gp.Count) { $rows += , @('그래픽카드', ($gp -join ' / ')) }
-    $dk = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { "$(Get-Prop $_ 'Name') $(Get-Prop $_ 'SizeGB') GB ($(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus')))" })
+    $dk = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { $st = Get-DiskStatus $_; "$(Get-Prop $_ 'Name') $(Get-Prop $_ 'SizeGB') GB ($(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus')))$(if ($st) { " [$st]" })" })
     $rd = Get-Num (Get-Prop (Get-Prop $Data 'DiskRead') 'MBps')
     if ($dk.Count) { $rows += , @('저장장치', (($dk -join ' / ') + $(if ($null -ne $rd) { " · 읽기 $rd MB/s" } else { '' }))) }
     if (Test-Laptop $Data) {
@@ -1466,7 +1476,7 @@ function New-HtmlReport {
     $bugRows = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); C = (Get-Prop $_ 'Code'); N = $bi.N; D = $bi.D; H = (Get-BugParamHint (Format-BugCode (Get-Prop $_ 'Code')) @(Get-Arr (Get-Prop $_ 'Params'))) } })
     $dumpRows = @(Get-Arr (Get-Prop $Data 'Dumps') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); Name = (Get-Prop $_ 'Name'); C = (Get-Prop $_ 'Code'); N = $(if (Get-Prop $_ 'Code') { $bi.N } else { '' }); KB = "$(Get-Prop $_ 'SizeKB') KB" } })
     $dimmRows = @(Get-Arr (Get-Prop $Data 'Dimms') | ForEach-Object { [ordered]@{ Slot = (Get-Prop $_ 'Slot'); Sz = "$(Get-Prop $_ 'SizeGB') GB"; Ddr = (Get-Prop $_ 'DDR'); Sp = "$(Get-Prop $_ 'ConfiguredMHz') / $(Get-Prop $_ 'RatedMHz')"; Mk = (Get-Prop $_ 'Maker'); Pt = (Get-Prop $_ 'Part') } })
-    $diskRows = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { [ordered]@{ Name = (Get-Prop $_ 'Name'); Ty = "$(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus'))"; Sz = "$(Get-Prop $_ 'SizeGB') GB"; He = (Get-Prop $_ 'Health'); Tc = $(if ($null -ne (Get-Prop $_ 'TempC')) { "$(Get-Prop $_ 'TempC') °C" }); We = $(if ($null -ne (Get-Prop $_ 'WearPct')) { "$(Get-Prop $_ 'WearPct') %" }); Re = (Get-Prop $_ 'ReadErr'); Wr = (Get-Prop $_ 'WriteErr'); Tx = $(if ($null -ne (Get-Prop $_ 'TempMaxC')) { "$(Get-Prop $_ 'TempMaxC') °C" }); Ph = (Get-Prop $_ 'PowerOnHours') } })
+    $diskRows = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { [ordered]@{ Name = (Get-Prop $_ 'Name'); St = (Get-DiskStatus $_); Ty = "$(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus'))"; Sz = "$(Get-Prop $_ 'SizeGB') GB"; He = (Get-Prop $_ 'Health'); Tc = $(if ($null -ne (Get-Prop $_ 'TempC')) { "$(Get-Prop $_ 'TempC') °C" }); We = $(if ($null -ne (Get-Prop $_ 'WearPct')) { "$(Get-Prop $_ 'WearPct') %" }); Re = (Get-Prop $_ 'ReadErr'); Wr = (Get-Prop $_ 'WriteErr'); Tx = $(if ($null -ne (Get-Prop $_ 'TempMaxC')) { "$(Get-Prop $_ 'TempMaxC') °C" }); Ph = (Get-Prop $_ 'PowerOnHours') } })
     $memD = @(Get-Arr (Get-Prop $Data 'MemDiag'))
     $summary = Get-SummaryText $Data $Dx
     $c = $Dx.Counts
@@ -1614,7 +1624,7 @@ $(ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'Whea')) | Select-Object -First
 $(ConvertTo-HtmlTable $dimmRows @('Slot','Sz','Ddr','Sp','Mk','Pt') @('슬롯','용량','종류','속도 MHz (현재/정격)','제조사','모델'))
 <p class="sub">Windows 메모리 진단: $(HtmlEnc $memDiagText)</p></div></details>
 <details class="sec"><summary>저장장치<span class="cnt">$($diskRows.Count)</span></summary><div>
-$(ConvertTo-HtmlTable $diskRows @('Name','Ty','Sz','He','Tc','Tx','We','Re','Wr','Ph') @('이름','종류','용량','상태','온도','최고온도','마모','읽기오류','쓰기오류','사용시간(h)'))
+$(ConvertTo-HtmlTable $diskRows @('Name','St','Ty','Sz','He','Tc','Tx','We','Re','Wr','Ph') @('이름','종합','종류','용량','상태','온도','최고온도','마모','읽기오류','쓰기오류','사용시간(h)'))
 <h4>디스크 오류 기록</h4>$(ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'DiskEvents')) | Select-Object -First 50) @('T','Source','Id','Msg') @('시간','출처','ID','내용'))</div></details>
 $(if (@(Get-Arr (Get-Prop $Data 'Blackbox')).Count) { '<details class="sec" open><summary>블랙박스 기록 (실시간 테스트)</summary><div>' + (ConvertTo-HtmlTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | ForEach-Object { [ordered]@{ F = (Get-Prop $_ 'File'); S = ([string](Get-Prop $_ 'Start')).Replace('T', ' '); M = "$(Get-Prop $_ 'Minutes') 분"; R = $(if (Get-Prop $_ 'Abrupt') { '갑자기 끊김' } else { '정상 종료' }); G = $(if ($null -ne (Get-Prop $_ 'MaxGpuTempC')) { "$(Get-Prop $_ 'MaxGpuTempC') °C" } else { '-' }); V = (Get-Prop $_ 'Title') } }) @('F','S','M','R','G','V') @('파일','시작','길이','끝','GPU 최고','판정')) + '<h4>가장 최근 기록 그래프</h4>' + (Get-BlackboxChartSvg (@(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1)) + (Get-BlackboxStageTable (@(Get-Arr (Get-Prop $Data 'Blackbox')) | Select-Object -First 1)) + '</div></details>' })
 <details class="sec"><summary>그래픽 드라이버 설치 이력 · 자주 충돌한 프로그램</summary><div>
@@ -3605,6 +3615,7 @@ $script:EnPairs = @(
     @('RE:시스템 디스크 읽기가 매우 느림 \(([\d\.]+) MB/s\)', 'System disk reads very slowly ($1 MB/s)'), @('RE:디스크 읽기 ([\d\.]+) MB/s', 'Disk read $1 MB/s'),
     @('정상 SSD 는 수백 MB/s 이상, 하드디스크도 100 MB/s 안팎입니다. 다른 작업(업데이트·백신 검사)이 없을 때 다시 검사해도 느리면 디스크 노후·불량을 의심하세요.', 'A healthy SSD reads hundreds of MB/s and even a hard disk about 100 MB/s. If it is still slow when nothing else is running (updates, antivirus scans), suspect an aging or failing disk.'),
     @('RE: · 읽기 ([\d\.]+) MB/s', ' · read $1 MB/s'),
+    @('종합', 'Overall'), @('좋음', 'Good'), @('나쁨', 'Bad'),
     @('부품 요약', 'Parts summary'), @('전원', 'Power'), @('노트북', 'Laptop'), @('RE:노트북 \(배터리 마모 (\d+)%\)', 'Laptop (battery wear $1%)'), @('RE:권장 파워 (\d+) W 이상', 'Recommended PSU $1 W or more'),
     @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
     @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),
