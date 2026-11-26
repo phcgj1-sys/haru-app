@@ -1635,6 +1635,24 @@ It '지역 설정 무관: 시간·소수 형식 (핀란드어 시간 구분자, 
 
 Write-Host "`n[영어]" -ForegroundColor Cyan
 
+It '영어: 2.7.0 에서 추가한 안내(외장 저장장치·HDD 온도·노트북·LPDDR·RAM 미시험)가 보고서·요약 모두 번역됨' {
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try {
+        $d = New-Scenario @{}
+        $d.Disks = @([ordered]@{ Name = 'Generic USB'; Media = 'Unspecified'; Bus = 'USB'; SizeGB = 16; Health = 'Unhealthy' }, [ordered]@{ Name = 'WDC'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 2000; Health = 'Healthy'; TempC = 60 })
+        $d.Gpus = @([ordered]@{ Name = 'NVIDIA GeForce RTX 4090 Laptop GPU'; Vendor = 'NVIDIA'; VramGB = 16; Driver = '1'; DriverDate = (T 10); Status = 'OK' })
+        $d.Dimms = @([ordered]@{ Slot = 'A'; SizeGB = 8; ConfiguredMHz = 4266; RatedMHz = 4266; Maker = 'S'; Part = 'K'; DDR = 'LPDDR4' })
+        $stages = @('idle', 'cpu', 'ram', 'gpu', 'full', 'pulse'); $rows = @(); foreach ($st in $stages) { $rows += (Rep 2 @($st, 50, 99, 60, 50, 150, '', 0, '')) }; $rows[4] = @('ram', 50, 99, 60, 50, 150, '', 0, 'RAMFAIL')
+        $d.Blackbox = @(Read-BlackboxAnalysis (New-Bb2File 'bb_en27.csv' $rows -Stop))
+        $dx = Get-Diagnosis -Data $d
+        foreach ($x in (New-HtmlReport -Data $d -Dx $dx), (Get-SummaryText $d $dx)) {
+            $ko = @([regex]::Matches($x, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value })
+            Assert-Eq $ko.Count 0 "한글: $($ko -join ' | ')"
+        }
+        $titles = (@($dx.Findings) | ForEach-Object { Tr $_.Title }) -join ' / '
+        Assert ($titles -match 'External storage health problem' -and $titles -match 'HDD temperature high') "제목: $titles"
+    } finally { $script:UiLang = $old }
+}
 It '영어 보고서·요약에 한글이 남지 않음 (모든 시나리오)' {
     $script:UiLang = 'en'
     try {
