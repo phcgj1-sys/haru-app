@@ -325,3 +325,9 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 ["이 스크립트 개선해 줘","환경: 슬랙웨어 15.0, bash 5.1, systemd 없음, root 로 실행, cron 은 dcron.\n아래 스크립트는 지금 잘 돌아가요. 동작은 그대로 두고 더 안전하고 읽기 쉽게 고쳐 주세요.\n바라는 것: [예: 중복 실행 막기(flock), 시간 제한(timeout), 같은 알림 하루 한 번만, 로그에 날짜]\n지킬 것:\n- 한 번에 하나씩 바꾼 단계로 나눠 보여 주기\n- 바꾼 이유를 한 줄씩\n- 새 명령은 슬랙웨어 15.0 기본 패키지에 있는 것만\n- 시험 순서(bash -n → 드라이런 → 손으로 실행 → cron)\n---\n[스크립트 붙여 넣기]\n---"]
 ]}
 ]);
+
+// HARU_NEXT: 다 마친 뒤 이어서 할 앱
+window.APP.next=["github", "깃허브 처음부터 배우기"];
+
+// HARU_NOTICE: 출처·고지
+window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">Linux는 리누스 토르발스(Linus Torvalds)의 등록 상표이고, Slackware는 Slackware Linux, Inc.의 상표예요. 하루 학습은 이들과 제휴·후원·승인 관계가 없는 독립 학습 앱이에요.</p><p class=\"small muted\">실제 PC·서버·공유기에 적용하기 전에 중요한 자료를 백업하고, 되도록 실습용 환경에서 먼저 해 보세요. 회사·PC방처럼 내 것이 아닌 장비는 관리자 허락을 받은 뒤에만 작업하세요.</p>";

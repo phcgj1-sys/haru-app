@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111111"><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#555;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0F0F10" media="(prefers-color-scheme: dark)"><script>try{var HP=JSON.parse(localStorage.getItem('haru_prefs_v1')||'{}');if(HP.fs>1&&HP.fs<2)document.documentElement.style.zoom=HP.fs;}catch(e){}</script><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#555;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
 <title>하루일본어</title>
 <meta name="description" content="단어 344 · 통문장 120 · 역할극 · 읽는 법 표시">
 <meta property="og:title" content="하루일본어 · 하루 학습">
@@ -19,6 +19,8 @@
   --font-en:"Noto Sans JP","Noto Sans Thai","Noto Sans KR",system-ui,sans-serif;
   color-scheme:light;
 }
+:root:not([data-skin]){ --accent-t:var(--accent); --bg:#F7F7F5; --surface:#FFFFFF; --fg:#111111; --muted:#666666; --line:#E2E2DE; --soft:#EFEFEB; --accent:#111111; --accent-ink:#FFFFFF; --accent-soft:#E6E6E2; --ok:#167A45; --ok-soft:#E1F5E9; --bad:#D4433B; --bad-soft:#FBE6E4; --warn:#B97A00; --warn-soft:#FFF3D6; --shadow:0 6px 24px rgba(0,0,0,.08); color-scheme:light }
+@media (prefers-color-scheme: dark){ :root:not([data-skin]){ --accent-t:var(--accent); --bg:#0F0F10; --surface:#1A1A1C; --fg:#F2F2F2; --muted:#9A9A9A; --line:#2C2C2F; --soft:#232326; --accent:#F2F2F2; --accent-ink:#111111; --accent-soft:#2E2E31; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF8A80; --bad-soft:#3A1A18; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark } }
 :root[data-skin="light"]{ --accent:#2E54D3; --accent-soft:#E4EAFB; --bg:#F4F6FA; --line:#DCE2EA; --soft:#EEF1F6; --fg:#17202B; --muted:#5E6975 }
 :root[data-skin="red"]{ --bg:#0A0A0C; --surface:#151518; --fg:#F3F1EF; --muted:#9C9AA0; --line:#2A2A30; --soft:#1F1F24; --accent:#DC2F28; --accent-t:#FF4D45; --accent-ink:#FFFFFF; --accent-soft:#3B1613; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FFA447; --bad-soft:#3A2410; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
 :root[data-skin="navy"]{ --bg:#0A1220; --surface:#121C30; --fg:#EEF3FA; --muted:#93A3BC; --line:#243350; --soft:#1A2740; --accent:#4FA8FF; --accent-ink:#0A1220; --accent-soft:#143052; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF7A7A; --bad-soft:#3A1818; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
@@ -335,6 +337,7 @@ body{line-height:1.6;letter-spacing:-.005em}
 @media (min-width:600px){.brand2 h1{font-size:28px}}
 .item .t,.item .s,.lr-b,.tl-b,.hero-k,.hero-t,.brand2 p,.note,.guide,.stats dt,.week .wk-s{word-break:keep-all;overflow-wrap:anywhere}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+.skins{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}.skin .sw{flex-wrap:wrap}.skin span{word-break:keep-all}
 </style>
 
 </head>
@@ -381,14 +384,20 @@ const DAY = 86400000;
 
 /* ---------- 상태 ---------- */
 const KEY='haru_'+LANG.code+'_v1';
-const defaults = () => ({v:1, words:{}, sents:{}, patterns:{}, readings:{}, dialogs:{}, chatTurns:0, daily:{}, streak:{count:0,last:''}, settings:{newPerDay:10, newSentsPerDay:5, rate:0.85, voice:LANG.ttsLang, autoPlay:true, skin:'mono', showReading:true}, updatedAt:0});
+const defaults = () => ({v:1, words:{}, sents:{}, patterns:{}, readings:{}, dialogs:{}, chatTurns:0, daily:{}, streak:{count:0,last:''}, settings:{newPerDay:10, newSentsPerDay:5, rate:0.85, voice:LANG.ttsLang, autoPlay:true, skin:'auto', skinV:3, showReading:true}, updatedAt:0});
 let state = defaults();
-function migrate(s){ const d=defaults(); if(!s||typeof s!=='object') return d; const DEF=defaults(); const o=Object.assign(d,s); o.settings=Object.assign({},DEF.settings,s.settings||{}); for(const k in DEF.settings){ if(typeof o.settings[k]!==typeof DEF.settings[k]) o.settings[k]=DEF.settings[k]; } o.words=s.words||{}; o.sents=s.sents||{}; o.patterns=s.patterns||{}; o.readings=s.readings||{}; o.dialogs=s.dialogs||{}; o.chatTurns=s.chatTurns||0; o.daily=s.daily||{}; o.streak=Object.assign(DEF.streak,s.streak||{}); return o; }
+function migrate(s){ const d=defaults(); if(!s||typeof s!=='object') return d; const DEF=defaults(); const o=Object.assign(d,s); o.settings=Object.assign({},DEF.settings,s.settings||{}); for(const k in DEF.settings){ if(typeof o.settings[k]!==typeof DEF.settings[k]) o.settings[k]=DEF.settings[k]; } if(!(s.settings&&s.settings.skinV)){ if(o.settings.skin==='mono') o.settings.skin='auto'; o.settings.skinV=3; } o.words=s.words||{}; o.sents=s.sents||{}; o.patterns=s.patterns||{}; o.readings=s.readings||{}; o.dialogs=s.dialogs||{}; o.chatTurns=s.chatTurns||0; o.daily=s.daily||{}; o.streak=Object.assign(DEF.streak,s.streak||{}); return o; }
 function loadLocal(){ try{ const raw=localStorage.getItem(KEY); if(raw) state=migrate(JSON.parse(raw)); }catch(e){} }
 function saveLocal(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 function commit(){ state.updatedAt=Date.now(); saveLocal(); Sync.schedule(); applySkin(); }
-const SKINS=[['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#DC2F28']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']]];
-function applySkin(){ document.documentElement.setAttribute('data-skin', (state.settings&&state.settings.skin)||'mono'); }
+const SKINS=[['auto','기기 설정 따라',['#F7F7F5','#0F0F10','#777777']],['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#DC2F28']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']]];
+function prefsGet(){ try{ return JSON.parse(localStorage.getItem('haru_prefs_v1')||'{}')||{}; }catch(e){ return {}; } }
+function prefsSet(o){ try{ localStorage.setItem('haru_prefs_v1', JSON.stringify(Object.assign(prefsGet(), o))); }catch(e){} }
+const FS=[[1,'보통'],[1.15,'크게'],[1.3,'아주 크게']];
+function applyFs(){ const v=+prefsGet().fs||1; document.documentElement.style.zoom=(v>1&&v<2)? String(v) : ''; }
+function syncThemeColor(){ try{ const bg=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(); if(bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m=>m.setAttribute('content',bg)); }catch(e){} }
+const darkMQ2=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null; if(darkMQ2&&darkMQ2.addEventListener) darkMQ2.addEventListener('change',()=>{ try{ applySkin(); }catch(e){} });
+function applySkin(){ let k=(state.settings&&state.settings.skin)||'auto'; if(k==='auto') k=(darkMQ2&&darkMQ2.matches)?'dark':'mono'; document.documentElement.setAttribute('data-skin', k); syncThemeColor(); }
 const Sync = { ref:null, timer:null, writing:false, dirty:false, status:'local',
   async init(){ try{ if(!window.claude || typeof window.claude.use!=='function') return; const [db,user]=await Promise.all([window.claude.use('db'), window.claude.use('user')]); if(!db||!user) return; const id=await user.id(); if(!id) return; this.ref=db.doc('data/users/'+id+'/progress'); const snap=await this.ref.get(); if(snap.exists){ const remote=snap.data(); if((remote.updatedAt||0)>(state.updatedAt||0)){ state=migrate(JSON.parse(JSON.stringify(remote))); saveLocal(); applySkin(); render(); } else if((state.updatedAt||0)>(remote.updatedAt||0)) this.push(); } else if(state.updatedAt) this.push(); this.status='cloud'; if(ui.view==='more') render(); }catch(e){ console.warn('sync init', e); } },
   schedule(){ if(!this.ref) return; clearTimeout(this.timer); this.timer=setTimeout(()=>this.push(),1500); },
@@ -721,6 +730,7 @@ function viewMore(){
     <li><b>AI 대화</b>는 하루 5분. 틀려도 짧게라도 계속 말하는 게 목표예요. 읽는 법 표시는 설정에서 끌 수 있어요. 익숙해지면 꺼 보세요.</li></ol>
     <p class="muted small" style="margin-top:12px">진도는 이 기기 브라우저에 저장되고, claude.ai에서 열었을 때만 계정에도 함께 저장돼요. 다른 기기로 옮길 땐 '백업'을 쓰세요.</p></div>`;
   else if(ui.more==='settings') body=`<div class="card stack">
+    <div class="field"><label>글자 크기</label><div class="seg">${FS.map(([v,l])=>`<button class="${(+prefsGet().fs||1)===v?'on':''}" data-fs="${v}">${l}</button>`).join('')}</div><p class="muted small">모든 앱과 홈 화면에 함께 적용돼요.</p></div>
     <div class="field"><label>색 조합</label><div class="skins">${SKINS.map(k=>`<button class="skin ${s.skin===k[0]?'on':''}" data-set="skin" data-val="${k[0]}"><span class="sw">${k[2].map(c=>`<i style="background:${c}"></i>`).join('')}</span><span>${k[1]}</span></button>`).join('')}</div></div>
     <div class="field"><label>${esc(LANG.readingName)} 표시</label><div class="seg"><button class="${s.showReading?'on':''}" data-set="showReading" data-val="1">보이기</button><button class="${!s.showReading?'on':''}" data-set="showReading" data-val="0">숨기기</button></div><p class="muted small">처음엔 보이게 두고, 글자가 익숙해지면 숨기세요.</p></div>
     <div class="field"><label>하루 새 단어 수</label><div class="seg">${[5,10,15,20].map(n=>`<button class="${s.newPerDay===n?'on':''}" data-set="newPerDay" data-val="${n}">${n}개</button>`).join('')}</div></div>
@@ -874,6 +884,7 @@ document.addEventListener('click', e=>{
   if(d.tk!=null){ showSheet(d.tk); return; }
   if(d.nav){ const extra={theme:null, pattern:null, reading:null, group:null, dialog:null, build:null, slot:null, openSent:null, openWord:null, showAll:false}; if(d.sub){ ui.sub[d.nav]=d.sub; } if(d.reading){ extra.reading=d.reading; } go(d.nav, extra); return; }
   if(d.subtab){ ui.sub[d.subtab]=d.val; ui.showAll=false; render(); return; }
+  if(d.fs){ prefsSet({fs:+d.fs}); applyFs(); render(); return; }
   if(d.lv){ ui.lv=+d.lv; render(); return; }
   if(d.theme && !d.act){ ui.theme=d.theme; ui.openWord=null; render(); window.scrollTo(0,0); return; }
   if(d.group && !d.act){ ui.group=d.group; ui.openWord=null; render(); window.scrollTo(0,0); return; }
@@ -952,7 +963,38 @@ document.addEventListener('keydown', e=>{
     if(it.t==='squiz'){ if(it.mode==='order'){ document.querySelector('[data-act="s-check-order"]')?.click(); } else if(it.mode==='recall'){ if(it.revealed) return; const inp=$('#sentIn'); if(inp&&inp.value.trim()) document.querySelector('[data-act="s-check-text"]')?.click(); else document.querySelector('[data-act="s-show"]')?.click(); } else if(it.mode==='dict'){ if(!it.revealed) document.querySelector('[data-act="s-show"]')?.click(); } return; } }
   else if(/^[1-4]$/.test(e.key) && !S.answered && !(document.activeElement && document.activeElement.tagName==='INPUT')){ if(it.t==='quiz'){ const b=document.querySelector(`[data-opt="${+e.key-1}"]`); if(b) b.click(); } else if(it.t==='squiz'&&it.mode==='cloze'){ const b=document.querySelector(`[data-sopt="${+e.key-1}"]`); if(b) b.click(); } }
 });
-loadLocal(); applySkin(); TTS.init(); render(); Sync.init(); AI.init();
+/* ---------- 화면 기록: 휴대폰 '뒤로' 버튼이 앱 안의 이전 화면으로 ---------- */
+const H_DETAILS=['scene','dialog','reading','pattern','group','theme'];
+function curRoute(){ let d=null; for(const k of H_DETAILS){ if(ui[k]!=null&&ui[k]!==false&&ui[k]!==''){ d=[k,ui[k]]; break; } } return {v:ui.view, d, sub:(ui.sub&&ui.sub[ui.view])||'', rv:S?1:0}; }
+const H_LV=r=>r.rv?3:(r.d?2:(r.v==='home'?0:1));
+const H_KEY=r=>r? [r.v, r.d?r.d.join(':'):'', r.sub||'', r.rv?1:0].join('|') : '';
+function hState(){ const s=history.state; return (s&&s.haru)?s:null; }
+let navPop=false, navWait=false, navT=null;
+function syncHistory(prevY){ if(navPop||navWait) return; const r=curRoute(), s=hState();
+  try{
+    if(!s){ history.replaceState({haru:1, i:0, r, pr:null, b:H_KEY(r), y:0},''); return; }
+    if(H_KEY(r)===H_KEY(s.r)) return;
+    history.replaceState(Object.assign({}, s, {y:prevY||0}),'');
+    if(s.i>0&&H_LV(r)<H_LV(s.r)){
+      if(s.pr&&H_KEY(s.pr)===H_KEY(r)){ navWait=true; clearTimeout(navT); navT=setTimeout(()=>{ navWait=false; },700); history.back(); return; }
+      if(H_LV(r)===0&&s.b===H_KEY(r)){ navWait=true; clearTimeout(navT); navT=setTimeout(()=>{ navWait=false; },700); history.go(-s.i); return; }
+    }
+    if(H_LV(r)>H_LV(s.r)) history.pushState({haru:1, i:s.i+1, r, pr:s.r, b:s.b, y:0},'');
+    else history.replaceState({haru:1, i:s.i, r, pr:s.pr, b:s.b, y:0},'');
+  }catch(e){} }
+function applyRoute(r){ ui.view=r.v||'home'; H_DETAILS.forEach(k=>{ if(k in ui) ui[k]=null; }); if(r.d) ui[r.d[0]]=r.d[1];
+  if(r.sub&&ui.sub&&(ui.view in ui.sub)) ui.sub[ui.view]=r.sub; ['openWord','openSent','build','slot'].forEach(k=>{ if(k in ui) ui[k]=null; }); if('showAll' in ui) ui.showAll=false; ui.confirmReset=false; }
+window.addEventListener('popstate', e=>{ const s=e.state; if(!s||!s.haru) return; clearTimeout(navT); navWait=false; const r=s.r||{v:'home'};
+  navPop=true; try{ TTS.stop(); if(!r.rv&&S){ S=null; $('#layer').innerHTML=''; } const sh=document.getElementById('sheet'); if(sh) sh.innerHTML='';
+    applyRoute(r); if(r.rv&&!S){ try{ history.replaceState(Object.assign({},s,{r:Object.assign({},r,{rv:0})}),''); }catch(err){} } render(); }finally{ navPop=false; }
+  window.scrollTo(0, s.y||0); const h=document.querySelector('#app h1'); if(h){ h.setAttribute('tabindex','-1'); try{ h.focus({preventScroll:true}); }catch(err){} } });
+window.addEventListener('pagehide', ()=>{ const s=hState(); if(s){ try{ history.replaceState(Object.assign({},s,{y:Math.round(window.scrollY)}),''); }catch(e){} } });
+{ const _r0=render; render=function(){ const y=Math.round(window.scrollY); _r0(); syncHistory(y); };
+  const _s0=renderSession; renderSession=function(){ const y=Math.round(window.scrollY); _s0(); syncHistory(y); }; }
+try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(e){}
+loadLocal(); applySkin(); TTS.init();
+{ const hs=hState(); if(hs&&hs.r){ applyRoute(Object.assign({},hs.r,{rv:0})); } render(); if(hs&&hs.y) window.scrollTo(0,hs.y); }
+Sync.init(); AI.init();
 })();
 </script>
 </body></html>

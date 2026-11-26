@@ -345,3 +345,6 @@ window.CS_TEMPLATES=[
 
 // HARU_NOTICE: 출처·고지
 window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">하루 학습은 독립적으로 만든 비공식 학습 앱이에요. Anthropic(Claude), Google(YouTube·Google 시트·Google 폼), Microsoft(Excel), GitHub 등 언급된 회사와 제휴·후원·승인 관계가 없어요. 각 상표는 해당 소유자의 것이며 사용법 설명을 위해서만 썼어요. 서비스 화면과 정책은 바뀔 수 있으니 공식 도움말도 함께 확인하세요.</p>";
+
+// HARU_NEXT: 다 마친 뒤 이어서 할 앱
+window.APP.next=["homepage", "클로드로 홈페이지 잘 만들기"];

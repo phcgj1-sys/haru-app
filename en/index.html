@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111111"><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#555;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0F0F10" media="(prefers-color-scheme: dark)"><script>try{var HP=JSON.parse(localStorage.getItem('haru_prefs_v1')||'{}');if(HP.fs>1&&HP.fs<2)document.documentElement.style.zoom=HP.fs;}catch(e){}</script><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#555;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
 <title>하루영어</title>
 <meta name="description" content="단어 1,127 · 통문장 376 · 역할극 · 생활 장면 듣기">
 <meta property="og:title" content="하루영어 · 하루 학습">
@@ -21,6 +21,9 @@
   color-scheme:dark;
 }
 /* 색 조합(skin): 설정에서 고르면 html[data-skin]으로 바뀜. 기본은 검정·빨강. */
+:root:not([data-skin]){ --accent-t:var(--accent); --bg:#F7F7F5; --surface:#FFFFFF; --fg:#111111; --muted:#666666; --line:#E2E2DE; --soft:#EFEFEB; --accent:#111111; --accent-ink:#FFFFFF; --accent-soft:#E6E6E2; --ok:#167A45; --ok-soft:#E1F5E9; --bad:#D4433B; --bad-soft:#FBE6E4; --warn:#B97A00; --warn-soft:#FFF3D6; --shadow:0 6px 24px rgba(0,0,0,.08); color-scheme:light }
+@media (prefers-color-scheme: dark){ :root:not([data-skin]){ --accent-t:var(--accent); --bg:#0F0F10; --surface:#1A1A1C; --fg:#F2F2F2; --muted:#9A9A9A; --line:#2C2C2F; --soft:#232326; --accent:#F2F2F2; --accent-ink:#111111; --accent-soft:#2E2E31; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF8A80; --bad-soft:#3A1A18; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark } }
+:root[data-skin="dark"]{ --accent-t:var(--accent); --bg:#0F0F10; --surface:#1A1A1C; --fg:#F2F2F2; --muted:#9A9A9A; --line:#2C2C2F; --soft:#232326; --accent:#F2F2F2; --accent-ink:#111111; --accent-soft:#2E2E31; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF8A80; --bad-soft:#3A1A18; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
 :root[data-skin="gold"]{ --accent-t:var(--accent); --accent:#E3B94B; --accent-ink:#0A0A0C; --accent-soft:#3A2E10; --bad:#FF7A59; --bad-soft:#3A1A12 }
 :root[data-skin="navy"]{ --accent-t:var(--accent); --bg:#0A1220; --surface:#121C30; --fg:#EEF3FA; --muted:#93A3BC; --line:#243350; --soft:#1A2740; --accent:#4FA8FF; --accent-ink:#0A1220; --accent-soft:#143052; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF7A7A; --bad-soft:#3A1818; --warn:#FFD166; --warn-soft:#3A2F10 }
 :root[data-skin="forest"]{ --accent-t:var(--accent); --bg:#0A130F; --surface:#13201A; --fg:#EDF5F0; --muted:#8FA89B; --line:#223A2E; --soft:#182B22; --accent:#3DDC97; --accent-ink:#0A130F; --accent-soft:#123826; --ok:#5BB8FF; --ok-soft:#102838; --bad:#FF8A5B; --bad-soft:#3A1E12; --warn:#FFD166; --warn-soft:#3A2F10 }
@@ -348,6 +351,7 @@ body{line-height:1.6;letter-spacing:-.005em}
 @media (min-width:600px){.brand2 h1{font-size:28px}}
 .item .t,.item .s,.lr-b,.tl-b,.hero-k,.hero-t,.brand2 p,.note,.guide,.stats dt,.week .wk-s{word-break:keep-all;overflow-wrap:anywhere}
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
+.skins{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}.skin .sw{flex-wrap:wrap}.skin span{word-break:keep-all}
 </style>
 
 </head>
@@ -404,14 +408,20 @@ const STOP = new Set(['the','and','for','you','are','was','were','this','that','
 
 /* ---------- 상태 ---------- */
 const KEY='haru_english_v1';
-const defaults = () => ({v:1, words:{}, sents:{}, patterns:{}, readings:{}, dialogs:{}, scenes:{}, chatTurns:0, daily:{}, streak:{count:0,last:''}, settings:{newPerDay:10, newSentsPerDay:5, rate:0.85, voice:'en-US', autoPlay:true, skin:'mono', skinV:2}, updatedAt:0});
+const defaults = () => ({v:1, words:{}, sents:{}, patterns:{}, readings:{}, dialogs:{}, scenes:{}, chatTurns:0, daily:{}, streak:{count:0,last:''}, settings:{newPerDay:10, newSentsPerDay:5, rate:0.85, voice:'en-US', autoPlay:true, skin:'auto', skinV:3}, updatedAt:0});
 let state = defaults();
-function migrate(s){ const d=defaults(); if(!s||typeof s!=='object') return d; const DEF=defaults(); const o=Object.assign(d,s); o.settings=Object.assign({},DEF.settings,s.settings||{}); for(const k in DEF.settings){ if(typeof o.settings[k]!==typeof DEF.settings[k]) o.settings[k]=DEF.settings[k]; } if(!(s.settings&&s.settings.skinV)){ o.settings.skin='mono'; o.settings.skinV=2; } o.words=s.words||{}; o.sents=s.sents||{}; o.patterns=s.patterns||{}; o.readings=s.readings||{}; o.dialogs=s.dialogs||{}; o.scenes=s.scenes||{}; o.chatTurns=s.chatTurns||0; o.daily=s.daily||{}; o.streak=Object.assign(d.streak,s.streak||{}); return o; }
+function migrate(s){ const d=defaults(); if(!s||typeof s!=='object') return d; const DEF=defaults(); const o=Object.assign(d,s); o.settings=Object.assign({},DEF.settings,s.settings||{}); for(const k in DEF.settings){ if(typeof o.settings[k]!==typeof DEF.settings[k]) o.settings[k]=DEF.settings[k]; } if(!(s.settings&&s.settings.skinV)||s.settings.skinV<3){ if(!(s.settings&&s.settings.skinV)||o.settings.skin==='mono') o.settings.skin='auto'; o.settings.skinV=3; } o.words=s.words||{}; o.sents=s.sents||{}; o.patterns=s.patterns||{}; o.readings=s.readings||{}; o.dialogs=s.dialogs||{}; o.scenes=s.scenes||{}; o.chatTurns=s.chatTurns||0; o.daily=s.daily||{}; o.streak=Object.assign(d.streak,s.streak||{}); return o; }
 function loadLocal(){ try{ const raw=localStorage.getItem(KEY); if(raw) state=migrate(JSON.parse(raw)); }catch(e){} }
 function saveLocal(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
 function commit(){ state.updatedAt=Date.now(); saveLocal(); Sync.schedule(); applySkin(); }
-const SKINS=[['red','검정·빨강',['#0A0A0C','#151518','#DC2F28']],['gold','검정·금색',['#0A0A0C','#151518','#E3B94B']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']],['forest','짙은 초록·민트',['#0A130F','#13201A','#3DDC97']],['violet','보라·분홍',['#110B1A','#1B1227','#F06292']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']]];
-function applySkin(){ const k=(state.settings&&state.settings.skin)||'mono'; document.documentElement.setAttribute('data-skin', k); }
+const SKINS=[['auto','기기 설정 따라',['#F7F7F5','#0F0F10','#777777']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#DC2F28']],['gold','검정·금색',['#0A0A0C','#151518','#E3B94B']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']],['forest','짙은 초록·민트',['#0A130F','#13201A','#3DDC97']],['violet','보라·분홍',['#110B1A','#1B1227','#F06292']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']]];
+function prefsGet(){ try{ return JSON.parse(localStorage.getItem('haru_prefs_v1')||'{}')||{}; }catch(e){ return {}; } }
+function prefsSet(o){ try{ localStorage.setItem('haru_prefs_v1', JSON.stringify(Object.assign(prefsGet(), o))); }catch(e){} }
+const FS=[[1,'보통'],[1.15,'크게'],[1.3,'아주 크게']];
+function applyFs(){ const v=+prefsGet().fs||1; document.documentElement.style.zoom=(v>1&&v<2)? String(v) : ''; }
+function syncThemeColor(){ try{ const bg=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(); if(bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m=>m.setAttribute('content',bg)); }catch(e){} }
+const darkMQ2=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null; if(darkMQ2&&darkMQ2.addEventListener) darkMQ2.addEventListener('change',()=>{ try{ applySkin(); }catch(e){} });
+function applySkin(){ let k=(state.settings&&state.settings.skin)||'auto'; if(k==='auto') k=(darkMQ2&&darkMQ2.matches)?'dark':'mono'; document.documentElement.setAttribute('data-skin', k); syncThemeColor(); }
 
 const Sync = {
   ref:null, timer:null, writing:false, dirty:false, status:'local',
@@ -910,6 +920,7 @@ function viewMore(){
     <p class="muted small" style="margin-top:12px">진도는 이 기기 브라우저에 저장되고, claude.ai에서 열었을 때만 계정에도 함께 저장돼요. 다른 기기로 옮길 땐 '백업'을 쓰세요.</p>
   </div>`;
   else if(ui.more==='settings') body=`<div class="card stack">
+    <div class="field"><label>글자 크기</label><div class="seg">${FS.map(([v,l])=>`<button class="${(+prefsGet().fs||1)===v?'on':''}" data-fs="${v}">${l}</button>`).join('')}</div><p class="muted small">모든 앱과 홈 화면에 함께 적용돼요.</p></div>
     <div class="field"><label>색 조합</label><div class="skins">${SKINS.map(k=>`<button class="skin ${s.skin===k[0]?'on':''}" data-set="skin" data-val="${k[0]}"><span class="sw">${k[2].map(c=>`<i style="background:${c}"></i>`).join('')}</span><span>${k[1]}</span></button>`).join('')}</div></div>
     <div class="field"><label>하루 새 단어 수</label><div class="seg">${[5,10,15,20].map(n=>`<button class="${s.newPerDay===n?'on':''}" data-set="newPerDay" data-val="${n}">${n}개</button>`).join('')}</div><p class="muted small">처음엔 10개를 권해요. 복습이 밀리면 5개로 줄이세요.</p></div>
     <div class="field"><label>하루 새 문장 수</label><div class="seg">${[3,5,8,10].map(n=>`<button class="${s.newSentsPerDay===n?'on':''}" data-set="newSentsPerDay" data-val="${n}">${n}개</button>`).join('')}</div></div>
@@ -1259,6 +1270,7 @@ document.addEventListener('click', e=>{
   if(d.tk!=null){ showSheet(d.tk); return; }
   if(d.nav){ const extra={theme:null, pattern:null, reading:null, group:null, dialog:null, scene:null, build:null, slot:null, openSent:null, openWord:null, showAll:false}; if(d.sub){ ui.sub[d.nav]=d.sub; } go(d.nav, extra); return; }
   if(d.subtab){ ui.sub[d.subtab]=d.val; ui.showAll=false; render(); return; }
+  if(d.fs){ prefsSet({fs:+d.fs}); applyFs(); render(); return; }
   if(d.lv){ ui.lv=+d.lv; render(); return; }
   if(d.theme && !d.act){ ui.theme=d.theme; ui.openWord=null; render(); window.scrollTo(0,0); return; }
   if(d.group && !d.act){ ui.group=d.group; ui.openWord=null; render(); window.scrollTo(0,0); return; }
@@ -1361,7 +1373,38 @@ document.addEventListener('keydown', e=>{
 });
 
 /* ---------- 시작 ---------- */
-loadLocal(); applySkin(); TTS.init(); render(); Sync.init(); AI.init();
+/* ---------- 화면 기록: 휴대폰 '뒤로' 버튼이 앱 안의 이전 화면으로 ---------- */
+const H_DETAILS=['scene','dialog','reading','pattern','group','theme'];
+function curRoute(){ let d=null; for(const k of H_DETAILS){ if(ui[k]!=null&&ui[k]!==false&&ui[k]!==''){ d=[k,ui[k]]; break; } } return {v:ui.view, d, sub:(ui.sub&&ui.sub[ui.view])||'', rv:S?1:0}; }
+const H_LV=r=>r.rv?3:(r.d?2:(r.v==='home'?0:1));
+const H_KEY=r=>r? [r.v, r.d?r.d.join(':'):'', r.sub||'', r.rv?1:0].join('|') : '';
+function hState(){ const s=history.state; return (s&&s.haru)?s:null; }
+let navPop=false, navWait=false, navT=null;
+function syncHistory(prevY){ if(navPop||navWait) return; const r=curRoute(), s=hState();
+  try{
+    if(!s){ history.replaceState({haru:1, i:0, r, pr:null, b:H_KEY(r), y:0},''); return; }
+    if(H_KEY(r)===H_KEY(s.r)) return;
+    history.replaceState(Object.assign({}, s, {y:prevY||0}),'');
+    if(s.i>0&&H_LV(r)<H_LV(s.r)){
+      if(s.pr&&H_KEY(s.pr)===H_KEY(r)){ navWait=true; clearTimeout(navT); navT=setTimeout(()=>{ navWait=false; },700); history.back(); return; }
+      if(H_LV(r)===0&&s.b===H_KEY(r)){ navWait=true; clearTimeout(navT); navT=setTimeout(()=>{ navWait=false; },700); history.go(-s.i); return; }
+    }
+    if(H_LV(r)>H_LV(s.r)) history.pushState({haru:1, i:s.i+1, r, pr:s.r, b:s.b, y:0},'');
+    else history.replaceState({haru:1, i:s.i, r, pr:s.pr, b:s.b, y:0},'');
+  }catch(e){} }
+function applyRoute(r){ ui.view=r.v||'home'; H_DETAILS.forEach(k=>{ if(k in ui) ui[k]=null; }); if(r.d) ui[r.d[0]]=r.d[1];
+  if(r.sub&&ui.sub&&(ui.view in ui.sub)) ui.sub[ui.view]=r.sub; ['openWord','openSent','build','slot'].forEach(k=>{ if(k in ui) ui[k]=null; }); if('showAll' in ui) ui.showAll=false; ui.confirmReset=false; }
+window.addEventListener('popstate', e=>{ const s=e.state; if(!s||!s.haru) return; clearTimeout(navT); navWait=false; const r=s.r||{v:'home'};
+  navPop=true; try{ TTS.stop(); if(!r.rv&&S){ S=null; $('#layer').innerHTML=''; } const sh=document.getElementById('sheet'); if(sh) sh.innerHTML='';
+    applyRoute(r); if(r.rv&&!S){ try{ history.replaceState(Object.assign({},s,{r:Object.assign({},r,{rv:0})}),''); }catch(err){} } render(); }finally{ navPop=false; }
+  window.scrollTo(0, s.y||0); const h=document.querySelector('#app h1'); if(h){ h.setAttribute('tabindex','-1'); try{ h.focus({preventScroll:true}); }catch(err){} } });
+window.addEventListener('pagehide', ()=>{ const s=hState(); if(s){ try{ history.replaceState(Object.assign({},s,{y:Math.round(window.scrollY)}),''); }catch(e){} } });
+{ const _r0=render; render=function(){ const y=Math.round(window.scrollY); _r0(); syncHistory(y); };
+  const _s0=renderSession; renderSession=function(){ const y=Math.round(window.scrollY); _s0(); syncHistory(y); }; }
+try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(e){}
+loadLocal(); applySkin(); TTS.init();
+{ const hs=hState(); if(hs&&hs.r){ applyRoute(Object.assign({},hs.r,{rv:0})); } render(); if(hs&&hs.y) window.scrollTo(0,hs.y); }
+Sync.init(); AI.init();
 })();
 </script>
 </body></html>

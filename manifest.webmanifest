@@ -10,7 +10,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#F7F7F5",
-  "theme_color": "#111111",
+  "theme_color": "#F7F7F5",
   "categories": [
     "education",
     "productivity"

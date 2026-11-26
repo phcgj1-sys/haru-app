@@ -116,3 +116,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 
 // HARU_NOTICE: 출처·고지
 window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";
+
+// HARU_NEXT: 다 마친 뒤 이어서 할 앱
+window.APP.next=["llm", "트랜스포머와 LLM 직접 만들기"];

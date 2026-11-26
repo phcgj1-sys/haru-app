@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111111"><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#666;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)"><meta name="theme-color" content="#0F0F10" media="(prefers-color-scheme: dark)"><script>try{var HP=JSON.parse(localStorage.getItem('haru_prefs_v1')||'{}');if(HP.fs>1&&HP.fs<2)document.documentElement.style.zoom=HP.fs;}catch(e){}</script><link rel="manifest" href="../manifest.webmanifest"><link rel="apple-touch-icon" href="../icons/icon-192.png"><style>[hidden]{display:none!important}body{margin:0}.hublink{position:fixed;bottom:calc(76px + env(safe-area-inset-bottom,0px));left:10px;z-index:60;font:600 12px "Noto Sans KR",sans-serif;color:#666;background:rgba(255,255,255,.85);border:1px solid #ddd;border-radius:999px;padding:4px 10px;text-decoration:none}</style><script>if("serviceWorker" in navigator&&location.protocol!=="file:"){navigator.serviceWorker.register("../sw.js").catch(function(){});}</script>
 <title>AI 자율 시스템과 안전</title>
 <meta name="description" content="5단계 22수업 · AI Engineering from Scratch 15단계 · 오래 일하는 에이전트 → 스스로 나아지는 AI → 코딩 에이전트 권한 → 비용·중단·되돌리기 → 안전 기준">
 <meta property="og:title" content="AI 자율 시스템과 안전 · 하루 학습">
@@ -23,6 +23,14 @@
 :root[data-skin="red"]{ --bg:#0A0A0C; --surface:#151518; --fg:#F3F1EF; --muted:#9C9AA0; --line:#2A2A30; --soft:#1F1F24; --accent:#F0453E; --accent-ink:#0A0A0C; --accent-soft:#3B1613; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FFA447; --bad-soft:#3A2410; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
 :root[data-skin="navy"]{ --bg:#0A1220; --surface:#121C30; --fg:#EEF3FA; --muted:#93A3BC; --line:#243350; --soft:#1A2740; --accent:#4FA8FF; --accent-ink:#0A1220; --accent-soft:#143052; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF7A7A; --bad-soft:#3A1818; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
 :root[data-skin="dark"]{ --bg:#0F0F10; --surface:#1A1A1C; --fg:#F2F2F2; --muted:#9A9A9A; --line:#2C2C2F; --soft:#232326; --accent:#F2F2F2; --accent-ink:#111111; --accent-soft:#2E2E31; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF8A80; --bad-soft:#3A1A18; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }
+@media (prefers-color-scheme: dark){:root:not([data-skin]){ --bg:#0F0F10; --surface:#1A1A1C; --fg:#F2F2F2; --muted:#9A9A9A; --line:#2C2C2F; --soft:#232326; --accent:#F2F2F2; --accent-ink:#111111; --accent-soft:#2E2E31; --ok:#3FD98B; --ok-soft:#10301F; --bad:#FF8A80; --bad-soft:#3A1A18; --warn:#FFD166; --warn-soft:#3A2F10; --shadow:0 8px 28px rgba(0,0,0,.55); color-scheme:dark }}
+.reading{background:var(--accent-soft);border-radius:8px;box-shadow:0 0 0 6px var(--accent-soft)}
+.readbtn{margin-left:4px}
+.readctl{position:fixed;left:8px;right:8px;bottom:calc(70px + env(safe-area-inset-bottom,0px));z-index:25;display:flex;align-items:center;gap:6px;max-width:624px;margin:0 auto;background:var(--fg);color:var(--bg);border-radius:14px;padding:8px 8px 8px 12px;box-shadow:var(--shadow)}
+.readctl .st{flex:1;min-width:0;font-size:13px;font-weight:600}
+.readctl button{min-height:40px;padding:0 10px;border-radius:10px;background:var(--bg);color:var(--fg);font-size:13px;font-weight:700;white-space:nowrap}
+body.reading-on .toast{bottom:140px}
+.fsprev{margin-top:8px;font-size:15px}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{height:100%}
@@ -279,14 +287,28 @@ a.item{text-decoration:none;color:inherit}
 .keycard ul.key{margin:0;padding:0}
 
 @media (prefers-reduced-motion: reduce){*{transition:none!important;scroll-behavior:auto!important}}
+.skins{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}.skin .sw{flex-wrap:wrap}.skin span{word-break:keep-all}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.item[disabled]{opacity:.55;cursor:default}
+.next-cta{margin-top:10px}
+.stage-done{margin:10px 0 0;padding:10px 12px;border-radius:12px;background:var(--ok-soft);color:var(--ok);font-weight:700;font-size:14.5px}
+.qsum+.btn{margin-top:8px}
+.linkbtn{background:none;border:0;padding:8px 2px;min-height:44px;color:var(--muted);font-size:13.5px;text-decoration:underline;text-underline-offset:3px;cursor:pointer}
+.report-row{margin:14px 0 0;text-align:center}
+.qrep{display:block;margin-top:4px}
+.nextapp{display:flex;align-items:center;justify-content:center;text-decoration:none;margin-top:8px}
+.hub2,.lhead .back{min-height:44px;display:inline-flex;align-items:center}
+.chip,.btn.sm{min-height:40px}
+.finish .linkbtn{display:block;margin:6px auto 0}
 </style>
 
 </head>
 <body>
-<div id="app" class="app"></div>
+<main id="app" class="app"></main>
 <nav class="nav" id="nav"></nav>
 <div id="layer"></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="readctl" id="readctl" hidden role="region" aria-label="소리로 듣기"><span class="st"></span><button data-act="read-pause">일시정지</button><button data-act="read-rate">속도 보통</button><button data-act="read-stop">멈춤</button></div>
 
 <script src="lessons.js"></script>
 <script>
@@ -301,13 +323,47 @@ const DAY=86400000;
 const KEY=APP.key;
 const defaults=()=>({v:1, lessons:{}, quiz:{ok:0,ng:0}, streak:{count:0,last:''}, daily:{}, lab:0, miss:{}, settings:{skin:'auto'}, updatedAt:0});
 let state=defaults();
-function migrate(s){ const d=defaults(); if(!s||typeof s!=='object') return d; const DEF=defaults(); const o=Object.assign(d,s); o.settings=Object.assign({},DEF.settings,s.settings||{}); o.lessons=s.lessons||{}; o.quiz=Object.assign(DEF.quiz,s.quiz||{}); o.streak=Object.assign(DEF.streak,s.streak||{}); o.daily=s.daily||{}; return o; }
+function migrate(s){ const d=defaults(); if(!s||typeof s!=='object'||Array.isArray(s)) return d; const DEF=defaults(); const isObj=x=>!!x&&typeof x==='object'&&!Array.isArray(x); const o=Object.assign(d,s); o.settings=Object.assign({},DEF.settings,isObj(s.settings)?s.settings:{}); o.lessons=isObj(s.lessons)?s.lessons:{}; Object.keys(o.lessons).forEach(k=>{ if(!isObj(o.lessons[k])) delete o.lessons[k]; }); const q=isObj(s.quiz)?s.quiz:{}; o.quiz={ok:+q.ok||0, ng:+q.ng||0}; const st=isObj(s.streak)?s.streak:{}; o.streak={count:+st.count||0, last:typeof st.last==='string'?st.last:''}; o.daily=isObj(s.daily)?s.daily:{}; o.miss=isObj(s.miss)?s.miss:{}; o.rv=isObj(s.rv)?s.rv:{}; o.lab=+s.lab||0; o.updatedAt=+s.updatedAt||0; return o; }
 function loadLocal(){ try{ const raw=localStorage.getItem(KEY); if(raw) state=migrate(JSON.parse(raw)); }catch(e){} }
 function saveLocal(){ try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){} }
-function commit(){ state.updatedAt=Date.now(); saveLocal(); Sync.schedule(); applySkin(); }
+function commit(){ state.updatedAt=Date.now(); try{ const nx=LESSONS.find(l=>!lp(l.id).done); state.next= nx? {id:nx.id, t:nx.title, min:+nx.min||8} : null; }catch(e){} saveLocal(); Sync.schedule(); applySkin(); }
 const SKINS=[['auto','기기 설정 따라',['#F7F7F5','#0F0F10','#777777']],['mono','흰색·검정',['#F7F7F5','#FFFFFF','#111111']],['light','흰색·파랑',['#F4F6FA','#FFFFFF','#2E54D3']],['dark','검정·흰색',['#0F0F10','#1A1A1C','#F2F2F2']],['red','검정·빨강',['#0A0A0C','#151518','#F0453E']],['navy','남색·하늘',['#0A1220','#121C30','#4FA8FF']]];
 const darkMQ=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null; if(darkMQ&&darkMQ.addEventListener) darkMQ.addEventListener('change',()=>applySkin());
-function applySkin(){ let sk=(state.settings&&state.settings.skin)||'auto'; if(sk==='auto') sk=(darkMQ&&darkMQ.matches)?'dark':'mono'; const r=document.documentElement; r.setAttribute('data-skin', sk); if(APP.accent && sk==='mono'){ r.style.setProperty('--accent', APP.accent); r.style.setProperty('--accent-soft', APP.accent+'1A'); } else { r.style.removeProperty('--accent'); r.style.removeProperty('--accent-soft'); } }
+/* ---- 공용 보기 설정(글자 크기·읽기 속도): 모든 앱이 같은 값을 써요 ---- */
+function prefsGet(){ try{ return JSON.parse(localStorage.getItem('haru_prefs_v1')||'{}')||{}; }catch(e){ return {}; } }
+function prefsSet(o){ try{ localStorage.setItem('haru_prefs_v1', JSON.stringify(Object.assign(prefsGet(), o))); }catch(e){} }
+const FS=[[1,'보통'],[1.15,'크게'],[1.3,'아주 크게']];
+function applyFs(){ const v=+prefsGet().fs||1; document.documentElement.style.zoom=(v>1&&v<2)? String(v) : ''; }
+function syncThemeColor(){ try{ const bg=getComputedStyle(document.documentElement).getPropertyValue('--bg').trim(); if(bg) document.querySelectorAll('meta[name="theme-color"]').forEach(m=>m.setAttribute('content',bg)); }catch(e){} }
+function setTitle(){ const l=ui.view==='lessons'&&ui.lesson&&LMAP[ui.lesson]; document.title=(l? l.title+' · ' : '')+APP.title; }
+/* ---- 소리로 듣기: 핵심과 본문을 한국어 음성으로 ---- */
+const HAS_TTS=('speechSynthesis' in window)&&typeof SpeechSynthesisUtterance!=='undefined';
+const RATES=[[0.85,'천천히'],[1,'보통'],[1.2,'빠르게']];
+const Reader={ on:false, paused:false, i:0, q:[], lid:null, tok:0, warned:false,
+  voice(){ try{ const vs=speechSynthesis.getVoices().filter(v=>/^ko/i.test(v.lang||'')); return vs.find(v=>v.localService)||vs[0]||null; }catch(e){ return null; } },
+  clean(t){ return String(t).replace(/→/g,', 그다음, ').replace(/[·•]/g,', ').replace(/\[\s*\]/g,' ').replace(/[`*_#>|]/g,' ').replace(/\s+/g,' ').trim(); },
+  start(l){ if(!HAS_TTS||!l){ toast('이 기기는 소리 읽기를 지원하지 않아요'); return; } this.stop(); this.lid=l.id; this.q=[];
+    const add=(t,r)=>{ String(t).split(/(?<=[.!?。])\s+/).forEach(x=>{ x=this.clean(x); if(x) this.q.push({t:x,r}); }); };
+    l.key.forEach((t,i)=>add(t,'k'+i)); l.body.forEach((t,i)=>add(t,'b'+i));
+    this.i=0; this.on=true; this.paused=false; document.body.classList.add('reading-on');
+    if(!this.voice()&&!this.warned){ this.warned=true; toast('한국어 음성이 없으면 휴대폰 설정 > 텍스트 음성 변환에서 받을 수 있어요'); }
+    this.speak(true); this.bar(); },
+  speak(scroll){ if(!this.on||this.paused) return; if(this.i>=this.q.length){ this.finish(); return; } const it=this.q[this.i]; this.mark(scroll); const tok=++this.tok;
+    const u=new SpeechSynthesisUtterance(it.t); u.lang='ko-KR'; const v=this.voice(); if(v) u.voice=v; u.rate=+prefsGet().rate||1;
+    u.onend=()=>{ if(tok!==this.tok||!this.on||this.paused) return; const prev=this.q[this.i]; this.i++; const nx=this.q[this.i]; this.speak(!!(nx&&prev&&nx.r!==prev.r)); this.bar(); };
+    u.onerror=e=>{ if(tok!==this.tok) return; if(e&&(e.error==='interrupted'||e.error==='canceled')) return; this.i++; this.speak(false); };
+    try{ speechSynthesis.speak(u); }catch(e){ this.stop(); } },
+  mark(scroll){ document.querySelectorAll('.reading').forEach(e=>e.classList.remove('reading')); if(!this.on||ui.lesson!==this.lid) return; const it=this.q[this.i]; if(!it) return; const el=document.querySelector('[data-r="'+it.r+'"]'); if(el){ el.classList.add('reading'); if(scroll) el.scrollIntoView({block:'center', behavior:'smooth'}); } },
+  pause(){ if(!this.on) return; if(this.paused){ this.paused=false; this.speak(false); } else { this.paused=true; this.tok++; try{ speechSynthesis.cancel(); }catch(e){} } this.bar(); },
+  rate(){ const cur=+prefsGet().rate||1; const k=RATES.findIndex(r=>r[0]===cur); const nx=RATES[(k<0?1:k+1)%RATES.length]; prefsSet({rate:nx[0]}); if(this.on&&!this.paused){ this.tok++; try{ speechSynthesis.cancel(); }catch(e){} setTimeout(()=>this.speak(false),80); } this.bar(); },
+  stop(){ const was=this.on; this.on=false; this.paused=false; this.tok++; try{ if(HAS_TTS&&(was||speechSynthesis.speaking)) speechSynthesis.cancel(); }catch(e){} document.querySelectorAll('.reading').forEach(e=>e.classList.remove('reading')); document.body.classList.remove('reading-on'); this.bar(); const rb=document.querySelector('.readbtn'); if(rb) rb.textContent='▶ 소리로 듣기'; },
+  finish(){ this.on=false; this.tok++; document.querySelectorAll('.reading').forEach(e=>e.classList.remove('reading')); document.body.classList.remove('reading-on'); this.bar(); const rb=document.querySelector('.readbtn'); if(rb) rb.textContent='▶ 소리로 듣기'; toast('다 읽었어요. 퀴즈로 확인해 보세요'); },
+  bar(){ const b=$('#readctl'); if(!b) return; b.hidden=!this.on; if(!this.on) return; const cur=+prefsGet().rate||1; const rl=(RATES.find(r=>r[0]===cur)||RATES[1])[1];
+    b.querySelector('.st').textContent=(this.paused?'멈춤':'읽는 중')+' '+Math.min(this.i+1,this.q.length)+' / '+this.q.length; b.querySelector('[data-act="read-pause"]').textContent=this.paused?'계속':'일시정지'; b.querySelector('[data-act="read-rate"]').textContent='속도 '+rl; }
+};
+window.addEventListener('pagehide', ()=>Reader.stop());
+function layerInert(on){ const a=$('#app'), n=$('#nav'); try{ if(a) a.inert=on; if(n) n.inert=on; }catch(e){} }
+function applySkin(){ let sk=(state.settings&&state.settings.skin)||'auto'; if(sk==='auto') sk=(darkMQ&&darkMQ.matches)?'dark':'mono'; const r=document.documentElement; r.setAttribute('data-skin', sk); if(APP.accent && sk==='mono'){ r.style.setProperty('--accent', APP.accent); r.style.setProperty('--accent-soft', APP.accent+'1A'); } else { r.style.removeProperty('--accent'); r.style.removeProperty('--accent-soft'); } syncThemeColor(); }
 const Sync={ ref:null, timer:null, writing:false, dirty:false, status:'local',
   async init(){ try{ if(!window.claude||typeof window.claude.use!=='function') return; const [db,user]=await Promise.all([window.claude.use('db'), window.claude.use('user')]); if(!db||!user) return; const id=await user.id(); if(!id) return; this.ref=db.doc('data/users/'+id+'/progress'); const snap=await this.ref.get(); if(snap.exists){ const remote=snap.data(); if((remote.updatedAt||0)>(state.updatedAt||0)){ state=migrate(JSON.parse(JSON.stringify(remote))); saveLocal(); applySkin(); render(); } else if((state.updatedAt||0)>(remote.updatedAt||0)) this.push(); } else if(state.updatedAt) this.push(); this.status='cloud'; if(ui.view==='more') render(); }catch(e){ console.warn('sync',e); } },
   schedule(){ if(!this.ref) return; clearTimeout(this.timer); this.timer=setTimeout(()=>this.push(),1500); },
@@ -322,17 +378,44 @@ function today(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMon
 function dayStr(ts){ const d=new Date(ts); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
 let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200); }
-function touchStreak(){ const t=today(); const s=state.streak; if(s.last===t) return; const y=dayStr(Date.now()-DAY); s.count=(s.last===y)? s.count+1:1; s.last=t; }
-function streakNow(){ const s=state.streak; if(!s.last) return 0; const t=today(), y=dayStr(Date.now()-DAY); return (s.last===t||s.last===y)? s.count:0; }
+function dayShift(n){ const d=new Date(); return dayStr(new Date(d.getFullYear(),d.getMonth(),d.getDate()+n,12).getTime()); }
+function logDay(m){ const t=today(); state.daily=state.daily||{}; const cur=state.daily[t]; const o=(cur&&typeof cur==='object')? cur : {n:+cur||0, m:0}; o.n=(o.n||0)+1; o.m=Math.round(((o.m||0)+(m||0))*10)/10; state.daily[t]=o; const ks=Object.keys(state.daily); if(ks.length>150) ks.sort().slice(0,ks.length-150).forEach(k=>{ delete state.daily[k]; }); }
+function touchStreak(m){ logDay(m); const t=today(); const s=state.streak; if(s.last===t) return; const y=dayShift(-1); s.count=(s.last===y)? s.count+1:1; s.last=t; }
+function streakNow(){ const s=state.streak; if(!s.last) return 0; const t=today(), y=dayShift(-1); return (s.last===t||s.last===y)? s.count:0; }
 const lp=id=>state.lessons[id]||{};
+const qzFor=id=>Object.assign({}, (lp(id).qa)||{});
+const FROM_PLAN=/\/plan\/(index\.html)?(#|$)/.test(document.referrer||'');
 const doneCount=()=>LESSONS.filter(l=>lp(l.id).done).length;
 const chev='<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
-function copyText(txt){ const done=()=>toast('복사했어요'); const fail=()=>{ const ta=document.createElement('textarea'); ta.value=txt; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); done(); }catch(e){ toast('복사가 안 돼요. 글을 길게 눌러 직접 복사하세요'); } document.body.removeChild(ta); }; if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fail); else fail(); }
+function copyText(txt, onFail){ const done=()=>toast('복사했어요'); const fail=()=>{ const ta=document.createElement('textarea'); ta.value=txt; ta.setAttribute('readonly',''); ta.style.cssText='position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;pointer-events:none'; document.body.appendChild(ta); try{ ta.focus({preventScroll:true}); }catch(e){} ta.select(); let ok=false; try{ ok=document.execCommand('copy'); }catch(e){} document.body.removeChild(ta); if(ok) done(); else if(onFail) onFail(); else toast('복사가 안 돼요. 글을 길게 눌러 직접 복사하세요'); }; if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done, fail); else fail(); }
 
 const ui={view:'home', stage:null, lesson:null, more:'guide', confirmReset:false, importText:'', dict:{}, dictTyped:{}, lab:{prompt:'', answer:'', busy:false, ctl:null, err:'', diag:null, mode:'ask'}};
-function go(view, extra){ ui.view=view; Object.assign(ui, extra||{}); ui.confirmReset=false; render(); window.scrollTo(0,0); }
-function render(){ const v=ui.view; $('#app').innerHTML = v==='home'?viewHome(): v==='lessons'?viewLessons(): v==='templates'?viewTemplates(): v==='lab'?viewLab(): viewMore(); renderNav(); if(v==='lessons'&&!ui.lesson) filterLessons(); if(v==='lessons'&&ui.lesson) related(LMAP[ui.lesson]); }
-const MY_APP=(location.pathname.split('/').filter(Boolean).slice(-2,-1)[0])||'';
+/* ---- 화면 기록: 휴대폰 '뒤로' 버튼이 앱 안의 이전 화면으로 돌아가게 ---- */
+const LV=r=>r.rv?3:(r.v==='lessons'&&r.l)?2:(r.v==='home'?0:1);
+const rkey=r=>r? r.v+'|'+(r.l||'')+'|'+(r.rv?1:0) : '';
+function curRoute(){ return {v:ui.view, l:(ui.view==='lessons'&&ui.lesson)||null, rv:S?1:0}; }
+function hState(){ const s=history.state; return (s&&s.haru)?s:null; }
+function saveY(){ const s=hState(); if(s){ try{ history.replaceState(Object.assign({},s,{y:Math.round(window.scrollY)}),''); }catch(e){} } }
+let navPop=false, backT=null;
+function nav(r, mode){ if(navPop) return; const s=hState(); const cur=s?s.r:null; if(cur&&rkey(cur)===rkey(r)) return; saveY();
+  const m=mode||(!cur?'replace':(LV(r)>LV(cur)?'push':'replace'));
+  try{ if(m==='push') history.pushState({haru:1, i:(s?s.i:0)+1, r, pr:cur, b:s?s.b:rkey(r), y:0},'');
+       else history.replaceState({haru:1, i:s?s.i:0, r, pr:s?s.pr:null, b:s?s.b:rkey(r), y:0},''); }catch(e){} }
+function goBack(n){ saveY(); clearTimeout(backT); backT=setTimeout(()=>{ render(); },450); history.go(-n); }
+function go(view, extra, how){ ui.view=view; Object.assign(ui, extra||{}); ui.confirmReset=false; const r=curRoute();
+  if(!navPop&&!how){ const s=hState();
+    if(s&&s.i>0&&LV(r)<LV(s.r)){ if(s.pr&&rkey(s.pr)===rkey(r)){ goBack(1); return; } if(LV(r)===0&&s.b===rkey(r)){ goBack(s.i); return; } } }
+  nav(r, how); render(); window.scrollTo({top:0,left:0,behavior:'instant'}); focusMain(); }
+function focusMain(){ const h=document.querySelector('#app h1'); if(h){ h.setAttribute('tabindex','-1'); try{ h.focus({preventScroll:true}); }catch(e){} } }
+window.addEventListener('popstate', e=>{ const s=e.state; if(!s||!s.haru) return; clearTimeout(backT); const r=s.r||{v:'home'};
+  navPop=true; try{ if(!r.rv&&S){ S=null; renderSession(); }
+    const same=ui.view==='lessons'&&ui.lesson===(r.l||null); ui.view=r.v||'home'; ui.lesson=(r.l&&LMAP[r.l])?r.l:null; ui.confirmReset=false; if(!same) ui.qz=ui.lesson? qzFor(ui.lesson) : {};
+    if(r.rv&&!S){ try{ history.replaceState(Object.assign({},s,{r:Object.assign({},r,{rv:0})}),''); }catch(err){} }
+    render(); }finally{ navPop=false; }
+  window.scrollTo({top:s.y||0,left:0,behavior:'instant'}); focusMain(); });
+window.addEventListener('pagehide', saveY);
+function render(){ const v=ui.view; $('#app').innerHTML = v==='home'?viewHome(): v==='lessons'?viewLessons(): v==='templates'?viewTemplates(): v==='lab'?viewLab(): viewMore(); renderNav(); if(v==='lessons'&&!ui.lesson) filterLessons(); if(v==='lessons'&&ui.lesson) related(LMAP[ui.lesson]); setTitle(); if(Reader.on&&!(v==='lessons'&&ui.lesson===Reader.lid)) Reader.stop(); else if(Reader.on) Reader.mark(false); }
+const MY_APP=location.pathname.replace(/index\.html$/,'').split('/').filter(Boolean).pop()||'';
 const relTok=t=>String(t).toLowerCase().replace(/[^0-9a-z가-힣\s]/g,' ').split(/\s+/).filter(w=>w.length>=2&&!/^(그리고|하는|있어요|해요|이에요|예요|위한|으로|에서|에게|하기|만들기|기초|직접|프로젝트|캡스톤|종합|실전|사례|입문|정리|고르기|이해|처음부터|끝까지|만들|단계|수업)$/.test(w));
 let relState=0;
 function related(l){ if(!l) return; const box=document.getElementById('related'); if(!box) return;
@@ -342,16 +425,16 @@ function related(l){ if(!l) return; const box=document.getElementById('related')
   const scored=window.HARU_INDEX.filter(x=>x[0]!==MY_APP).map(x=>{ let t=0,s=0; relTok(x[3]).forEach(w=>{ if(strong.has(w)) t+=3; else if(mine.has(w)) s+=1; }); relTok(x[4]).forEach(w=>{ if(mine.has(w)) s+=1; }); return [t?t+s:0,x]; }).filter(a=>a[0]>=3).sort((a,b)=>b[0]-a[0]).slice(0,3);
   if(!scored.length) return;
   box.innerHTML='<h2 class="h2">다른 앱의 관련 수업</h2><div class="list">'+scored.map(([,x])=>`<a class="item" href="../${x[0]}/index.html#lesson=${x[2]}"><div class="body"><div class="t">${esc(x[3])}</div><div class="s">${esc(x[1])}</div></div>${chev}</a>`).join('')+'</div>'; }
-function filterLessons(){ const q=(ui.lq||'').trim().toLowerCase(); document.querySelectorAll('.curri li').forEach(li=>{ li.hidden=!!q && !(li.dataset.q||'').includes(q); }); document.querySelectorAll('.stagebox').forEach(sb=>{ sb.hidden=!!q && !sb.querySelector('.curri li:not([hidden])'); }); const e=document.getElementById('lempty'); if(e) e.hidden=!(q && !document.querySelector('.curri li:not([hidden])')); }
+function filterLessons(){ const q=(ui.lq||'').trim().toLowerCase(); const toks=q.split(/\s+/).filter(Boolean); document.querySelectorAll('.curri li').forEach(li=>{ const dq=li.dataset.q||''; li.hidden=toks.length>0 && !toks.every(t=>dq.includes(t)); }); document.querySelectorAll('.stagebox').forEach(sb=>{ sb.hidden=!!q && !sb.querySelector('.curri li:not([hidden])'); }); const e=document.getElementById('lempty'); if(e) e.hidden=!(q && !document.querySelector('.curri li:not([hidden])')); }
 function renderNav(){ const items=[['home','오늘','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/></svg>'],['lessons','수업','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h12a3 3 0 0 1 3 3v13H7a3 3 0 0 1-3-3z"/><path d="M4 17a3 3 0 0 1 3-3h12"/></svg>'],['templates',APP.nav||'모음','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>'],['lab',APP.navLab||'도우미','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v10H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>'],['more','더보기','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>']];
-  $('#nav').innerHTML='<div class="in">'+items.map(([k,l,i])=>`<button class="${ui.view===k?'on':''}" data-nav="${k}" aria-label="${l}">${i}<span>${l}</span></button>`).join('')+'</div>'; }
+  $('#nav').innerHTML='<div class="in">'+items.map(([k,l,i])=>`<button class="${ui.view===k?'on':''}" data-nav="${k}" aria-label="${l}"${ui.view===k?' aria-current="page"':''}>${i}<span>${l}</span></button>`).join('')+'</div>'; }
 
 /* ---- 공용 조각 ---- */
 const icClock='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
 const icCheck='<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
 function ring(pct){ const r=26, c=2*Math.PI*r; return `<span class="ring" role="img" aria-label="전체 진도 ${pct}%"><svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true"><circle cx="32" cy="32" r="${r}" class="ring-bg"/><circle cx="32" cy="32" r="${r}" class="ring-fg" stroke-dasharray="${c.toFixed(1)}" stroke-dashoffset="${(c*(1-pct/100)).toFixed(1)}"/></svg><b class="num">${pct}<small>%</small></b></span>`; }
-function activeDays(){ const set=new Set(); LESSONS.forEach(l=>{ const t=lp(l.id).ts; if(t) set.add(dayStr(t)); }); const s=state.streak; if(s.last && streakNow()>0){ const base=new Date(s.last+'T12:00:00').getTime(); for(let k=0;k<s.count && k<7;k++) set.add(dayStr(base-k*DAY)); } return set; }
-function weekStrip(){ const on=activeDays(); const W='일월화수목금토'; let h=''; for(let i=6;i>=0;i--){ const ts=Date.now()-i*DAY; const ds=dayStr(ts); const a=on.has(ds); h+=`<li class="${a?'on':''} ${i===0?'today':''}"><i>${a?icCheck:''}</i><small>${i===0?'오늘':W[new Date(ts).getDay()]}</small></li>`; } const n=streakNow(); return `<div class="week"><div class="row between"><span class="wk-t">최근 7일</span><span class="wk-s">${n>0? n+'일째 이어서 배우는 중':'오늘 한 수업으로 시작해요'}</span></div><ol aria-label="최근 7일 학습 기록">${h}</ol></div>`; }
+function activeDays(){ const set=new Set(Object.keys(state.daily||{}).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k))); LESSONS.forEach(l=>{ const t=lp(l.id).ts; if(t) set.add(dayStr(t)); }); const s=state.streak; if(s.last && streakNow()>0){ const base=new Date(s.last+'T12:00:00').getTime(); for(let k=0;k<s.count && k<7;k++) set.add(dayStr(base-k*DAY)); } return set; }
+function weekStrip(){ const on=activeDays(); const W='일월화수목금토'; let h=''; for(let i=6;i>=0;i--){ const dt=new Date(); dt.setHours(12,0,0,0); dt.setDate(dt.getDate()-i); const ds=dayStr(dt.getTime()); const a=on.has(ds); h+=`<li class="${a?'on':''} ${i===0?'today':''}"><i>${a?icCheck:''}</i><small>${i===0?'오늘':W[dt.getDay()]}</small><span class="sr">${a?'공부함':'쉼'}</span></li>`; } const n=streakNow(); return `<div class="week"><div class="row between"><span class="wk-t">최근 7일</span><span class="wk-s">${n>0? n+'일째 이어서 배우는 중':'오늘 한 수업으로 시작해요'}</span></div><ol aria-label="최근 7일 학습 기록">${h}</ol></div>`; }
 const stageName=t=>String(t).replace(/^\d+단계 · /,'');
 
 /* ---- 홈 ---- */
@@ -365,7 +448,7 @@ function viewHome(){
       <p class="hero-k">${esc(next.key[0])}</p>
       <button class="btn primary big" data-lesson="${next.id}">${started?'이어서 학습':'수업 시작'}</button>
       ${weekStrip()}
-    </div>` : `<div class="hero2"><div class="hero-top">${ring(100)}<div class="hero-meta"><div class="eyb">전체 ${total}개 수업 완료</div><h2 class="hero-t">모두 마쳤어요</h2></div></div><p class="hero-k">${esc(APP.homeDone)}</p><button class="btn primary big" data-act="review">복습 퀴즈 풀기</button>${weekStrip()}</div>`;
+    </div>` : `<div class="hero2"><div class="hero-top">${ring(100)}<div class="hero-meta"><div class="eyb">전체 ${total}개 수업 완료</div><h2 class="hero-t">모두 마쳤어요</h2></div></div><p class="hero-k">${esc(APP.homeDone)}</p><button class="btn primary big" data-act="review">복습 퀴즈 풀기</button>${Array.isArray(APP.next)&&APP.next[0]? `<a class="btn ghost big nextapp" href="../${esc(APP.next[0])}/index.html">다음 앱 · ${esc(APP.next[1]||'')}</a>`:''}${weekStrip()}</div>`;
   return `<header class="apphead"><a class="hub2" href="../index.html">‹ 전체 앱</a><div class="brand2"><h1>${esc(APP.title)}</h1><p>${esc(APP.subtitle)}</p></div></header>
   ${hero}
   <dl class="stats"><div><dt>마친 수업</dt><dd class="num">${dn}<small>/${total}</small></dd></div><div><dt>퀴즈 정답률</dt><dd class="num">${acc===null?'–':acc+'<small>%</small>'}</dd></div><div><dt>실습 완료</dt><dd class="num">${tasks}</dd></div></dl>
@@ -375,8 +458,8 @@ function viewHome(){
   <div class="grid2">
     <button class="item" data-act="review" ${dn||missCount()?'':'disabled'}><div class="body"><div class="t">복습 퀴즈</div><div class="s">${missCount()? `틀린 문제 ${missCount()}개부터 다시 풀어요`: dn? '마친 수업에서 10문제':'수업 하나를 마치면 열려요'}</div></div>${chev}</button>
     <button class="item" data-nav="templates"><div class="body"><div class="t">${esc(APP.cards.templates[0])}</div><div class="s">${esc(APP.cards.templates[1])} ${TEMPLATES.reduce((a,c)=>a+c.items.length,0)}개</div></div>${chev}</button>
-    <button class="item" data-nav="lab"><div class="body"><div class="t">${esc(APP.cards.lab[0])}</div><div class="s">${esc(APP.cards.lab[1])}</div></div>${chev}</button>
-    <button class="item" data-nav="lab" data-mode="diag"><div class="body"><div class="t">${esc(APP.cards.diag[0])}</div><div class="s">${esc(APP.cards.diag[1])}</div></div>${chev}</button>
+    <button class="item" data-nav="lab"><div class="body"><div class="t">${esc(APP.cards.lab[0])}</div><div class="s">${esc(AI.ready? APP.cards.lab[1] : '질문을 만들어 AI 앱으로 보내기')}</div></div>${chev}</button>
+    <button class="item" data-nav="lab" data-mode="diag"><div class="body"><div class="t">${esc(APP.cards.diag[0])}</div><div class="s">${esc(AI.ready? APP.cards.diag[1] : '진단 질문을 만들어 AI 앱으로 보내기')}</div></div>${chev}</button>
   </div>`;
 }
 
@@ -388,32 +471,38 @@ function viewLessons(){
     const rows=s.lessons.map(l=>{ const p=lp(l.id); const cur=next&&next.id===l.id; const meta=[`${l.min}분`]; if(p.quiz) meta.push('퀴즈 '+p.quiz.ok+'/'+p.quiz.total); if(p.task) meta.push('실습 완료');
       return `<li data-q="${esc((l.title+' '+l.key.join(' ')).toLowerCase())}"><button class="lrow ${p.done?'done':''} ${cur?'cur':''}" data-lesson="${l.id}"><span class="lr-n num">${p.done?icCheck:LESSONS.indexOf(l)+1}</span><span class="lr-b"><span class="lr-t">${esc(l.title)}</span><span class="lr-s">${meta.join(' · ')}</span></span>${cur?'<span class="pill accent">다음</span>':chev}</button></li>`; }).join('');
     return `<section class="stagebox" id="stage-${s.id}"><div class="sb-head"><div><h2>${esc(s.title)}</h2><p>${esc(s.desc)}</p></div><span class="sb-pc num">${d}/${n}</span></div><div class="bar"><i style="width:${Math.round(d/n*100)}%"></i></div><ol class="curri">${rows}</ol></section>`; }).join('');
-  return `<header class="apphead"><div class="brand2"><h1>커리큘럼</h1><p>${STAGES.length}단계 ${total}수업 · ${dn}개 마침</p></div></header>
+  return `<header class="apphead"><div class="brand2"><h1>수업 목록</h1><p>${STAGES.length}단계 ${total}수업 · ${dn}개 마침</p></div></header>
   <div class="lsearch"><input id="lsearch" type="search" placeholder="수업 찾기 (제목·핵심 내용)" aria-label="수업 찾기" value="${esc(ui.lq||'')}" autocomplete="off"></div><p id="lempty" class="muted small" hidden>찾는 수업이 없어요. 다른 낱말로 찾아보세요.</p>
   <div class="bar big"><i style="width:${total?Math.round(dn/total*100):0}%"></i></div>${groups}`;
 }
+function stageDoneNote(l){ const st=STAGES.find(x=>x.id===l.stage); if(!st||!st.lessons.every(x=>lp(x.id).done)) return ''; const si=STAGES.indexOf(st), nx=STAGES[si+1]; return `<p class="stage-done">'${esc(st.title)}' 단계를 모두 마쳤어요.${nx? ` 다음은 '${esc(nx.title)}' 단계예요.`:' 이 앱의 마지막 단계였어요.'}</p>`; }
+function openReport(c){ const show=()=>{ try{ window.HaruReport.open(c); }catch(e){} }; if(window.HaruReport) return show(); const sc=document.createElement('script'); sc.src='../report.js'; sc.onload=show;
+  sc.onerror=()=>{ const t=['앱: '+APP.title, c.lesson? '수업: '+c.lessonTitle+' ('+c.lesson+')' : '', c.qn? '문제 '+c.qn+': '+c.question : '', c.answer? '앱이 정답으로 표시한 것: '+c.answer : ''].filter(Boolean).join('\n'); copyText(t); toast('신고 창을 열지 못해 내용을 복사했어요. 문의 메일 등으로 보내 주세요'); };
+  document.head.appendChild(sc); }
+function reportCtx(lid, qi){ const l=LMAP[lid]; const has=qi!=null&&qi!==''; const q=(l&&has)? l.quiz[+qi] : null; return {app:MY_APP, appTitle:APP.title, lesson:l?l.id:'', lessonTitle:l?l.title:'', qn:q? +qi+1 : null, question:q? q.q : '', answer:q? (q.a+1)+'번 · '+q.o[q.a] : ''}; }
 function viewLesson(l){
   const p=lp(l.id); const qz=ui.qz||{};
   const formulas=(l.formulas||[]).map((f,i)=>`<div class="prompt"><div class="t">${esc(f[0])}</div><pre>${esc(f[1])}</pre><p class="small muted" style="margin-top:6px">${esc(f[2]||'')}</p><div class="tools"><button class="btn sm" data-copyf="${l.id}:${i}">복사</button>${APP.tts?`<button class="btn sm ghost" data-say="${l.id}:${i}">▶ 듣기</button>`:''}</div></div>`).join('');
   const dict=(l.dict||[]).map((d,i)=>{ const k=l.id+':'+i; const st=ui.dict[k]; const typed=ui.dictTyped[k]||''; return `<div class="prompt"><div class="t">${i+1}번 문장</div><div class="row"><button class="btn sm" data-dsay="${k}">▶ 듣기</button><button class="btn sm ghost" data-dsay="${k}" data-slow="1">천천히</button></div><textarea class="ta small" id="dict-${l.id}-${i}" placeholder="들리는 대로 영어로 쓰세요. 철자가 틀려도 괜찮아요." style="margin-top:8px">${esc(typed)}</textarea><div class="row" style="margin-top:8px"><button class="btn sm primary" data-dcheck="${k}">확인</button>${st?`<button class="btn sm ghost" data-dreset="${k}">다시</button>`:''}</div>${st?`<div class="feedback ${st.pct>=80?'ok':'bad'}">${st.pct}% 일치${st.pct>=80?' · 잘 들었어요':st.pct>=50?' · 거의 다 왔어요':' · 한 번 더 들어 보세요'}</div><pre style="margin-top:8px">${esc(d[0])}</pre><p class="small muted" style="margin-top:4px">${esc(d[1]||'')}</p>`:''}</div>`; }).join(''); const prompts=l.prompts.map((pr,i)=>`<div class="prompt"><div class="t">${esc(pr[0])}</div><pre>${esc(pr[1])}</pre><div class="tools"><button class="btn sm" data-copy="${l.id}:${i}">복사</button><button class="btn sm ghost" data-tolab="${l.id}:${i}">${esc(APP.tolab||'도우미에게 바로 묻기')}</button></div></div>`).join('');
-  const quiz=l.quiz.map((q,qi)=>{ const st=qz[qi]; return `<div class="qbox ${st!=null?(st===q.a?'is-ok':'is-bad'):''}"><div class="qnum">문제 ${qi+1} / ${l.quiz.length}</div><div class="qq">${esc(q.q)}</div><div class="opts">${q.o.map((o,oi)=>{ let cls=''; if(st!=null){ if(oi===q.a) cls='right'; else if(oi===st) cls='wrong'; else cls='dim'; } return `<button class="opt ${cls}" data-qz="${qi}" data-oi="${oi}" ${st!=null?'disabled':''}><span class="k">${oi+1}</span><span>${esc(o)}</span></button>`; }).join('')}</div>${st!=null? (st===q.a? `<div class="feedback ok">맞았어요!${q.x?`<p class="qx">${esc(q.x)}</p>`:''}</div>`:`<div class="feedback bad">정답은 ${q.a+1}번이에요.${q.x?`<p class="qx">${esc(q.x)}</p>`:' 위 본문에서 다시 확인해 보세요.'}</div>`):''}</div>`; }).join('');
+  const quiz=l.quiz.map((q,qi)=>{ const st=qz[qi]; return `<div class="qbox ${st!=null?(st===q.a?'is-ok':'is-bad'):''}"><div class="qnum">문제 ${qi+1} / ${l.quiz.length}</div><div class="qq">${esc(q.q)}</div><div class="opts">${q.o.map((o,oi)=>{ let cls=''; if(st!=null){ if(oi===q.a) cls='right'; else if(oi===st) cls='wrong'; else cls='dim'; } return `<button class="opt ${cls}" data-qz="${qi}" data-oi="${oi}" ${st!=null?'disabled':''}><span class="k">${oi+1}</span><span>${esc(o)}</span></button>`; }).join('')}</div>${st!=null? (st===q.a? `<div class="feedback ok">맞았어요!${q.x?`<p class="qx">${esc(q.x)}</p>`:''}</div>`:`<div class="feedback bad">정답은 ${q.a+1}번이에요.${q.x?`<p class="qx">${esc(q.x)}</p>`:' 위 본문에서 다시 확인해 보세요.'}</div>`):''}${st!=null? `<button class="linkbtn qrep" data-act="report" data-lesson="${l.id}" data-qi="${qi}">이 문제가 이상해요</button>`:''}</div>`; }).join('');
   const answered=Object.keys(qz).length; const correct=l.quiz.filter((q,qi)=>qz[qi]===q.a).length;
   const idx=LESSONS.indexOf(l); const prev=LESSONS[idx-1], nxt=LESSONS[idx+1];
-  const sec=[['sec-key','핵심'],['sec-body','본문']]; if(formulas) sec.push(['sec-steps',APP.sec.steps]); if(dict) sec.push(['sec-dict','받아쓰기']); if(prompts) sec.push(['sec-prompts','클로드']); sec.push(['sec-quiz', answered===l.quiz.length? `퀴즈 ${correct}/${l.quiz.length}`:`퀴즈 ${answered}/${l.quiz.length}`]); sec.push(['sec-task', p.task?'과제 완료':'과제']);
+  const sec=[['sec-key','핵심'],['sec-body','본문']]; if(formulas) sec.push(['sec-steps',APP.sec.steps]); if(dict) sec.push(['sec-dict','받아쓰기']); if(prompts) sec.push(['sec-prompts','AI 질문']); sec.push(['sec-quiz', answered===l.quiz.length? `퀴즈 ${correct}/${l.quiz.length}`:`퀴즈 ${answered}/${l.quiz.length}`]); sec.push(['sec-task', p.task?'과제 완료':'과제']);
   const chip=([id,t])=>`<button class="chip ${(id==='sec-quiz'&&answered===l.quiz.length)||(id==='sec-task'&&p.task)?'ok':''}" data-jump="${id}">${(id==='sec-quiz'&&answered===l.quiz.length)||(id==='sec-task'&&p.task)?icCheck:''}${esc(t)}</button>`;
-  return `<div class="lhead"><div class="lh-in"><button class="back" data-act="back-lessons">‹ 커리큘럼</button><span class="lh-pos num">${idx+1} / ${LESSONS.length}</span></div><div class="readbar"><i></i></div></div>
-  <header class="lhero"><div class="eyb">${esc(l.stageTitle)}</div><h1>${esc(l.title)}</h1><div class="meta">${icClock}<span>약 ${l.min}분</span>${p.done? `<span class="sep"></span><span class="pill ok">${icCheck} 마침</span>`:''}</div></header>
+  return `<div class="lhead"><div class="lh-in">${FROM_PLAN&&(hState()||{}).i===0? '<button class="back" data-act="to-plan">‹ 20시간 계획</button>' : '<button class="back" data-act="back-lessons">‹ 수업 목록</button>'}<span class="lh-pos num">${idx+1} / ${LESSONS.length}</span></div><div class="readbar"><i></i></div></div>
+  <header class="lhero"><div class="eyb">${esc(l.stageTitle)}</div><h1>${esc(l.title)}</h1><div class="meta">${icClock}<span>약 ${l.min}분</span>${HAS_TTS? `<button class="btn sm ghost readbtn" data-act="read" data-lesson="${l.id}">${Reader.on&&Reader.lid===l.id?'■ 읽기 멈춤':'▶ 소리로 듣기'}</button>`:''}${p.done? `<span class="sep"></span><span class="pill ok">${icCheck} 마침</span>`:''}</div></header>
   <nav class="chips" aria-label="이 수업의 구성">${sec.map(chip).join('')}</nav>
-  <section id="sec-key" class="keycard"><h2 class="h2">이 수업의 핵심</h2><ul class="key">${l.key.map(k=>`<li>${esc(k)}</li>`).join('')}</ul></section>
-  <section id="sec-body"><h2 class="h2">자세히</h2><div class="prose">${l.body.map(b=>`<p>${esc(b)}</p>`).join('')}</div></section>
+  <section id="sec-key" class="keycard"><h2 class="h2">이 수업의 핵심</h2><ul class="key">${l.key.map((k,i)=>`<li data-r="k${i}">${esc(k)}</li>`).join('')}</ul></section>
+  <section id="sec-body"><h2 class="h2">자세히</h2><div class="prose">${l.body.map((b,i)=>`<p data-r="b${i}">${esc(b)}</p>`).join('')}</div></section>
   ${formulas? `<section id="sec-steps"><h2 class="h2">${esc(APP.sec.steps)}</h2><div class="stack">${formulas}</div></section>`:''}
   ${dict? `<section id="sec-dict"><h2 class="h2">받아쓰기</h2><div class="stack">${dict}</div></section>`:''}
   ${prompts? `<section id="sec-prompts"><h2 class="h2">${esc(APP.sec.prompts)}</h2><div class="stack">${prompts}</div></section>`:''}
-  <section id="sec-quiz"><h2 class="h2">확인 퀴즈</h2><div class="stack">${quiz}${answered===l.quiz.length? `<p class="qsum ${correct===l.quiz.length?'ok':''}">${correct===l.quiz.length?'모두 맞았어요.':`${l.quiz.length}문제 중 ${correct}문제 맞았어요. 틀린 문제는 본문에서 다시 확인해 보세요.`}</p>`:''}</div></section>
+  <section id="sec-quiz"><h2 class="h2">확인 퀴즈</h2><div class="stack">${quiz}${answered===l.quiz.length? `<p class="qsum ${correct===l.quiz.length?'ok':''}">${correct===l.quiz.length?'모두 맞았어요.':`${l.quiz.length}문제 중 ${correct}문제 맞았어요. 틀린 문제는 본문에서 다시 확인해 보세요.`}</p><button class="btn sm ghost" data-act="quiz-retry">다시 풀기</button>`:''}</div></section>
   <section id="sec-task"><h2 class="h2">실습 과제</h2><button class="check ${p.task?'on':''}" data-act="task" data-lesson="${l.id}"><span class="box">${p.task?'✓':''}</span><span>${esc(l.task)}</span></button><p class="small muted" style="margin-top:8px">과제를 해 봤다면 눌러서 표시하세요.</p></section>
-  <div class="finish">${p.done? `<div class="done-note">${icCheck}<span>이 수업을 마쳤어요</span></div><button class="btn ghost full" data-act="undone" data-lesson="${l.id}">마침 표시 지우기</button>` : `<button class="btn primary big" data-act="done" data-lesson="${l.id}" ${answered===l.quiz.length?'':'disabled'}>${answered===l.quiz.length?'이 수업 마쳤어요':`퀴즈를 모두 풀면 마칠 수 있어요 (${answered}/${l.quiz.length})`}</button>`}</div>
-  <div id="related" class="related"></div>
-  <nav class="pager" aria-label="이전·다음 수업">${prev? `<button class="pg" data-lesson="${prev.id}"><small>이전 수업</small><span>${esc(prev.title)}</span></button>`:'<span></span>'}${nxt? `<button class="pg next" data-lesson="${nxt.id}"><small>다음 수업</small><span>${esc(nxt.title)}</span></button>`:''}</nav>`;
+  <div class="finish">${p.done? `<div class="done-note">${icCheck}<span>이 수업을 마쳤어요</span></div>${stageDoneNote(l)}${nxt? `<button class="btn primary big next-cta" data-lesson="${nxt.id}">다음 수업 · ${esc(nxt.title)}</button>`:''}<button class="linkbtn" data-act="undone" data-lesson="${l.id}">마침 표시 지우기</button>` : `${answered===l.quiz.length? `<button class="btn primary big" data-act="done" data-lesson="${l.id}">이 수업 마쳤어요</button>` : `<button class="btn ghost big" data-act="goto-quiz">퀴즈를 모두 풀면 마칠 수 있어요 (${answered}/${l.quiz.length})</button>`}`}</div>
+  <p class="report-row"><button class="linkbtn" data-act="report" data-lesson="${l.id}">이 수업에 틀린 내용이 있나요? 알려 주세요</button></p>
+  <nav class="pager" aria-label="이전·다음 수업">${prev? `<button class="pg" data-lesson="${prev.id}"><small>이전 수업</small><span>${esc(prev.title)}</span></button>`:'<span></span>'}${nxt? `<button class="pg next" data-lesson="${nxt.id}"><small>다음 수업</small><span>${esc(nxt.title)}</span></button>`:''}</nav>
+  <div id="related" class="related"></div>`;
 }
 
 
@@ -426,12 +515,12 @@ function viewTemplates(){
 /* ---- 실습실 ---- */
 function viewLab(){
   const L=ui.lab; const tabs=`<div class="tabs" style="margin-bottom:12px"><button class="${L.mode==='ask'?'on':''}" data-labmode="ask">물어보기</button><button class="${L.mode==='diag'?'on':''}" data-labmode="diag">${esc(APP.lab.diagTab)}</button></div>`;
-  let avail=''; if(!AI.checked) avail=`<p class="muted small">AI 연결 확인 중...</p>`; else if(!AI.ready) avail=`<div class="note warn">${esc(APP.lab.title)}${josa(APP.lab.title)} <b>claude.ai에 로그인한 상태로 이 링크를 열었을 때</b> 쓸 수 있어요. 지금 화면에서는 '복사' 버튼으로 프롬프트를 복사해 클로드 앱에 붙여 넣어 보세요.</div>`;
+  let avail=''; if(!AI.checked) avail=`<p class="muted small">AI 연결 확인 중...</p>`; else if(!AI.ready) avail=`<div class="note">이 앱 안에서는 AI에게 바로 묻지 못해요. 아래에 쓰고 ${navigator.share? '<b>AI 앱으로 보내기</b>를 누르면 휴대폰의 AI 앱(예: Claude)을 골라 보낼 수 있어요.' : '<b>질문 복사하기</b>를 누른 뒤, 쓰시는 AI 앱(예: Claude)에 붙여 넣으세요.'} 하루 학습은 그 글을 저장하거나 보내지 않아요. <span class="muted">웹에서 claude.ai로 열면 여기서 바로 물어볼 수도 있어요.</span></div>`;
   const diag=L.diag? `<div class="card stack" style="margin-top:12px"><div class="row between"><b>점수 ${esc(L.diag.score)} / 5</b><span class="pill">${esc(L.diag.level||'')}</span></div><div><div class="small muted">좋은 점</div><div>${esc(L.diag.good)}</div></div><div><div class="small muted">고치면 좋은 점</div><div>${esc(L.diag.improve)}</div></div><div class="prompt"><div class="t">고친 프롬프트</div><pre>${esc(L.diag.rewritten)}</pre><div class="tools"><button class="btn sm" data-copytext="1">복사</button><button class="btn sm ghost" data-act="use-rewritten">이걸로 물어보기</button></div></div></div>`:'';
-  return `<div class="topbar"><div class="brand"><h1>${esc(APP.lab.title)}</h1><small>${esc(APP.lab.subtitle)}</small></div><span class="pill">${state.lab}번 연습</span></div>${tabs}${avail}
+  return `<div class="topbar"><div class="brand"><h1>${esc(APP.lab.title)}</h1><small>${esc(APP.lab.subtitle)}</small></div><span class="pill">물어본 횟수 ${state.lab}</span></div>${tabs}${avail}
   <div class="card stack">
-    <div class="field"><label>${L.mode==='ask'?esc(APP.lab.askLabel):esc(APP.lab.diagLabel)}</label><textarea class="ta" id="labIn" placeholder="${L.mode==='ask'?esc(APP.lab.askPh):esc(APP.lab.diagPh)}">${esc(L.prompt)}</textarea></div>
-    <div class="row">${L.busy? `<button class="btn ghost" data-act="lab-stop">멈춤</button><span class="muted small">생각 중...</span>` : `<button class="btn primary" data-act="${L.mode==='ask'?'lab-send':'lab-diag'}" ${AI.ready?'':'disabled'}>${L.mode==='ask'?'보내기':'진단하기'}</button><button class="btn sm ghost" data-act="lab-copy">복사</button><button class="btn sm ghost" data-act="lab-clear">지우기</button>`}</div>
+    <div class="field"><label for="labIn">${L.mode==='ask'?esc(APP.lab.askLabel):esc(APP.lab.diagLabel)}</label><textarea class="ta" id="labIn" placeholder="${L.mode==='ask'?esc(APP.lab.askPh):esc(APP.lab.diagPh)}">${esc(L.prompt)}</textarea></div>
+    <div class="row">${L.busy? `<button class="btn ghost" data-act="lab-stop">멈춤</button><span class="muted small">생각 중...</span>` : `${AI.ready? `<button class="btn primary" data-act="${L.mode==='ask'?'lab-send':'lab-diag'}">${L.mode==='ask'?'보내기':'진단하기'}</button><button class="btn sm ghost" data-act="lab-copy">복사</button>` : `<button class="btn primary" data-act="lab-copy-full" data-share="${navigator.share?'1':''}">${navigator.share?'AI 앱으로 보내기':'질문 복사하기'}</button>${navigator.share? '<button class="btn sm ghost" data-act="lab-copy-full">복사</button>' : ''}`}<button class="btn sm ghost" data-act="lab-clear">지우기</button>`}</div>
     ${L.err? `<div class="note warn">${esc(L.err)}</div>`:''}
   </div>
   ${L.mode==='ask' && L.answer? `<div class="sec-title">클로드의 답</div><div class="card"><div class="answer">${esc(L.answer)}</div></div><p class="muted small" style="margin-top:8px">${esc(APP.lab.tip)}</p>`:''}
@@ -439,7 +528,7 @@ function viewLab(){
 }
 const stripFence=t=>String(t==null?'':t).replace(/```[a-zA-Z]*\n?/g,'');
 async function labSend(){ const L=ui.lab; if(L.busy||!AI.fn) return; const txt=($('#labIn')?$('#labIn').value:'').trim(); if(!txt){ toast('보낼 글을 먼저 쓰세요'); return; } L.prompt=txt; L.busy=true; L.err=''; L.answer=''; state.lab++; touchStreak(); commit(); render(); L.ctl=new AbortController();
-  try{ const r=await AI.fn(txt, {signal:L.ctl.signal, cache:false, onText:({text})=>{ L.answer=stripFence(text); const el=document.querySelector('.answer'); if(el) el.textContent=text; else render(); }}); L.answer=stripFence(r.text); }
+  try{ const r=await AI.fn(txt, {signal:L.ctl.signal, cache:false, onText:({text})=>{ L.answer=stripFence(text); if(ui.view!=='lab') return; const el=document.querySelector('.answer'); if(el) el.textContent=L.answer; else render(); }}); L.answer=stripFence(r.text); }
   catch(e){ L.err=labErr(e); if(e&&e.text) L.answer=e.text; }
   L.busy=false; L.ctl=null; render(); }
 async function labDiag(){ const L=ui.lab; if(L.busy||!AI.fn) return; const txt=($('#labIn')?$('#labIn').value:'').trim(); if(!txt){ toast(APP.diagEmpty||'진단받을 내용을 먼저 쓰세요'); return; } L.prompt=txt; L.busy=true; L.err=''; L.diag=null; state.lab++; touchStreak(); commit(); render(); L.ctl=new AbortController();
@@ -447,27 +536,27 @@ async function labDiag(){ const L=ui.lab; if(L.busy||!AI.fn) return; const txt=(
   try{ const r=await AI.fn.json(p, {signal:L.ctl.signal, cache:false, modelTier:'quick'}); const o=(r&&typeof r==='object')?r:{}; L.diag={score:String(o.score||'?'), level:String(o.level||''), good:String(o.good||''), improve:String(o.improve||''), rewritten:String(o.rewritten||'')}; }
   catch(e){ L.err=labErr(e); }
   L.busy=false; L.ctl=null; render(); }
-function labErr(e){ const code=e&&e.code; const map={not_granted:'이 앱이 Claude를 쓰도록 허용하지 않았어요. 허용하면 쓸 수 있어요.', sampling_disabled:'이 계정에서는 실습실을 쓸 수 없어요.', rate_limited:'요청이 너무 많아요. 잠시 뒤 다시 보내 주세요.', session_expired:'로그인이 풀렸어요. 다시 로그인해 주세요.', cancelled:'', invalid_json:'답을 읽지 못했어요. 한 번 더 눌러 주세요.', refused:'이 내용에는 답할 수 없대요. 다른 내용으로 해 보세요.', empty_completion:'답이 비어 있어요. 한 번 더 보내 주세요.'}; if(code==='not_granted'||code==='sampling_disabled') AI.ready=false; return code in map? map[code] : '연결에 문제가 생겼어요. 잠시 뒤 다시 보내 주세요.'; }
+function labErr(e){ const code=(e&&e.name==='AbortError')? 'cancelled' : (e&&e.code); const map={not_granted:'이 앱이 Claude를 쓰도록 허용하지 않았어요. 허용하면 쓸 수 있어요.', sampling_disabled:'이 계정에서는 실습실을 쓸 수 없어요.', rate_limited:'요청이 너무 많아요. 잠시 뒤 다시 보내 주세요.', session_expired:'로그인이 풀렸어요. 다시 로그인해 주세요.', cancelled:'', invalid_json:'답을 읽지 못했어요. 한 번 더 눌러 주세요.', refused:'이 내용에는 답할 수 없대요. 다른 내용으로 해 보세요.', empty_completion:'답이 비어 있어요. 한 번 더 보내 주세요.'}; if(code==='not_granted'||code==='sampling_disabled') AI.ready=false; return code in map? map[code] : '연결에 문제가 생겼어요. 잠시 뒤 다시 보내 주세요.'; }
 
 /* ---- 복습 퀴즈 ---- */
 let S=null;
 const missMap=()=>{ const M=state.miss||{}; Object.keys(M).forEach(k=>{ const [lid,qi]=k.split(':'); if(!LMAP[lid]||!LMAP[lid].quiz[+qi]) delete M[k]; }); return M; };
 const missCount=()=>Object.keys(missMap()).length;
-function startReview(){ const M=missMap(); const miss=[], rest=[]; LESSONS.forEach(l=>l.quiz.forEach((q,qi)=>{ const k=l.id+':'+qi; if(M[k]) miss.push({l,q,k}); else if(lp(l.id).done) rest.push({l,q,k}); })); const pick=shuffle(miss).slice(0,10); const old=rest.slice().sort((x,y)=>(lp(x.l.id).ts||0)-(lp(y.l.id).ts||0)).slice(0,30); const q=shuffle(pick.concat(shuffle(old).slice(0,10-pick.length))); if(!q.length){ toast('마친 수업이 없어요'); return; } S={q, i:0, ok:0, ng:0, answered:false, missIn:pick.length}; renderSession(); }
-function renderSession(){ const L=$('#layer'); if(!S){ L.innerHTML=''; return; } if(S.i>=S.q.length){ const acc=Math.round(S.ok/S.q.length*100); L.innerHTML=`<div class="layer"><div class="in"><div class="head"><span class="lbl">복습 퀴즈</span></div><div class="qcard" style="text-align:center"><div class="tag">완료</div><div class="q" style="font-size:26px">${acc>=80?'잘했어요!':acc>=50?'좋아요':'다시 한번 읽어 봐요'}</div><div class="sum"><div class="card"><div class="stat"><b class="num">${S.ok}</b><span>정답</span></div></div><div class="card"><div class="stat"><b class="num">${S.ng}</b><span>오답</span></div></div><div class="card"><div class="stat"><b class="num">${acc}%</b><span>정답률</span></div></div></div><p class="muted small">${missCount()? `다시 볼 틀린 문제가 ${missCount()}개 남았어요. 다음 복습에 먼저 나와요.`:'틀린 문제를 모두 다시 맞혔어요.'}</p></div><div class="foot" style="flex-direction:column"><button class="btn primary" data-act="exit">홈으로</button></div></div></div>`; return; }
-  const it=S.q[S.i]; const q=it.q; L.innerHTML=`<div class="layer"><div class="in"><div class="head"><button class="btn sm ghost" data-act="exit">나가기</button><div class="bar"><i style="width:${Math.round(S.i/S.q.length*100)}%"></i></div><span class="lbl num">${S.i+1} / ${S.q.length}</span></div>
+function startReview(){ const M=missMap(); const miss=[], rest=[]; LESSONS.forEach(l=>l.quiz.forEach((q,qi)=>{ const k=l.id+':'+qi; if(M[k]) miss.push({l,q,k}); else if(lp(l.id).done) rest.push({l,q,k}); })); const pick=shuffle(miss).slice(0,10); const seen=x=>(state.rv&&state.rv[x.k])||lp(x.l.id).ts||0; const old=rest.slice().sort((x,y)=>seen(x)-seen(y)).slice(0,30); const q=shuffle(pick.concat(shuffle(old).slice(0,10-pick.length))); if(!q.length){ toast('마친 수업이 없어요'); return; } S={q, i:0, ok:0, ng:0, answered:false, missIn:pick.length}; renderSession(); nav(curRoute(),'push'); }
+function renderSession(){ const L=$('#layer'); layerInert(!!S); if(!S){ L.innerHTML=''; return; } if(S.i>=S.q.length){ const acc=Math.round(S.ok/S.q.length*100); L.innerHTML=`<div class="layer" role="dialog" aria-modal="true" aria-label="복습 퀴즈"><div class="in"><div class="head"><span class="lbl">복습 퀴즈</span></div><div class="qcard" style="text-align:center"><div class="tag">완료</div><div class="q" style="font-size:26px">${acc>=80?'잘했어요!':acc>=50?'좋아요':'다시 한번 읽어 봐요'}</div><div class="sum"><div class="card"><div class="stat"><b class="num">${S.ok}</b><span>정답</span></div></div><div class="card"><div class="stat"><b class="num">${S.ng}</b><span>오답</span></div></div><div class="card"><div class="stat"><b class="num">${acc}%</b><span>정답률</span></div></div></div><p class="muted small">${missCount()? `다시 볼 틀린 문제가 ${missCount()}개 남았어요. 다음 복습에 먼저 나와요.`:'틀린 문제를 모두 다시 맞혔어요.'}</p></div><div class="foot" style="flex-direction:column"><button class="btn primary" data-act="exit">홈으로</button></div></div></div>`; return; }
+  const it=S.q[S.i]; const q=it.q; L.innerHTML=`<div class="layer" role="dialog" aria-modal="true" aria-label="복습 퀴즈"><div class="in"><div class="head"><button class="btn sm ghost" data-act="exit">나가기</button><div class="bar"><i style="width:${Math.round(S.i/S.q.length*100)}%"></i></div><span class="lbl num">${S.i+1} / ${S.q.length}</span></div>
   <div class="qcard"><div class="tag">${esc(it.l.title)}</div><div class="q">${esc(q.q)}</div></div>
   <div class="opts" style="margin-top:14px">${q.o.map((o,oi)=>{ let cls=''; if(S.answered){ if(oi===q.a) cls='right'; else if(oi===it.picked) cls='wrong'; else cls='dim'; } return `<button class="opt ${cls}" data-ropt="${oi}" ${S.answered?'disabled':''}><span class="k">${oi+1}</span><span>${esc(o)}</span></button>`; }).join('')}</div>
   ${S.answered? (it.picked===q.a? `<div class="feedback ok">맞았어요!${q.x?`<p class="qx">${esc(q.x)}</p>`:''}</div>`:`<div class="feedback bad">정답은 ${q.a+1}번. ${q.x?`<p class="qx">${esc(q.x)}</p><p class="qx">수업 '${esc(it.l.title)}'에서 더 볼 수 있어요.</p>`:`수업 '${esc(it.l.title)}'을 다시 보세요.`}</div>`):''}
-  <div class="foot">${S.answered? `<button class="btn primary" data-act="rnext">다음</button>`:''}</div></div></div>`; }
+  <div class="foot">${S.answered? `<button class="btn ghost" data-act="report" data-lesson="${it.l.id}" data-qi="${it.l.quiz.indexOf(q)}">문제 신고</button><button class="btn primary" data-act="rnext">다음</button>`:''}</div></div></div>`; const ft=L.querySelector(S.answered? '.feedback' : '.qcard'); if(ft){ ft.setAttribute('tabindex','-1'); try{ ft.focus({preventScroll:true}); }catch(e){} } }
 
 /* ---- 더보기 ---- */
 function viewMore(){
   const tabs=[['guide','안내'],['settings','설정'],['backup','백업']].map(([k,l])=>`<button class="${ui.more===k?'on':''}" data-more="${k}">${l}</button>`).join('');
   let body='';
   if(ui.more==='guide') body=`<div class="card guide">`+APP.guide+`</div>`;
-  else if(ui.more==='settings') body=`<div class="card stack"><div class="field"><label>색 조합</label><div class="skins">${SKINS.map(k=>`<button class="skin ${state.settings.skin===k[0]?'on':''}" data-skin="${k[0]}"><span class="sw">${k[2].map(c=>`<i style="background:${c}"></i>`).join('')}</span><span>${k[1]}</span></button>`).join('')}</div></div><div class="field" style="margin-top:8px"><label>진도 초기화</label>${ui.confirmReset? `<div class="row"><button class="btn danger" data-act="reset-yes">네, 모두 지울게요</button><button class="btn ghost" data-act="reset-no">취소</button></div>`:`<button class="btn ghost" data-act="reset-ask">모든 학습 기록 지우기</button>`}</div></div>`;
-  else body=`<div class="card stack"><div class="field"><label>내보내기</label><textarea class="ta small" id="exportTa" readonly>${esc(JSON.stringify(state))}</textarea><div class="row"><button class="btn sm" data-act="copy-export">복사하기</button></div></div><div class="field" style="margin-top:8px"><label>가져오기</label><textarea class="ta small" id="importTa" placeholder="내보내기로 복사해 둔 글을 붙여 넣으세요">${esc(ui.importText)}</textarea><div class="row"><button class="btn sm primary" data-act="do-import">가져오기 (지금 진도를 덮어써요)</button></div></div></div>`;
+  else if(ui.more==='settings') body=`<div class="card stack"><div class="field"><label>글자 크기</label><div class="tabs">${FS.map(([v,l])=>`<button class="${(+prefsGet().fs||1)===v?'on':''}" data-fs="${v}" aria-pressed="${(+prefsGet().fs||1)===v}">${l}</button>`).join('')}</div><p class="fsprev">가나다 ABC 123 · 이 크기로 모든 앱과 홈 화면이 보여요.</p></div><div class="field" style="margin-top:8px"><label>색 조합</label><div class="skins">${SKINS.map(k=>`<button class="skin ${state.settings.skin===k[0]?'on':''}" data-skin="${k[0]}" aria-pressed="${state.settings.skin===k[0]}"><span class="sw">${k[2].map(c=>`<i style="background:${c}"></i>`).join('')}</span><span>${k[1]}</span></button>`).join('')}</div></div><div class="field" style="margin-top:8px"><label>진도 초기화</label>${ui.confirmReset? `<div class="row"><button class="btn danger" data-act="reset-yes">네, 모두 지울게요</button><button class="btn ghost" data-act="reset-no">취소</button></div>`:`<button class="btn ghost" data-act="reset-ask">모든 학습 기록 지우기</button>`}</div></div>`;
+  else body=`<div class="card stack"><div class="field"><label for="exportTa">내보내기</label><textarea class="ta small" id="exportTa" readonly>${esc(JSON.stringify(state))}</textarea><div class="row"><button class="btn sm" data-act="copy-export">복사하기</button></div></div><div class="field" style="margin-top:8px"><label for="importTa">가져오기</label><textarea class="ta small" id="importTa" placeholder="내보내기로 복사해 둔 글을 붙여 넣으세요">${esc(ui.importText)}</textarea><div class="row"><button class="btn sm primary" data-act="do-import">가져오기 (지금 진도를 덮어써요)</button></div></div></div>`;
   return `<div class="topbar"><div class="brand"><h1>더보기</h1></div><span class="pill ${Sync.status==='cloud'?'ok':''}">${Sync.status==='cloud'?'계정에 저장 중':'이 기기에 저장'}</span></div><div class="tabs" style="margin-bottom:12px">${tabs}</div>${body}`;
 }
 
@@ -477,8 +566,8 @@ document.addEventListener('click', e=>{
   const b=e.target.closest('button'); if(!b) return; const d=b.dataset;
   if(d.jump){ const el=document.getElementById(d.jump); if(el) el.scrollIntoView({behavior:'smooth', block:'start'}); return; }
   if(d.nav){ if(d.mode) ui.lab.mode=d.mode; go(d.nav, {lesson:null, stage:null}); return; }
-  if(d.stage){ go('lessons', {lesson:null}); const el=document.getElementById('stage-'+d.stage); if(el) el.scrollIntoView({block:'start'}); return; }
-  if(d.lesson && !d.act){ ui.qz={}; go('lessons', {lesson:d.lesson}); return; }
+  if(d.stage){ ui.lq=''; go('lessons', {lesson:null}); const el=document.getElementById('stage-'+d.stage); if(el) el.scrollIntoView({block:'start'}); return; }
+  if(d.lesson && !d.act){ ui.qz=qzFor(d.lesson); go('lessons', {lesson:d.lesson}); return; }
   if(d.copy){ copyText(promptText(d.copy)); return; }
   if(d.copyf){ const [lid,i]=d.copyf.split(':'); copyText(LMAP[lid].formulas[+i][1]); return; }
   if(d.say){ const [lid,i]=d.say.split(':'); speak(LMAP[lid].formulas[+i][1], false); return; }
@@ -486,23 +575,33 @@ document.addEventListener('click', e=>{
   if(d.dcheck){ const [lid,i]=d.dcheck.split(':'); const ta=$('#dict-'+lid+'-'+i); const typed=(ta?ta.value:'').trim(); if(!typed){ toast('먼저 들리는 대로 써 보세요'); return; } ui.dictTyped[d.dcheck]=typed; ui.dict[d.dcheck]={pct:sim(typed, LMAP[lid].dict[+i][0])}; touchStreak(); commit(); render(); return; }
   if(d.dreset){ delete ui.dict[d.dreset]; ui.dictTyped[d.dreset]=''; render(); return; }
   if(d.copytext){ if(ui.lab.diag) copyText(ui.lab.diag.rewritten); return; }
-  if(d.tolab){ ui.lab.prompt=promptText(d.tolab); ui.lab.mode='ask'; ui.lab.answer=''; go('lab'); toast(AI.ready? '보내기를 누르면 바로 물어봐요' : '[ ] 안을 바꾼 뒤 복사해서 클로드 앱에 붙여 넣으세요'); return; }
-  if(d.qz!=null){ ui.qz=ui.qz||{}; if(ui.qz[d.qz]!=null) return; const l=LMAP[ui.lesson]; const q=l.quiz[+d.qz]; ui.qz[d.qz]=+d.oi; const ok=+d.oi===q.a; if(ok) state.quiz.ok++; else { state.quiz.ng++; state.miss=state.miss||{}; const mk=l.id+':'+d.qz; state.miss[mk]=(state.miss[mk]||0)+1; } const p=Object.assign({}, lp(l.id)); const answered=Object.keys(ui.qz).length; if(answered===l.quiz.length){ p.quiz={ok:l.quiz.filter((qq,qi)=>ui.qz[qi]===qq.a).length, total:l.quiz.length}; } state.lessons[l.id]=p; touchStreak(); commit(); render(); return; }
-  if(d.ropt!=null){ if(!S||S.answered) return; const it=S.q[S.i]; it.picked=+d.ropt; S.answered=true; state.miss=state.miss||{}; if(it.picked===it.q.a){ S.ok++; state.quiz.ok++; if(it.k) delete state.miss[it.k]; } else { S.ng++; state.quiz.ng++; if(it.k) state.miss[it.k]=(state.miss[it.k]||0)+1; } touchStreak(); commit(); renderSession(); return; }
+  if(d.tolab){ ui.lab.prompt=promptText(d.tolab); ui.lab.mode='ask'; ui.lab.answer=''; go('lab',null,'push'); toast(AI.ready? '보내기를 누르면 바로 물어봐요' : '[ ] 안을 바꾼 뒤 복사해서 클로드 앱에 붙여 넣으세요'); return; }
+  if(d.qz!=null){ ui.qz=ui.qz||{}; if(ui.qz[d.qz]!=null) return; const l=LMAP[ui.lesson]; const qi=+d.qz; const q=l.quiz[qi]; ui.qz[qi]=+d.oi; const ok=+d.oi===q.a; const p=Object.assign({}, lp(l.id)); const qa=Object.assign({}, p.qa||{}); const again=(qa[qi]!=null)||!!p.quiz; const mk=l.id+':'+qi; state.miss=state.miss||{}; if(ok){ if(!again) state.quiz.ok++; else if(state.miss[mk]) delete state.miss[mk]; } else { if(!again) state.quiz.ng++; state.miss[mk]=(state.miss[mk]||0)+1; } if(qa[qi]==null) qa[qi]=+d.oi; p.qa=qa; const answered=Object.keys(ui.qz).length; if(answered===l.quiz.length){ p.quiz={ok:l.quiz.filter((qq,k)=>ui.qz[k]===qq.a).length, total:l.quiz.length}; } state.lessons[l.id]=p; touchStreak(); commit(); render(); const fb=document.querySelectorAll('#sec-quiz .qbox')[qi]; const f=fb&&fb.querySelector('.feedback'); if(f){ f.setAttribute('tabindex','-1'); try{ f.focus({preventScroll:true}); }catch(e){} } return; }
+  if(d.ropt!=null){ if(!S||S.answered) return; const it=S.q[S.i]; it.picked=+d.ropt; S.answered=true; state.miss=state.miss||{}; state.rv=state.rv||{}; if(it.k) state.rv[it.k]=Date.now(); logDay(0.5); if(it.picked===it.q.a){ S.ok++; state.quiz.ok++; if(it.k) delete state.miss[it.k]; } else { S.ng++; state.quiz.ng++; if(it.k) state.miss[it.k]=(state.miss[it.k]||0)+1; } touchStreak(); commit(); renderSession(); return; }
   if(d.labmode){ ui.lab.mode=d.labmode; ui.lab.err=''; render(); return; }
   if(d.skin){ state.settings.skin=d.skin; commit(); render(); return; }
+  if(d.fs){ prefsSet({fs:+d.fs}); applyFs(); render(); return; }
   if(d.more){ ui.more=d.more; ui.confirmReset=false; render(); return; }
   switch(d.act){
-    case 'back-lessons': ui.lesson=null; render(); window.scrollTo(0,0); break;
+    case 'back-lessons': go('lessons',{lesson:null}); break;
     case 'task': { const p=Object.assign({}, lp(d.lesson)); p.task=!p.task; state.lessons[d.lesson]=p; touchStreak(); commit(); render(); break; }
-    case 'done': { const p=Object.assign({}, lp(d.lesson)); p.done=true; p.ts=Date.now(); state.lessons[d.lesson]=p; touchStreak(); commit(); toast('수업을 마쳤어요'); render(); break; }
+    case 'done': { const p=Object.assign({}, lp(d.lesson)); const first=!p.done; p.done=true; p.ts=Date.now(); state.lessons[d.lesson]=p; touchStreak(first&&LMAP[d.lesson]? (+LMAP[d.lesson].min||8) : 0); commit(); toast('수업을 마쳤어요'); render(); break; }
     case 'undone': { const p=Object.assign({}, lp(d.lesson)); delete p.done; state.lessons[d.lesson]=p; commit(); render(); break; }
     case 'review': startReview(); break;
-    case 'exit': S=null; renderSession(); render(); break;
+    case 'to-plan': if(history.length>1) history.back(); else location.href='../plan/index.html'; break;
+    case 'goto-quiz': { const qz=ui.qz||{}; const l=LMAP[ui.lesson]; const i=l? l.quiz.findIndex((q,k)=>qz[k]==null) : -1; const el=i>=0? document.querySelectorAll('#sec-quiz .qbox')[i] : null; if(el){ el.scrollIntoView({block:'center'}); const b=el.querySelector('.opt'); if(b){ try{ b.focus({preventScroll:true}); }catch(e){} } } toast('아직 안 푼 문제가 있어요'); break; }
+    case 'report': openReport(reportCtx(d.lesson, d.qi)); break;
+    case 'quiz-retry': { ui.qz={}; render(); const el=document.getElementById('sec-quiz'); if(el) el.scrollIntoView({block:'start'}); break; }
+    case 'read': { if(Reader.on&&Reader.lid===d.lesson) Reader.stop(); else Reader.start(LMAP[d.lesson]); const rb=document.querySelector('.readbtn'); if(rb) rb.textContent=Reader.on?'■ 읽기 멈춤':'▶ 소리로 듣기'; break; }
+    case 'read-pause': Reader.pause(); break;
+    case 'read-rate': Reader.rate(); break;
+    case 'read-stop': Reader.stop(); break;
+    case 'exit': { const hs=hState(); if(hs&&hs.r&&hs.r.rv&&hs.i>0){ goBack(1); } else { S=null; renderSession(); render(); } break; }
     case 'rnext': if(S){ S.i++; S.answered=false; renderSession(); } break;
     case 'lab-send': labSend(); break;
     case 'lab-diag': labDiag(); break;
     case 'lab-stop': if(ui.lab.ctl) ui.lab.ctl.abort(); break;
+    case 'lab-copy-full': { const t=($('#labIn')?$('#labIn').value:'').trim(); if(!t){ toast('먼저 물어볼 글을 쓰세요'); break; } ui.lab.prompt=t; const full= ui.lab.mode==='diag'? (typeof APP.diagPrompt==='function'? APP.diagPrompt(t)+'\n\n[중요] 위에서 말한 JSON 형식 대신, 같은 내용을 한국어 보통 글로 알기 쉽게 정리해서 답해 주세요.' : `아래 내용을 '${APP.lab.diagTab}' 관점에서 살펴봐 주세요. 점수(1~5점, 5점이 가장 좋거나 안전해요)와 그렇게 본 이유, 좋은 점, 고치면 좋은 점, 고친 내용을 쉬운 한국어로 알려 주세요.\n\n---\n${t}`) : t; if(d.share&&navigator.share){ navigator.share({text:full}).then(()=>{ state.lab++; touchStreak(1); commit(); }).catch(e=>{ if(!(e&&e.name==='AbortError')) copyText(full); }); break; } copyText(full, ()=>{ ui.lab.prompt=full; render(); const ta=$('#labIn'); if(ta){ ta.focus(); ta.select(); } toast('자동 복사가 안 돼요. 선택된 글을 길게 눌러 복사하세요'); }); break; }
     case 'lab-copy': { const t=($('#labIn')?$('#labIn').value:'').trim(); if(t) copyText(t); break; }
     case 'lab-clear': ui.lab.prompt=''; ui.lab.answer=''; ui.lab.diag=null; ui.lab.err=''; render(); break;
     case 'use-rewritten': if(ui.lab.diag){ ui.lab.prompt=ui.lab.diag.rewritten; ui.lab.mode='ask'; ui.lab.answer=''; render(); } break;
@@ -522,9 +621,27 @@ function sim(a,b){ a=normEn(a); b=normEn(b); const d=lev(a,b); const L=Math.max(
 if('speechSynthesis' in window){ try{ speechSynthesis.getVoices(); speechSynthesis.onvoiceschanged=()=>speechSynthesis.getVoices(); }catch(e){} }
 document.addEventListener('keydown', e=>{ if(!S) return; if(e.key==='Enter'&&S.answered){ e.preventDefault(); S.i++; S.answered=false; renderSession(); } else if(/^[1-4]$/.test(e.key)&&!S.answered){ const b=document.querySelector(`[data-ropt="${+e.key-1}"]`); if(b) b.click(); } });
 
-loadLocal(); applySkin(); render(); Sync.init(); AI.init();
-if(location.hash==='#review'){ history.replaceState(null,'',location.pathname); if(missCount()||doneCount()) startReview(); }
-{ const m=location.hash.match(/^#lesson=(l\d+)$/); if(m&&LMAP[m[1]]){ history.replaceState(null,'',location.pathname); ui.qz={}; go('lessons',{lesson:m[1]}); } }
+loadLocal(); applySkin();
+try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(e){}
+if(!LESSONS.length){ $('#app').innerHTML='<a class="hub2" href="../index.html">‹ 전체 앱</a><div class="note warn" role="alert" style="margin-top:12px">수업 자료를 불러오지 못했어요. 인터넷에 연결한 뒤 다시 열어 주세요.</div><button class="btn primary big" style="margin-top:12px" onclick="location.reload()">다시 시도</button>'; return; }
+{ const hs=hState(), hash=location.hash, m=hash.match(/^#lesson=(l\d+)/); const badLesson=/^#lesson=/.test(hash)&&!(m&&LMAP[m[1]]);
+  if(hash){ try{ history.replaceState(hs,'',location.pathname+location.search); }catch(e){} }
+  if(m&&LMAP[m[1]]){ ui.view='lessons'; ui.lesson=m[1]; ui.qz=qzFor(m[1]); nav(curRoute(),'replace'); }
+  else if(hs&&hs.r){ ui.view=hs.r.v||'home'; ui.lesson=(hs.r.l&&LMAP[hs.r.l])?hs.r.l:null; ui.qz=ui.lesson? qzFor(ui.lesson) : {}; if(hs.r.rv) nav(Object.assign(curRoute(),{rv:0}),'replace'); }
+  else nav(curRoute(),'replace');
+  render(); if(hs&&hs.y&&!m) window.scrollTo(0,hs.y);
+  Sync.init(); AI.init();
+  if(badLesson){ go('lessons',{lesson:null},'replace'); toast('그 수업을 찾지 못했어요. 수업 목록에서 골라 주세요'); }
+  if(hash==='#review'){ if(missCount()||doneCount()) startReview(); else toast('복습할 문제가 아직 없어요. 수업을 하나 마치면 생겨요'); } }
+window.addEventListener('hashchange', ()=>{ const h=location.hash, mm=h.match(/^#lesson=(l\d+)/); if(mm&&LMAP[mm[1]]){ try{ history.replaceState(hState(),'',location.pathname+location.search); }catch(e){} ui.qz=qzFor(mm[1]); go('lessons',{lesson:mm[1]},'push'); } else if(/^#lesson=/.test(h)){ toast('그 수업을 찾지 못했어요. 수업 목록에서 골라 주세요'); } else if(h==='#review'){ try{ history.replaceState(hState(),'',location.pathname+location.search); }catch(e){} if(missCount()||doneCount()) startReview(); } });
+/* ---- 다른 탭·뒤로 가기 캐시에서 돌아왔을 때: 저장된 진도를 다시 읽어서 최신 진도를 덮어쓰지 않게 ---- */
+let shownDay=today();
+function refreshFromStorage(){ let raw=null; try{ raw=localStorage.getItem(KEY); }catch(e){ return; } let nx; try{ nx=raw? migrate(JSON.parse(raw)) : defaults(); }catch(e){ return; }
+  if((nx.updatedAt||0)!==(state.updatedAt||0)){ state=nx; applySkin(); shownDay=today(); if(S) renderSession(); else render(); return; }
+  if(shownDay!==today()){ shownDay=today(); if(!S) render(); } }
+window.addEventListener('pageshow', e=>{ if(e.persisted) refreshFromStorage(); });
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshFromStorage(); });
+window.addEventListener('storage', e=>{ if(e.key===KEY||e.key===null) refreshFromStorage(); });
 })();
 </script>
 </body></html>

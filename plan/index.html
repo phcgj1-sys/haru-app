@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script>try{var HP=JSON.parse(localStorage.getItem('haru_prefs_v1')||'{}');if(HP.fs>1&&HP.fs<2)document.documentElement.style.zoom=HP.fs;}catch(e){}</script>
 <meta name="theme-color" content="#F7F7F5" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0F0F10" media="(prefers-color-scheme: dark)">
 <title>20시간 핵심 계획 · 하루 학습</title>
@@ -95,7 +96,16 @@ table.blocks tr.rv td.tm{color:var(--ok);padding-left:6px}
 .skip{background:var(--warn-soft);color:var(--warn);border-radius:12px;padding:10px 12px;font-size:13.5px;margin-top:10px}
 a:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--fg);outline-offset:2px}
 [hidden]{display:none!important}
+body{word-break:keep-all;overflow-wrap:anywhere}
 .foot{margin-top:28px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--muted)}
+.links a{min-height:44px}.links a.ok{background:var(--ok-soft);color:var(--ok)}
+.review details summary{min-height:44px;display:flex;align-items:center}
+a.inl{font-weight:700;text-decoration:underline;text-underline-offset:3px}
+table.blocks td.ck{width:1%;padding-right:0}.bk{width:36px;height:36px;border-radius:50%;border:2px solid var(--line);background:var(--surface);color:var(--ok);font-weight:800;font-size:16px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.bk[aria-pressed="true"]{border-color:var(--ok);background:var(--ok-soft)}
+table.blocks tr[data-ok] td:not(.ck){opacity:.6}
+p.row .btn{margin-right:4px}a.btn{text-decoration:none}
+details.box>summary::after{content:'▾';margin-left:auto;padding-left:8px;color:var(--muted)}details.box[open]>summary::after{content:'▴'}
 </style>
 </head>
 <body>
@@ -115,7 +125,7 @@ var timerId = null;
 
 function seg() {
   return '<a class="back" href="../index.html">‹ 하루 학습</a>' +
-    '<nav class="seg" aria-label="학습 방식 고르기"><a href="../index.html"><b>기존 학습</b><span>앱별 전체 수업</span></a><a href="./" aria-current="page"><b>20시간 핵심 계획</b><span>2시간 × 10세션</span></a></nav>';
+    '<nav class="seg" aria-label="학습 방식 고르기"><a href="../index.html"><b>앱별 학습</b><span>앱마다 모든 수업</span></a><a href="./" aria-current="page"><b>20시간 핵심 계획</b><span>2시간 × 10세션</span></a></nav>';
 }
 
 function renderList() {
@@ -125,11 +135,12 @@ function renderList() {
   var last = store._last;
   if (last && appInfo(last) && prog(last) < 10) {
     var a = appInfo(last);
-    h += '<a class="resume" href="#app=' + last + '"><span><div class="rk">이어서 하기</div><div class="rt">' + esc(a.title) + '</div><div class="rk">세션 ' + (prog(last) + 1) + ' / 10</div></span><span class="go">계속</span></a>';
+    var tmr = store[last] && store[last].timer, tOn = tmr && (Date.now() - tmr.start) < 7200000;
+    h += '<a class="resume" href="#app=' + last + '"><span><div class="rk">' + (tOn ? '타이머 진행 중' : '이어서 하기') + '</div><div class="rt">' + esc(a.title) + '</div><div class="rk">세션 ' + (tOn ? tmr.n : nextSession(last)) + ' / 10' + (tOn ? ' · 남은 시간 약 ' + Math.max(1, Math.ceil((7200000 - (Date.now() - tmr.start)) / 60000)) + '분' : '') + '</div></span><span class="go">계속</span></a>';
   }
   h += '<div class="box"><b>세션 하나 = 2시간</b><div class="rhythm" aria-hidden="true"><span style="flex:25">개념</span><span style="flex:35">따라 하기</span><span style="flex:45">실습</span><span style="flex:15">복습 15분</span></div>' +
-    '<p class="small muted">시간은 앱마다 조금씩 달라요. 마지막 15분은 언제나 복습이에요. 핵심 개념을 안 보고 말해 보고, 질문 5개에 먼저 답한 뒤 펼쳐서 맞춰 봐요. 세션 2부터는 지난 세션 질문도 섞여 있어서 저절로 간격 반복이 돼요.</p>' +
-    '<p class="small muted">수업 링크를 누르면 그 앱의 해당 수업이 바로 열려요. 계획에 없는 나머지 수업은 20시간을 마친 뒤 \'기존 학습\'에서 이어 보면 돼요.</p></div>';
+    '<p class="small muted">시간은 앱마다 조금씩 달라요. 마지막 15분은 언제나 복습이에요. 핵심 개념을 안 보고 말해 보고, 질문 5개에 먼저 답한 뒤 펼쳐서 맞춰 봐요. 세션 2부터는 지난 세션 질문도 섞여 있어서, 잊기 전에 다시 보게 돼요.</p>' +
+    '<p class="small muted">수업 링크를 누르면 그 앱의 해당 수업이 바로 열려요. 계획에 없는 나머지 수업은 20시간을 마친 뒤 \'앱별 학습\'에서 이어 보면 돼요.</p></div>';
   for (var g = 0; g < APPS.length; g++) {
     h += '<h2 class="grp">' + esc(APPS[g].name) + '</h2><div class="grid">';
     for (var i = 0; i < APPS[g].apps.length; i++) {
@@ -138,7 +149,7 @@ function renderList() {
     }
     h += '</div>';
   }
-  h += '<p class="foot">진도는 이 기기 브라우저에만 저장돼요. 기존 학습의 진도와는 따로 기록돼요.</p>';
+  h += '<p class="foot">진도는 이 기기에만 저장돼요. 앱별 학습의 진도와는 따로 기록돼요. <a href="../index.html#backup">진도 백업하기</a></p>';
   root.innerHTML = h;
   window.scrollTo(0, 0);
 }
@@ -153,11 +164,20 @@ function loadPlan(slug, cb) {
   document.head.appendChild(s);
 }
 
+var APPKEY = {"cap":"ai_capstone_study_v1","llm":"ai_llm_scratch_study_v1","mm":"ai_multimodal_study_v1","gen":"ai_gen_audio_study_v1","nlp":"ai_nlp_study_v1","rl":"ai_rl_study_v1","cv":"ai_cv_study_v1","found":"ai_found_math_study_v1","re":"ai_reverse_eng_study_v1","ml":"ai_ml_dl_study_v1","claude":"claude_study_v1","excel":"excel_study_v1","sheets":"sheets_study_v1","listen":"listen_study_v1","basics":"basics_study_v1","media":"media_study_v1","writing":"writing_study_v1","money":"money_study_v1","homepage":"homepage_study_v1","youtube":"youtube_study_v1","github":"github_study_v1","linux":"linux_slack_study_v1","ai":"ai_llm_eng_study_v1","tools":"ai_tools_mcp_study_v1","agent":"ai_agent_eng_study_v1","auto":"ai_autonomy_study_v1","multi":"ai_multiagent_study_v1","infra":"ai_infra_ops_study_v1","safety":"ai_safety_align_study_v1","winpc":"winpc_study_v1","network":"network_study_v1","script":"script_study_v1"};
+function appDone(slug) { var k = APPKEY[slug]; if (!k) return {}; try { var st = JSON.parse(localStorage.getItem(k) || 'null'); var L = (st && st.lessons) || {}, o = {}; for (var id in L) if (L[id] && L[id].done) o[id] = 1; return o; } catch (e) { return {}; } }
+function nextSession(slug) { var d = (store[slug] && store[slug].done) || {}; for (var k = 1; k <= 10; k++) if (!d[k]) return k; return 10; }
+function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function fmtIds(slug, html) {
+  return String(html).replace(/\bl0?(\d{1,2})\s*~\s*l0?(\d{1,2})\b/g, '수업 $1~$2').replace(/\bl(\d{2})\b/g, function (m, n) { return '<a class="inl" href="../' + slug + '/index.html#lesson=l' + n + '">수업 ' + (+n) + '</a>'; });
+}
+var cameFromList = false, lastHash = location.hash;
 function lessonLinks(slug, ids) {
   if (!ids) return '';
   var parts = String(ids).split(',').map(function (x) { return x.trim(); }).filter(Boolean);
   if (!parts.length) return '';
-  return '<div class="links">' + parts.map(function (id) { return '<a href="../' + slug + '/index.html#lesson=' + id + '">수업 ' + esc(id.replace(/^l0?/, '')) + ' 열기</a>'; }).join('') + '</div>';
+  var dn = appDone(slug);
+  return '<div class="links">' + parts.map(function (id) { return '<a href="../' + slug + '/index.html#lesson=' + id + '"' + (dn[id] ? ' class="ok"' : '') + '>' + (dn[id] ? '✓ ' : '') + '수업 ' + esc(id.replace(/^l0?/, '')) + (dn[id] ? ' 마침' : ' 열기') + '</a>'; }).join('') + '</div>';
 }
 
 function renderPlan(slug, openN) {
@@ -173,45 +193,56 @@ function renderPlan(slug, openN) {
     var n = Object.keys(done).length;
     var firstOpen = openN || 0;
     if (!firstOpen) { for (var k = 1; k <= 10; k++) if (!done[k]) { firstOpen = k; break; } }
-    var h = '<a class="back" href="#">‹ 계획 목록</a>';
+    var h = '<a class="back" href="#" data-tolist="1">‹ 계획 목록</a>';
     h += '<div style="display:flex;gap:12px;align-items:center;margin:4px 0 10px">' + icon(info) + '<div><h1 style="font-size:21px">' + esc(P.title) + '</h1><div class="small muted">20시간 핵심 계획 · 2시간 × 10세션</div></div></div>';
-    h += '<div class="stat"><div><b>' + n + '/10</b><span>마친 세션</span></div><div><b>' + (n * 2) + '시간</b><span>한 시간</span></div><div><b>' + P.core.length + '개</b><span>핵심 개념</span></div></div>';
+    h += '<div class="stat"><div><b>' + n + '/10</b><span>마친 세션</span></div><div><b>' + (n * 2) + '시간</b><span>공부한 시간</span></div><div><b>' + P.core.length + '개</b><span>핵심 개념</span></div></div>';
     h += '<div class="box"><b>20시간 뒤 할 수 있는 것</b><p>' + esc(P.outcome) + '</p><p class="small muted">' + esc(P.why) + '</p>';
-    h += '<p style="margin-top:12px"><a class="btn ghost" href="../' + slug + '/index.html">앱 열기 (기존 학습)</a></p></div>';
-    h += '<details class="box" open><summary style="cursor:pointer;min-height:28px"><b>핵심 20% 개념 ' + P.core.length + '개</b></summary><ol class="core">';
+    h += '<p class="row" style="margin-top:12px">' + (n < 10 ? '<a class="btn" href="#app=' + slug + '&s=' + nextSession(slug) + '">세션 ' + nextSession(slug) + ' 시작하기</a>' : '') + '<a class="btn ghost" href="../' + slug + '/index.html">앱 열기 (모든 수업)</a></p></div>';
+    h += '<details class="box"><summary style="cursor:pointer;min-height:44px;display:flex;align-items:center"><b>핵심 20% 개념 ' + P.core.length + '개</b></summary><ol class="core">';
     P.core.forEach(function (c) { h += '<li><b>' + esc(c[0]) + '</b><div>' + esc(c[1]) + '</div>' + lessonLinks(slug, c[2]) + '</li>'; });
-    h += '</ol><div class="skip"><b>이번 20시간에서 미루는 것</b> · ' + esc(P.skip) + '</div></details>';
+    h += '</ol><div class="skip"><b>이번 20시간에서 미루는 것</b> · ' + fmtIds(slug, esc(P.skip)) + '</div></details>';
     h += '<h2 class="grp" style="margin-top:20px">세션 10개</h2>';
     P.sessions.forEach(function (s) {
       var isDone = !!done[s.n];
-      h += '<details class="ses' + (isDone ? ' done' : '') + '" id="s' + s.n + '"' + (s.n === firstOpen ? ' open' : '') + '><summary><span class="num">' + (isDone ? '✓' : s.n) + '</span><span style="flex:1;min-width:0"><div class="sum-t">세션 ' + s.n + '. ' + esc(s.title) + '</div><div class="sum-s">' + (isDone ? esc(done[s.n]) + ' 마침' : '2시간 · 마지막 15분 복습') + '</div></span></summary><div class="ses-body">';
-      h += '<div class="goal">' + esc(s.goal) + '</div>';
+      h += '<details class="ses' + (isDone ? ' done' : '') + '" id="s' + s.n + '"' + (s.n === firstOpen ? ' open' : '') + '><summary><span class="num">' + (isDone ? '✓' : s.n) + '</span><span style="flex:1;min-width:0"><div class="sum-t">세션 ' + s.n + '. ' + esc(s.title) + '</div><div class="sum-s">' + (isDone ? esc(done[s.n]) + ' 마침' : (function () { var c = 0; for (var bi = 0; bi < s.blocks.length; bi++) if ((st.blk || {})[s.n + ':' + bi]) c++; return c ? '블록 ' + c + '/' + s.blocks.length + ' 마침 · 이어서 하기' : '2시간 · 마지막 15분 복습'; })()) + '</div></span></summary><div class="ses-body">';
+      h += '<div class="goal">' + fmtIds(slug, esc(s.goal)) + '</div>';
       h += '<div class="tags">' + s.core.map(function (ci) { return '<span>' + esc((P.core[ci] || [''])[0]) + '</span>'; }).join('') + '</div>';
       h += '<table class="blocks"><tbody>';
       s.blocks.forEach(function (b, bi) {
         var rv = bi === s.blocks.length - 1;
-        h += '<tr' + (rv ? ' class="rv"' : '') + ' data-b="' + bi + '"><td class="tm">' + esc(b[0]) + '</td><td>' + esc(b[1]) + lessonLinks(slug, b[2]) + '</td></tr>';
+        var bk = (st.blk || {})[s.n + ':' + bi];
+        h += '<tr' + (rv ? ' class="rv"' : '') + (bk ? ' data-ok="1"' : '') + ' data-b="' + bi + '"><td class="tm">' + esc(b[0]) + '</td><td>' + fmtIds(slug, esc(b[1])) + lessonLinks(slug, b[2]) + '</td><td class="ck"><button type="button" class="bk" data-blk="' + s.n + ':' + bi + '" aria-pressed="' + (!!bk) + '" aria-label="' + esc(b[0]) + ' 블록 ' + (bk ? '마침 지우기' : '마침') + '">' + (bk ? '✓' : '') + '</button></td></tr>';
       });
       h += '</tbody></table>';
-      h += '<div class="h3">이 세션의 실습</div><div class="practice">' + esc(s.practice) + '</div>';
+      h += '<div class="h3">이 세션의 실습</div><div class="practice">' + fmtIds(slug, esc(s.practice)) + '</div>';
       h += '<div class="review"><div class="h3">마지막 15분 복습</div><ul>' + s.review.steps.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>';
-      s.review.q.forEach(function (q, qi) { h += '<details><summary>' + (qi + 1) + '. ' + esc(q[0]) + '</summary><p>' + esc(q[1]) + '</p></details>'; });
+      s.review.q.forEach(function (q, qi) { h += '<details><summary>' + (qi + 1) + '. ' + esc(q[0]) + '</summary><p>' + fmtIds(slug, esc(q[1])) + '</p></details>'; });
       h += '</div>';
       h += '<div class="row"><button class="btn ghost" type="button" data-timer="' + s.n + '">2시간 타이머 시작</button><span class="timer" id="tm' + s.n + '" aria-live="polite"></span></div><div class="now" id="now' + s.n + '" hidden></div>';
       h += '<div class="row"><button class="btn" type="button" data-done="' + s.n + '">' + (isDone ? '마침 표시 지우기' : '세션 ' + s.n + ' 마침') + '</button></div>';
       h += '</div></details>';
     });
-    if (n === 10) h += '<div class="box"><b>20시간 계획을 다 마쳤어요.</b><p class="small muted">이제 \'기존 학습\'에서 계획에 없던 수업을 이어 보거나, 복습 질문만 다시 훑어보세요.</p></div>';
+    if (n === 10) h += '<div class="box"><b>20시간 계획을 다 마쳤어요.</b><p class="small muted">이제 \'앱별 학습\'에서 계획에 없던 수업을 이어 보거나, 복습 질문만 다시 훑어보세요.</p></div>';
     h += '<p class="foot">수업 링크는 그 앱의 수업을 바로 열어요. 진도는 이 기기에만 저장돼요.</p>';
     root.innerHTML = h;
-    if (openN) { var el = document.getElementById('s' + openN); if (el) el.scrollIntoView(); } else window.scrollTo(0, 0);
+    if (!openN && st.timer && !done[st.timer.n]) openN = st.timer.n;
+    if (openN) { var el = document.getElementById('s' + openN); if (el) { el.open = true; el.scrollIntoView(); } } else window.scrollTo(0, 0);
+    resumeTimer(P);
     root.onclick = function (ev) {
       var t = ev.target.closest('button');
       if (!t) return;
+      if (t.dataset.blk) {
+        st.blk = st.blk || {}; var key = t.dataset.blk, sn0 = +key.split(':')[0], bi0 = +key.split(':')[1], ses = P.sessions[sn0 - 1];
+        if (st.blk[key]) delete st.blk[key]; else { var r = String(ses.blocks[bi0][0]).split(/[–-]/); st.blk[key] = { d: todayStr(), m: Math.max(0, toMin(r[1]) - toMin(r[0])) }; }
+        var all = true; for (var q = 0; q < ses.blocks.length; q++) if (!st.blk[sn0 + ':' + q]) all = false;
+        if (all && !done[sn0]) { done[sn0] = todayStr(); if (st.timer && st.timer.n === sn0) delete st.timer; }
+        save(); renderPlan(slug, all ? Math.min(sn0 + 1, 10) : sn0); return;
+      }
       if (t.dataset.done) {
         var sn = +t.dataset.done;
         if (done[sn]) delete done[sn];
         else { var d = new Date(); done[sn] = d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+        if (st.timer && st.timer.n === sn) delete st.timer;
         save();
         stopTimer();
         renderPlan(slug, done[sn] ? Math.min(sn + 1, 10) : sn);
@@ -222,13 +253,22 @@ function renderPlan(slug, openN) {
   });
 }
 
+function resumeTimer(P) {
+  var st = store[P.slug]; if (!st || !st.timer) return;
+  var t = st.timer, el = Date.now() - t.start;
+  if (!(el >= 0 && el < 7200000) || (st.done && st.done[t.n])) { delete st.timer; save(); return; }
+  var btn = document.querySelector('[data-timer="' + t.n + '"]'); if (btn) startTimer(P, t.n, btn, t.start);
+}
 function stopTimer() { if (timerId) { clearInterval(timerId); timerId = null; } }
 function toMin(x) { var m = /(\d):(\d\d)/.exec(x); return m ? (+m[1]) * 60 + (+m[2]) : 0; }
-function startTimer(P, sn, btn) {
+function startTimer(P, sn, btn, startAt) {
   var s = P.sessions[sn - 1];
-  if (timerId && btn.dataset.running === '1') { stopTimer(); btn.dataset.running = ''; btn.textContent = '2시간 타이머 시작'; document.getElementById('tm' + sn).textContent = ''; document.getElementById('now' + sn).hidden = true; return; }
+  var st = store[P.slug] || (store[P.slug] = { done: {} });
+  if (!startAt && timerId && btn.dataset.running === '1') { stopTimer(); delete st.timer; save(); btn.dataset.running = ''; btn.textContent = '2시간 타이머 시작'; document.getElementById('tm' + sn).textContent = ''; document.getElementById('now' + sn).hidden = true; return; }
   stopTimer();
-  var start = Date.now();
+  Array.prototype.forEach.call(document.querySelectorAll('[data-timer]'), function (o) { if (o !== btn) { o.dataset.running = ''; o.textContent = '2시간 타이머 시작'; var on = +o.dataset.timer; var a = document.getElementById('tm' + on), b2 = document.getElementById('now' + on); if (a) a.textContent = ''; if (b2) b2.hidden = true; var rows = document.querySelectorAll('#s' + on + ' tr[data-b]'); for (var z = 0; z < rows.length; z++) rows[z].style.outline = ''; } });
+  var start = startAt || Date.now();
+  if (!startAt) { st.timer = { n: sn, start: start }; save(); }
   btn.dataset.running = '1'; btn.textContent = '타이머 멈추기';
   var tm = document.getElementById('tm' + sn), now = document.getElementById('now' + sn);
   function tick() {
@@ -240,7 +280,7 @@ function startTimer(P, sn, btn) {
     var rows = document.querySelectorAll('#s' + sn + ' tr[data-b]');
     for (var i = 0; i < rows.length; i++) rows[i].style.outline = (i === cur ? '2px solid var(--fg)' : '');
     if (cur >= 0) { now.hidden = false; now.textContent = '지금: ' + s.blocks[cur][1]; }
-    if (left === 0) { stopTimer(); now.hidden = false; now.textContent = '2시간이 끝났어요. 복습을 마쳤다면 \'세션 ' + sn + ' 마침\'을 눌러요.'; btn.textContent = '2시간 타이머 시작'; btn.dataset.running = ''; }
+    if (left === 0) { stopTimer(); if (st.timer && st.timer.n === sn) { delete st.timer; save(); } now.hidden = false; now.textContent = '2시간이 끝났어요. 복습을 마쳤다면 \'세션 ' + sn + ' 마침\'을 눌러요.'; btn.textContent = '2시간 타이머 시작'; btn.dataset.running = ''; }
   }
   tick();
   timerId = setInterval(tick, 1000);
@@ -248,10 +288,12 @@ function startTimer(P, sn, btn) {
 
 function route() {
   stopTimer();
+  cameFromList = (lastHash === '' || lastHash === '#') && /^#app=/.test(location.hash); lastHash = location.hash;
   var m = /^#app=([a-z0-9]+)(?:&s=(\d+))?$/.exec(location.hash);
   if (m) renderPlan(m[1], m[2] ? +m[2] : 0); else renderList();
 }
 window.addEventListener('hashchange', route);
+document.addEventListener('click', function (e) { var a = e.target.closest('a[data-tolist]'); if (a && cameFromList) { e.preventDefault(); history.back(); } });
 route();
 if ('serviceWorker' in navigator && location.protocol !== 'file:') { navigator.serviceWorker.register('../sw.js').catch(function () {}); }
 </script>

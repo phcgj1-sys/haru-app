@@ -132,3 +132,6 @@ window.CS_TEMPLATES=(window.CS_TEMPLATES||[]).concat([
 
 // HARU_NOTICE: 출처·고지
 window.APP.guide+="<h3>알아 두세요</h3><p class=\"small muted\">방어·평가 목적의 교육 내용이에요. 허락받지 않은 시스템·서비스·프로그램을 공격하거나 우회하거나 약관을 어기는 데 쓰지 마세요. 법·규정(예: AI 기본법, EU AI Act) 설명은 법률 자문이 아니에요.</p><p class=\"small muted\">남이 만든 프로그램의 분석은 저작권법(제101조의4, 호환에 필요한 범위의 프로그램코드역분석)과 각 소프트웨어의 사용권 계약으로 제한돼요. 내가 만들었거나 분석을 허락받은 프로그램으로만 실습하세요.</p><p class=\"small muted\">이 앱의 수업은 <b>AI Engineering from Scratch</b>(Copyright (c) 2026 Rohit Ghumare, MIT 라이선스)를 한국어로 옮기고 다시 정리한 것이에요. 라이선스 전문은 <a href=\"../notices.html\">오픈소스 고지</a>에서 볼 수 있어요.</p>";
+
+// HARU_NEXT: 다 마친 뒤 이어서 할 앱
+window.APP.next=["agent", "AI 에이전트 엔지니어링"];
