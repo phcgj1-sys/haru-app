@@ -9,13 +9,13 @@ window.GAMES = [
   { id: 'lol', rank: 1, name: '리그 오브 레전드', short: '롤', share: '34.1%',
     min: { os: 'win10', cpu: ['i3-530', 'A6-3650'], gpu: ['Intel HD 4600', 'HD 6570', 'GT 430'], ram: 2, vram: 1, storage: '16GB' },
     rec: { os: 'win11', cpu: ['i5-3300', 'Ryzen 3 1200'], gpu: ['GTX 560', 'HD 6950', 'Intel UHD 630'], ram: 4, vram: 2, storage: '16GB SSD' },
-    fpsBasis: '실측 보정', fps: { e: 0.45, g3060: 420, c12400: 400, cap: null },
+    fpsBasis: '실측 보정', fps: { e: 0.45, g3060: 420, c12400: 280, x3d: 1.5, cap: null }, // 2026-11 대조: 12400급 실제 게임 215~305fps(다나와·벤더 측정), 7800X3D 385~620
     checks: ['라이엇 뱅가드(커널 안티치트) 필요 · Windows 10 빌드 19041 이상 · Windows 11은 TPM 2.0과 보안 부팅이 켜져 있어야 함(VAN9001/9003)', 'DirectX 11 기능 수준 11_0 필수(DX9 지원 종료, 부족하면 플레이 버튼이 비활성) · CPU가 SSE4.2를 지원해야 함'],
     src: 'support.riotgames.com 최소·권장 사양' },
   { id: 'val', rank: 2, name: '발로란트', short: '발로란트', share: '10.2%',
     min: { os: 'win10', cpu: ['Core 2 Duo E8400', 'Athlon 200GE'], gpu: ['Intel HD 4000', 'R5 230'], ram: 4, vram: 1, storage: '약 50GB' },
     rec: { os: 'win10', cpu: ['i5-9400F', 'Ryzen 5 2600X'], gpu: ['GTX 1050 Ti', 'R7 370', 'Arc A310'], ram: 4, vram: 1, storage: '약 50GB SSD' },
-    fpsBasis: '실측 보정', fps: { e: 0.7, g3060: 340, c12400: 400, cap: null },
+    fpsBasis: '실측 보정', fps: { e: 0.7, g3060: 450, c12400: 340, x3d: 1.5, cap: null }, // 1080p 는 RTX 3060 이상이면 CPU 한계(RTX 5050 도 약 500), 12400 258~455·7800X3D 543~730
     recLabel: '고사양(144fps)',
     tiers: '공식: 최소 30fps · 권장(i3-4150/GT 730) 60fps · 고사양(i5-9400F/GTX 1050 Ti) 144fps 이상',
     checks: ['라이엇 뱅가드 필요 · Windows 11은 TPM 2.0과 보안 부팅(Secure Boot)이 켜져 있어야 함(VAN9001/9003 오류)', '공식 고사양 기준 = 144fps 이상 · CPU가 SSE4.2 또는 AVX 지원 · 2025-07 언리얼 엔진 5로 바뀌었지만 공식 사양은 그대로'],
@@ -23,7 +23,7 @@ window.GAMES = [
   { id: 'pubg', rank: 3, name: '배틀그라운드', short: '배그', share: '9.1%',
     min: { os: 'win10', cpu: ['i5-4430', 'FX-6300'], gpu: ['GTX 960', 'R7 370'], ram: 8, vram: 2, storage: '40GB' },
     rec: { os: 'win10', cpu: ['i5-6600K', 'Ryzen 5 1600'], gpu: ['GTX 1060 3GB', 'RX 580'], ram: 16, vram: 3, storage: '50GB SSD' },
-    fpsBasis: '실측 보정', fps: { e: 1.0, eHi: 1.5, g3060: 190, c12400: 220, cap: null },
+    fpsBasis: '실측 보정', fps: { e: 1.0, eHi: 1.5, g3060: 160, c12400: 210, x3d: 1.4, preset: { low: 1.2, mid: 1, high: 0.85 }, cap: null }, // 4060 울트라 113~152·중간 환산 146~196, 옵션 차이 작음(아주 낮음/중간 1.19, LaptopMedia)
     fightFactor: 0.7, fightNote: '교전·핫드랍에서는 CPU 부담이 커져 평소의 약 70%로 떨어지는 경향. 실측 예: 14700F+RTX 5080에서 혼자 200 → 교전 140',
     checks: ['64비트 전용 · DirectX 11'],
     src: 'Steam 상점 페이지(app 578080)·pubg.com' },
@@ -36,7 +36,7 @@ window.GAMES = [
   { id: 'ow', rank: 5, name: '오버워치 2', short: '오버워치', share: '5.6%',
     min: { os: 'win10', cpu: ['i3-2100', 'Phenom X3 8650'], gpu: ['GTX 650', 'HD 7750'], ram: 6, vram: 1, storage: '50GB' },
     rec: { os: 'win10', cpu: ['i7-4770', 'Ryzen 5 1600'], gpu: ['GTX 1060 6GB', 'R9 380'], ram: 8, vram: 3, storage: '50GB' },
-    fpsBasis: '실측 보정', fps: { e: 1.1, eHi: 1.6, g3060: 217, c12400: 340, cap: 600 },
+    fpsBasis: '실측 보정', fps: { e: 1.1, eHi: 1.6, g3060: 217, c12400: 340, x3d: 1.2, cap: 600 },
     checks: ['공식 CPU 표기가 "Core i3 / Core i7 / Ryzen 5"처럼 세대가 없어 대표 모델로 계산', '배틀넷 계정 · 일부 계정은 휴대폰 인증(SMS) 필요'],
     src: 'support.blizzard.com 오버워치 2 시스템 요구 사항' },
   { id: 'sa', rank: 6, name: '서든어택', short: '서든', share: '4.5%',

@@ -373,6 +373,15 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(/^566\.03/.test(dv[0]) && dv[1] === '31.0.24027.1012', '드라이버 표시: NVIDIA 566.03, AMD 그대로 (' + dv.join(' / ') + ')');
   }
 
+  // FPS 보정(2026-11 공개 측정 대조): 기준 조합 예상치가 측정 범위 ±30% 안, CPU 순서(13400 은 12400 보다 조금만 빠름)
+  {
+    const cal = await page.evaluate(() => { const P = window.__pcbang, G = window.GAMES; const f = (id, c, g, pre) => P.judge(G.find(x => x.id === id), { gpu: P.matchGpu(g), cpu: P.matchCpu(c), ram: 32, vram: 12, src: {}, hz: 240 }, { res: '1080', preset: pre || 'mid', target: 'auto' }).fps;
+      return { lol: f('lol', 'i5-12400', 'RTX 4060'), pubg: f('pubg', 'i5-12400', 'RTX 4060'), val: f('val', 'i5-12400', 'RTX 3060'), valX: f('val', 'Ryzen 7 7800X3D', 'RTX 4070 Super', 'low'), r13: P.cpuGameRel(P.matchCpu('i5-13400')) };
+    });
+    const inR = (v, lo, hi) => v >= lo * 0.7 && v <= hi * 1.3;
+    ok(inR(cal.lol, 215, 305) && inR(cal.pubg, 146, 196) && inR(cal.val, 258, 455) && inR(cal.valX, 543, 730) && cal.r13 < 1.15, 'FPS 보정: 롤 ' + cal.lol + '·배그 ' + cal.pubg + '·발로 ' + cal.val + '/' + cal.valX + ' 측정 범위 안, 13400 ×' + cal.r13.toFixed(2));
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],

@@ -218,6 +218,15 @@ function cpuOfList(list) {
 function cpuIndex(c) { return c ? 0.6 * (c.single / 2500) + 0.4 * (c.multi / 10000) : null; }
 // 게임 fps용: 게임은 8코어(16스레드) 넘게 거의 못 씀 → 멀티 점수를 8코어 수준(32000)에서 자름. 기준 CPU(i5-12400, 19500)는 영향 없음
 function cpuGameIndex(c) { return c ? 0.6 * (c.single / 2500) + 0.4 * (Math.min(c.multi, 32000) / 10000) : null; }
+// 게임 fps 용 CPU 속도(i5-12400 = 1): 게임은 E코어·많은 코어를 거의 못 써서 멀티 점수 대신 단일 코어 점수로 봄.
+// 12400 보다 빠른 쪽은 캐시·클럭 차이가 점수보다 크게 벌어져 1.4제곱, 느린 쪽은 1.2제곱. 12스레드 미만은 조금 깎음.
+// 보정 근거(2026-11 대조): 13400·14400 은 12400 보다 4~10% 빠름(TechSpot 12게임 평균 +4%), 14700 은 약 1.35~1.45배.
+function cpuGameRel(c) {
+  if (!c || !c.single) return null;
+  var s = c.single / 3500, r = Math.pow(s, s > 1 ? 1.4 : 1.2);
+  if (c.threads && c.threads < 12) r *= Math.pow(c.threads / 12, 0.25);
+  return r;
+}
 
 /* ---------------- 자동 감지 ---------------- */
 async function detect() {
@@ -381,10 +390,12 @@ function judge(game, sp, opt) {
     // 저사양 그래픽은 가벼운 게임에서 점수 비율보다 덜 떨어짐 → 지수(e) < 1 로 완만하게
     // 고성능 쪽은 실제 fps가 점수보다 가파르게 오름(eHi), 저사양 쪽은 완만(e)
     var gr = sp.gpu.score / 17000;
-    var gpuFps = Math.pow(gr, gr > 1 && f.eHi ? f.eHi : (f.e || 0.85)) * f.g3060 * PRESET[opt.preset] * RES[opt.res];
-    var cpuFps = sp.cpu ? (cpuGameIndex(sp.cpu) / cpuGameIndex({ single: 3500, multi: 19500 })) * f.c12400 * (opt.preset === 'low' ? 1.08 : opt.preset === 'high' ? 0.95 : 1) : null;
-    // X3D(대용량 캐시) CPU는 CPU 부담 큰 게임에서 점수보다 빠름
-    if (cpuFps && sp.cpu && /x3d/i.test(sp.cpu.name || '')) cpuFps *= 1.15;
+    // 옵션별 배율: 게임마다 다를 수 있음(배그는 낮음/중간 차이가 작음 — f.preset), 없으면 공용 PRESET
+    var pre = (f.preset && f.preset[opt.preset]) || PRESET[opt.preset];
+    var gpuFps = Math.pow(gr, gr > 1 && f.eHi ? f.eHi : (f.e || 0.85)) * f.g3060 * pre * RES[opt.res];
+    var cpuFps = sp.cpu ? cpuGameRel(sp.cpu) * f.c12400 * (opt.preset === 'low' ? 1.08 : opt.preset === 'high' ? 0.95 : 1) : null;
+    // X3D(대용량 캐시) CPU는 CPU 부담 큰 게임에서 점수보다 훨씬 빠름 — 롤·발로란트·배그는 7800X3D 가 12400 의 1.6~2배(공개 측정), 게임별 f.x3d
+    if (cpuFps && sp.cpu && /x3d/i.test(sp.cpu.name || '')) cpuFps *= (f.x3d || 1.15);
     var fps = cpuFps == null ? gpuFps : Math.min(gpuFps, cpuFps);
     if (f.cap) fps = Math.min(fps, f.cap);
     if (ram && ram < game.min.ram) fps *= 0.55;
@@ -1973,5 +1984,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   });
 }
 // 테스트·디버그용
-window.__pcbang = { igpuFromCpu: igpuFromCpu, matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, drvText: drvText, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, problems: problems, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
+window.__pcbang = { igpuFromCpu: igpuFromCpu, matchGpu: matchGpu, matchCpu: matchCpu, cleanRenderer: cleanRenderer, judge: judge, cpuGameRel: cpuGameRel, drvText: drvText, fpsLabel: fpsLabel, levelOf: levelOf, fpsText: fpsText, fixSearch: fixSearch, problems: problems, chkHz: function (d, nat) { return CHK.filter(function (c) { return c.id === 'hz'; })[0].auto(d, nat); }, spec: spec, decodeNative: decodeNative, S: S };
 })();
