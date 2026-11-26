@@ -1082,6 +1082,23 @@ It '블랙박스: 도구 실패 표시(GPUFAIL·RAMFAIL)만 있으면 디스크�
     Assert (-not (Test-RamTestStalled ([pscustomobject]@{ TestedMB = 640 }) 60)) '시험 중'
     $old = $script:UiLang; $script:UiLang = 'en'; try { Assert ((Tr $a.Detail) -notmatch '[가-힣]') "영어: $(Tr $a.Detail)" } finally { $script:UiLang = $old }
 }
+It '블랙박스: 매장 USB 에 다른 PC 의 기록이 있어도 이 PC(또는 -HideName 코드) 기록만 진단에 사용' {
+    Assert (Test-BlackboxFileForPc 'PCCheck_blackbox_GAME-01_20991201_101010.csv' 'game-01') '같은 PC (대소문자 무관)'
+    Assert (-not (Test-BlackboxFileForPc 'PCCheck_blackbox_GAME-02_20991201_101010.csv' 'GAME-01')) '다른 PC 제외'
+    Assert (Test-BlackboxFileForPc "PCCheck_blackbox_$(Get-AnonName 'GAME-01')_20991201_101010.csv" 'GAME-01') '-HideName 코드'
+    Assert (Test-BlackboxFileForPc 'PCCheck_blackbox_20991201_101010.csv' 'GAME-01') '이름 없는 옛 형식은 포함'
+    Assert (Test-BlackboxFileForPc 'PCCheck_blackbox_GAME-02_20991201_101010.csv' '') 'PC 이름을 모르면 포함'
+    $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
+    $usb = Join-Path $OutDir ('shopusb_' + [guid]::NewGuid().ToString('N'))
+    try {
+        $script:WorkDir = Join-Path $OutDir ('wds_' + [guid]::NewGuid().ToString('N'))
+        $dir = Join-Path $usb 'PCCheck_blackbox'; [void][IO.Directory]::CreateDirectory($dir)
+        foreach ($n in 'GAME-01', 'GAME-02') { $f = Join-Path $dir "PCCheck_blackbox_$($n)_20991201_10101$(if ($n -eq 'GAME-01') { 0 } else { 1 }).csv"; [IO.File]::Copy((New-Bb2File "bb_$n.csv" (Rep 5 @('idle', 5, 99, 40, 1, 20, '', 0, ''))), $f); [IO.File]::SetLastWriteTime($f, (Get-Date)) }
+        $script:BlackboxSearchRoots = @($usb)
+        $found = @(Find-BlackboxFiles 30 -PcName 'GAME-01')
+        Assert-Eq (@($found | ForEach-Object { $_.File }) -join ',') 'PCCheck_blackbox_GAME-01_20991201_101010.csv' '이 PC 기록만'
+    } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
+}
 It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드카드로 해석하지 않음)' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usb[1]_' + [guid]::NewGuid().ToString('N'))
@@ -1092,7 +1109,7 @@ It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드
         [IO.File]::Copy((New-Bb2File 'bb_br.csv' (Rep 5 @('idle', 5, 99, 40, 1, 20, '', 0, ''))), $f)
         [IO.File]::SetLastWriteTime($f, (Get-Date))
         $script:BlackboxSearchRoots = @($usb)
-        $found = @(Find-BlackboxFiles 30)
+        $found = @(Find-BlackboxFiles 30 -PcName 'PC')
         Assert (@($found | Where-Object { $_.File -eq 'PCCheck_blackbox_PC_20990102_000000.csv' }).Count -eq 1) "대괄호 폴더 기록 찾음 ($($found.Count))"
     } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
 }
@@ -1252,7 +1269,7 @@ It '블랙박스: USB 안 하위 폴더에 기록한 것도 (기억이 지워진
         (Get-Item $f).LastWriteTime = Get-Date
         $script:BlackboxSearchRoots = @($usb)
         Assert-Eq @(Get-BlackboxDirMemory).Count 0 '기억 없음 (재부팅 상황)'
-        $found = @(Find-BlackboxFiles 30)
+        $found = @(Find-BlackboxFiles 30 -PcName 'PC')
         Assert (@($found | Where-Object { $_.File -eq 'PCCheck_blackbox_PC_20990101_000000.csv' }).Count -eq 1) "하위 폴더 기록 찾음 ($($found.Count))"
     } finally { $script:WorkDir = $oldWd; $script:BlackboxSearchRoots = $oldR }
 }

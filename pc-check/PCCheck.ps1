@@ -2386,7 +2386,16 @@ function Add-BlackboxDirMemory([string]$Dir) {
         [IO.File]::WriteAllLines((Get-BlackboxDirMemoryPath), [string[]]$l, (New-Object System.Text.UTF8Encoding($true)))
     } catch { Write-PCLog "blackbox dir memory: $($_.Exception.Message)" }
 }
-function Find-BlackboxFiles([int]$Days = 30) {
+function Test-BlackboxFileForPc([string]$FileName, [string]$PcName) {
+    # 파일 이름 PCCheck_blackbox_<PC 이름>_<날짜>_<시각>.csv 의 PC 이름이 이 PC(또는 -HideName 코드)인지.
+    # 매장 USB 를 여러 PC 에 쓰면 다른 PC 의 '갑자기 꺼짐' 기록이 이 PC 진단에 섞이던 문제 방지. 이름이 없는 옛 형식·PC 이름을 모르면 포함
+    if (-not $PcName) { return $true }
+    $m = [regex]::Match($FileName, '^PCCheck_blackbox_(.+)_\d{8}_\d{6}\.csv$', 'IgnoreCase')
+    if (-not $m.Success) { return $true }
+    $n = $m.Groups[1].Value
+    return ($n -ieq $PcName -or $n -ieq (Get-AnonName $PcName))
+}
+function Find-BlackboxFiles([int]$Days = 30, [string]$PcName = $env:COMPUTERNAME) {
     # USB·바탕화면에서 최근 블랙박스 기록 찾기
     $dirs = @()
     $roots = @()
@@ -2401,7 +2410,7 @@ function Find-BlackboxFiles([int]$Days = 30) {
     $dirs += @(Get-BlackboxDirMemory)   # '찾아보기'로 직접 고른 폴더
     $dirs = @($dirs | Where-Object { $_ } | Sort-Object -Unique)
     $since = (Get-Date).AddDays(-$Days)
-    $files = @($dirs | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter 'PCCheck_blackbox_*.csv' -ErrorAction SilentlyContinue } | Where-Object { $_.LastWriteTime -ge $since } | Sort-Object LastWriteTime -Descending | Select-Object -First 5)
+    $files = @($dirs | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | ForEach-Object { Get-ChildItem -LiteralPath $_ -Filter 'PCCheck_blackbox_*.csv' -ErrorAction SilentlyContinue } | Where-Object { $_.LastWriteTime -ge $since -and (Test-BlackboxFileForPc $_.Name $PcName) } | Sort-Object LastWriteTime -Descending | Select-Object -First 5)
     return @($files | ForEach-Object { try { Read-BlackboxAnalysis $_.FullName } catch {} })
 }
 
