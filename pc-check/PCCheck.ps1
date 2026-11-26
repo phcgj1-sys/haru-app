@@ -1699,6 +1699,8 @@ public static class PCCheckRamTest {
             for (int b = 0; b < count && !StopFlag; b++) {
                 try { blocks.Add(new long[blockLongs]); } catch (OutOfMemoryException) { break; }
             }
+            // 한 블록도 못 잡으면 아무것도 시험하지 않은 채 '오류 0' 으로 도는 것을 막음 (화면에서 RAMFAIL 로 기록)
+            if (blocks.Count == 0) { LastError = "memory allocation failed"; return; }
             ulong seed = 0x9E3779B97F4A7C15UL;
             while (!StopFlag) {
                 for (int p = 0; p < 4 && !StopFlag; p++) {
@@ -1741,6 +1743,10 @@ function Get-RamTestSizeMB {
 }
 function Start-RamTest([int]$MB = 0) { Initialize-RamTest; if ($MB -le 0) { $MB = Get-RamTestSizeMB }; [PCCheckRamTest]::Start($MB) }
 function Stop-RamTest { if ('PCCheckRamTest' -as [type]) { [PCCheckRamTest]::Stop() } }
+function Test-RamTestStalled($State, [double]$ElapsedSec) {
+    # RAM 검사를 켠 지 20초가 지났는데 시험한 양이 0 이면 (메모리 확보 실패·중단) 시험되지 않은 것
+    return ($ElapsedSec -ge 20 -and [long]$State.TestedMB -le 0)
+}
 function Get-RamTestState {
     if (-not ('PCCheckRamTest' -as [type])) { return [pscustomobject]@{ Running = $false; Errors = 0; TestedMB = 0; Passes = 0 } }
     return [pscustomobject]@{ Running = [PCCheckRamTest]::Running; Errors = [PCCheckRamTest]::Errors; TestedMB = [PCCheckRamTest]::TestedMB; Passes = [PCCheckRamTest]::Passes }
@@ -2270,6 +2276,10 @@ function Read-BlackboxAnalysis([string]$Path) {
     }
     $res.Last = [ordered]@{ Time = $res.End; LoadPct = $lastLoad; GpuTempC = $lastTemp; GpuPowerW = $lastPow; Stress = $stress; Stage = $res.LastStage }
     $evText = (($events.Keys | Sort-Object | ForEach-Object { "$_ ×$($events[$_])" }) -join ', ')
+    # 도구 상태 표시(GPUFAIL·RAMFAIL·LOGERR)는 하드웨어 오류가 아님 — '테스트 중 오류'로 세어 디스크 등으로 오판하지 않게
+    $hwEvKeys = @($events.Keys | Where-Object { $_ -notin 'GPUFAIL', 'RAMFAIL', 'LOGERR' })
+    $hwEvText = (($hwEvKeys | Sort-Object | ForEach-Object { "$_ ×$($events[$_])" }) -join ', ')
+    $ramFail = $events.ContainsKey('RAMFAIL')
 
     # 부가 신호
     if ($res.RamErrors -gt 0) { $res.Notes += "RAM 검사 오류 $($res.RamErrors) 건 (RAM 불량이 거의 확실)" }
@@ -2278,6 +2288,7 @@ function Read-BlackboxAnalysis([string]$Path) {
     if ($events.ContainsKey('GPULOST')) { $res.Notes += '그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)' }
     $gpuFail = $events.ContainsKey('GPUFAIL')
     if ($gpuFail) { $res.Notes += 'GPU 부하 도구가 시작되지 못해 GPU 단계는 시험되지 않음 (Vulkan 드라이버 확인)' }
+    if ($events.ContainsKey('RAMFAIL')) { $res.Notes += 'RAM 검사가 메모리를 확보하지 못해 RAM 단계는 시험되지 않음 (다른 프로그램을 닫고 다시)' }
     if ($thr.ContainsKey('HWSLOW') -or $thr.ContainsKey('PBRAKE')) { $res.Notes += '그래픽카드 하드웨어 감속 신호 (전원 공급 불안정 또는 과열)' }
     if ($thr.ContainsKey('HWTHERM') -or $thr.ContainsKey('SWTHERM')) { $res.Notes += '그래픽카드 온도 제한 동작' }
     $cpuSet = @($(if ($byStage.ContainsKey('cpu')) { $byStage['cpu'].ToArray() }) | Where-Object { $null -ne $_ -and (& $num $_['CpuPct']) -ge 80 })
@@ -2288,6 +2299,7 @@ function Read-BlackboxAnalysis([string]$Path) {
     # GPU 도구가 돌지 않았다면 GPU 가 들어간 단계는 실제 부하 기준으로 다시 해석 (GPU 단독 → 대기, 전체·출렁임 → CPU 단독)
     $effStage = $res.LastStage
     if ($events.ContainsKey('GPUFAIL')) { if ($effStage -eq 'gpu') { $effStage = 'idle' } elseif ($effStage -in 'full', 'pulse') { $effStage = 'cpu' } }
+    if ($events.ContainsKey('RAMFAIL') -and $effStage -eq 'ram') { $effStage = 'idle' }   # RAM 검사가 돌지 않았으면 RAM 단계는 사실상 대기
     if (-not $stopped) {
         $res.Abrupt = $true; $res.Level = 'bad'
         $stName = $(if ($res.LastStage -and $stageNames.ContainsKey($res.LastStage)) { $stageNames[$res.LastStage] } else { '' })
@@ -2338,18 +2350,18 @@ function Read-BlackboxAnalysis([string]$Path) {
     } elseif ($res.RamErrors -gt 0) {
         $res.Level = 'bad'; $res.Cause = 'RAM'; $res.Title = "블랙박스: RAM 검사에서 오류 $($res.RamErrors) 건"
         $res.Detail = "Windows 안에서 메모리에 쓴 값과 다시 읽은 값이 달랐습니다. RAM 불량 가능성이 매우 높습니다. XMP/EXPO 를 끄고 한 개씩 꽂아 불량 모듈을 찾으세요.$noteText"
-    } elseif ($events.Count -or $thr.ContainsKey('HWSLOW') -or $thr.ContainsKey('PBRAKE')) {
+    } elseif ($hwEvKeys.Count -or $thr.ContainsKey('HWSLOW') -or $thr.ContainsKey('PBRAKE')) {
         $res.Level = 'warn'; $res.Title = "블랙박스: 테스트 중 오류 기록 ($([math]::Round($res.Minutes)) 분)"
-        $res.Detail = "꺼지지는 않았지만 테스트 중 이상 신호가 기록되었습니다$(if ($evText) { ": $evText" })."
-        if ($evText -match 'Xid|TDR|NVIDIA|AMD') { $res.Cause = 'GPU_HW' } elseif ($evText -match 'WHEA') { $res.Cause = 'CPU_OC' } elseif ($evText) { $res.Cause = 'DISK' } else { $res.Cause = 'PSU' }
+        $res.Detail = "꺼지지는 않았지만 테스트 중 이상 신호가 기록되었습니다$(if ($hwEvText) { ": $hwEvText" })."
+        if ($hwEvText -match 'Xid|TDR|NVIDIA|AMD') { $res.Cause = 'GPU_HW' } elseif ($hwEvText -match 'WHEA') { $res.Cause = 'CPU_OC' } elseif ($hwEvText) { $res.Cause = 'DISK' } else { $res.Cause = 'PSU' }
         $res.Detail += $noteText
     } else {
         $res.Level = 'ok'
         $done = @($order | Where-Object { $_ -in 'idle', 'cpu', 'ram', 'gpu', 'full', 'pulse' }).Count
-        if ($gpuFail) { $done = 0 }
+        if ($gpuFail -or $ramFail) { $done = 0 }   # 시험되지 않은 단계가 있으면 '전 단계 통과' 아님
         $res.Title = $(if ($done -ge 6) { "블랙박스: 단계별 정밀 테스트 전 단계 통과 ($([math]::Round($res.Minutes)) 분)" } else { "블랙박스: 테스트 $([math]::Round($res.Minutes)) 분 동안 이상 없음" })
         $res.Detail = "최고 GPU $(if ($null -ne $res.MaxGpuTempC) { "$($res.MaxGpuTempC) °C" } else { '-' }) · CPU 최고 $(if ($null -ne $res.MaxCpuPct) { "$($res.MaxCpuPct)%" } else { '-' }).$noteText"
-        if ($res.Notes.Count) { $res.Level = 'warn'; $res.Cause = $(if ($gpuFail) { '' } elseif ($thr.ContainsKey('HWTHERM') -or $thr.ContainsKey('SWTHERM') -or ($res.Notes -match '클럭')) { 'THERMAL' } else { 'PSU' }) }
+        if ($res.Notes.Count) { $res.Level = 'warn'; $res.Cause = $(if ($gpuFail -or $ramFail) { '' } elseif ($thr.ContainsKey('HWTHERM') -or $thr.ContainsKey('SWTHERM') -or ($res.Notes -match '클럭')) { 'THERMAL' } else { 'PSU' }) }
     }
     return $res
 }
@@ -2435,7 +2447,10 @@ function Show-BlackboxDialog {
             }
         }
         if (-not $gpu -and $st.Gpu) { Stop-GpuLoad $st.Gpu; $st.Gpu = $null }
-        if ($ram -and -not $st.Ram) { try { Start-RamTest; $st.Ram = $true } catch { Write-PCLog "ram test: $($_.Exception.Message)" } }
+        if ($ram -and -not $st.Ram) {
+            try { Start-RamTest; $st.Ram = $true; $st.RamStart = Get-Date }
+            catch { Write-PCLog "ram test: $($_.Exception.Message)"; if ($st.Box -and $st.Box.Sync.GpuSeen -notmatch 'RAMFAIL') { Add-BlackboxEvent $st.Box.Sync 'RAMFAIL'; $st.Box.Sync.GpuSeen += ' RAMFAIL' } }
+        }
         if (-not $ram -and $st.Ram) { Stop-RamTest; $st.Ram = $false }
         if ($st.Box) { $st.Box.Sync.CpuStress = $cpu; $st.Box.Sync.GpuStress = [bool]$st.Gpu }
     }
@@ -2480,6 +2495,7 @@ function Show-BlackboxDialog {
             $txt = $head
             if ($l) { $txt += "`nCPU $($l.CpuPct)%$(if ($null -ne $l.CpuPerfPct) { " (클럭 $($l.CpuPerfPct)%)" }) · GPU $(if ($null -ne $l.GpuTempC) { "$($l.GpuTempC) °C" } else { '-' })$(if ($null -ne $l.GpuPowerW) { " $($l.GpuPowerW) W" })$(if ($l.GpuThrottle) { " [$($l.GpuThrottle)]" })" }
             $rt = Get-RamTestState
+            if ($st.Ram -and $st.Box -and $st.Box.Sync.GpuSeen -notmatch 'RAMFAIL' -and (Test-RamTestStalled $rt ((Get-Date) - $st.RamStart).TotalSeconds)) { Add-BlackboxEvent $st.Box.Sync 'RAMFAIL'; $st.Box.Sync.GpuSeen += ' RAMFAIL' }
             if ($rt.TestedMB -gt 0) { $txt += " · RAM 검사 $([math]::Round($rt.TestedMB / 1024, 1)) GB, 오류 $($rt.Errors) 건" }
             if ($sy.Events) { $txt += " · 오류 $($sy.Events) 건" }
             $txt += Get-BlackboxWarnText $sy
@@ -3307,6 +3323,7 @@ $script:EnPairs = @(
     @('RE: — ([\d\- :]+) 에 단계별 정밀 테스트를 모두 통과해 해결된 것으로 봅니다\.', ' — passed every stage of the detailed test at $1, so treated as resolved.'),
     @('그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.', 'The graphics memory test (memtest_vulkan) found errors. If they persist with overclocking disabled, the card needs warranty service.'),
     @('그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)', 'Graphics card connection lost (ERROR_DEVICE_LOST)'),
+    @('RAM 검사가 메모리를 확보하지 못해 RAM 단계는 시험되지 않음 (다른 프로그램을 닫고 다시)', 'The RAM test could not reserve memory, so the RAM stage was not tested (close other programs and retry)'),
     @('GPU 부하 도구가 시작되지 못해 GPU 단계는 시험되지 않음 (Vulkan 드라이버 확인)', 'The GPU load tool failed to start, so the GPU stages were not tested (check the Vulkan driver)'),
     @('단계별 자동 정밀 테스트 (약 32분, 권장)', 'Staged auto test (~32 min, recommended)'),
     @('대기 → CPU → RAM 검사 → GPU·VRAM → 전체 부하 → 전력 출렁임 순서로 자동 진행. 꺼진 단계로 원인을 좁힙니다.', 'Runs idle → CPU → RAM test → GPU/VRAM → full load → power swings automatically. The stage where it dies narrows the cause.'),

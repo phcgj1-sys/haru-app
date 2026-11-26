@@ -1022,6 +1022,24 @@ It '블랙박스: 직접 고른 폴더에 기록해도 다음 검사에서 찾�
         foreach ($i in 1..12) { Add-BlackboxDirMemory "X$i" }; Assert-Eq @(Get-BlackboxDirMemory).Count 10 '최근 10개만'
     } finally { $script:WorkDir = $oldWd }
 }
+It '블랙박스: 도구 실패 표시(GPUFAIL·RAMFAIL)만 있으면 디스크·파워 탓으로 보지 않고, RAM 검사가 안 돌면 전 단계 통과 아님' {
+    $stages = @('idle', 'cpu', 'ram', 'gpu', 'full', 'pulse')
+    $mkRows = { param($ev, $evStage) $rows = @(); foreach ($st in $stages) { $rows += (Rep 3 @($st, 50, 99, 60, 50, 150, '', 0, '')) }; $i = [array]::IndexOf($stages, $evStage) * 3; $rows[$i] = @($evStage, 50, 99, 60, 50, 150, '', 0, $ev); , $rows }
+    $a = Read-BlackboxAnalysis (New-Bb2File 'bb_gf.csv' (& $mkRows 'GPUFAIL' 'gpu') -Stop)
+    Assert ($a.Cause -notin 'DISK', 'PSU') "GPUFAIL 만: 원인 $($a.Cause)"; Assert ($a.Title -notmatch '오류 기록') "제목 $($a.Title)"; Assert ($a.Title -notmatch '전 단계 통과') 'GPU 미시험'
+    $a = Read-BlackboxAnalysis (New-Bb2File 'bb_rf.csv' (& $mkRows 'RAMFAIL' 'ram') -Stop)
+    Assert ($a.Cause -notin 'DISK', 'PSU') "RAMFAIL 만: 원인 $($a.Cause)"; Assert ($a.Title -notmatch '전 단계 통과') 'RAM 미시험'; Assert ($a.Detail -match 'RAM 단계는 시험되지 않음') '안내'
+    $ok = Read-BlackboxAnalysis (New-Bb2File 'bb_ok6.csv' (& $mkRows '' 'idle') -Stop)
+    Assert ($ok.Title -match '전 단계 통과') "정상 기록은 통과 ($($ok.Title))"
+    $ab = Read-BlackboxAnalysis (New-Bb2File 'bb_rfab.csv' (@(,@('ram', 5, 99, 40, 1, 20, '', 0, 'RAMFAIL')) + (Rep 4 @('ram', 5, 99, 40, 1, 20, '', 0, ''))))
+    Assert ($ab.Cause -ne 'RAM') "RAM 검사 안 돈 RAM 단계에서 꺼짐은 RAM 탓 아님 ($($ab.Cause) / $($ab.Title))"
+    $w = Read-BlackboxAnalysis (New-Bb2File 'bb_whea.csv' (& $mkRows 'WHEA-18' 'cpu') -Stop)
+    Assert-Eq $w.Cause 'CPU_OC' '실제 하드웨어 오류는 그대로'
+    Assert (Test-RamTestStalled ([pscustomobject]@{ TestedMB = 0 }) 25) '20초 지나도 0MB → 미시험'
+    Assert (-not (Test-RamTestStalled ([pscustomobject]@{ TestedMB = 0 }) 5)) '시작 직후는 아님'
+    Assert (-not (Test-RamTestStalled ([pscustomobject]@{ TestedMB = 640 }) 60)) '시험 중'
+    $old = $script:UiLang; $script:UiLang = 'en'; try { Assert ((Tr $a.Detail) -notmatch '[가-힣]') "영어: $(Tr $a.Detail)" } finally { $script:UiLang = $old }
+}
 It '블랙박스: 폴더 이름에 [ ] 가 있어도 기록을 찾음 (와일드카드로 해석하지 않음)' {
     $oldWd = $script:WorkDir; $oldR = $script:BlackboxSearchRoots
     $usb = Join-Path $OutDir ('usb[1]_' + [guid]::NewGuid().ToString('N'))
