@@ -786,6 +786,27 @@ It 'memtest_vulkan 최신판: 해시(SHA-256)가 없으면 검증 안 된 파일
         Assert-Eq $a.Source 'api' '해시 있으면 최신판'; Assert-Eq $a.Sha256 ('a' * 64) '해시 전달'
     } finally { Remove-Item Function:\Invoke-RestMethod -ErrorAction SilentlyContinue }
 }
+It 'RAM 검사 크기: 여유 메모리의 70% 이되 1.5GB 는 남기고 최소 256MB, 읽기 실패면 512MB' {
+    $script:FakeFreeKB = 0
+    function Get-CimInstance { param($ClassName, $Namespace, $Filter, $ErrorAction) if ($null -eq $script:FakeFreeKB) { throw 'wmi' }; return [pscustomobject]@{ FreePhysicalMemory = $script:FakeFreeKB } }
+    try {
+        $script:FakeFreeKB = 16GB / 1KB; Assert-Eq (Get-RamTestSizeMB) ([int](16384 * 0.7)) '16GB 여유 → 70%'
+        $script:FakeFreeKB = 4GB / 1KB; Assert-Eq (Get-RamTestSizeMB) (4096 - 1536) '4GB 여유 → 1.5GB 남김'
+        $script:FakeFreeKB = 1GB / 1KB; Assert-Eq (Get-RamTestSizeMB) 256 '여유가 적으면 최소 256MB'
+        $script:FakeFreeKB = $null; Assert-Eq (Get-RamTestSizeMB) 512 '읽기 실패 512MB'
+    } finally { Remove-Item Function:\Get-CimInstance -ErrorAction SilentlyContinue }
+}
+It '정밀 검사 버튼: 도구 실행이 실패하면 실패로 알리고 공식 다운로드 페이지를 대신 엶 (온도 모니터 → HWiNFO)' {
+    $script:Opened = @()
+    function Start-Process { param($FilePath) $script:Opened += $FilePath }
+    function Show-MonitorDialog { throw '화면을 열 수 없음' }
+    try {
+        $r = Invoke-Tool 'monitor'
+        Assert (-not $r.Ok) '실패'; Assert ($r.Error -match '화면을 열 수 없음') '오류 내용'
+        Assert-Eq ($script:Opened -join ',') 'https://www.hwinfo.com/download/' '공식 페이지'
+        Assert ($r.Error -match '공식 다운로드 페이지') '안내'
+    } finally { Remove-Item Function:\Start-Process, Function:\Show-MonitorDialog -ErrorAction SilentlyContinue }
+}
 It 'Format-BugCode 정규화' {
     Assert-Eq (Format-BugCode '0x00000116') '0x116' 'hex 문자열'
     Assert-Eq (Format-BugCode 278) '0x116' '정수'
