@@ -1235,6 +1235,11 @@ It '온도 모니터: 측정은 별도 실행 공간에서 (멈춘 드라이버�
         Assert ($smp.Contains('CpuPct') -and $smp.Contains('GpuTempC')) '측정 항목'
         $slow = @{ PS = $null; Handle = [pscustomobject]@{ IsCompleted = $false } }
         Assert ($null -eq (Receive-LiveSampleJob $slow)) '진행 중이면 기다리지 않고 빈 값'
+        $bad = [powershell]::Create(); $bad.Runspace = $rs; [void]$bad.AddScript('throw "nvidia-smi 오류"'); $bj = @{ PS = $bad; Handle = $bad.BeginInvoke() }
+        $sw = [Diagnostics.Stopwatch]::StartNew(); while (-not $bj.Handle.IsCompleted -and $sw.Elapsed.TotalSeconds -lt 10) { Start-Sleep -Milliseconds 50 }
+        $e = Receive-LiveSampleJob $bj
+        Assert ($null -ne $e -and $e.Count -eq 0) '오류로 끝난 측정은 빈 측정값 (계속 기다리지 않음)'
+        Assert ((Get-MonitorText $e @{}) -match 'CPU') '빈 측정값으로도 표시'
         $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
         $dlg = [regex]::Match($src, '(?s)function Show-MonitorDialog.*?\n\}').Value
         Assert ($dlg -match 'Start-LiveSampleJob' -and $dlg -notmatch '\$smp = Get-LiveSample') '화면 스레드에서 직접 측정하지 않음'

@@ -1854,7 +1854,10 @@ function Start-LiveSampleJob($Runspace) {
 function Receive-LiveSampleJob($Job) {
     # 끝났으면 측정값, 아직이면 $null (다음 틱에 다시)
     if (-not $Job -or -not $Job.Handle.IsCompleted) { return $null }
-    try { $r = @($Job.PS.EndInvoke($Job.Handle)); return $(if ($r.Count) { $r[0] } else { $null }) } finally { $Job.PS.Dispose() }
+    # 측정이 오류로 끝나도 빈 측정값을 돌려줌 ($null 이면 '진행 중'으로 보고 정리된 작업을 계속 기다려 화면이 다시는 갱신되지 않음)
+    try { $r = @($Job.PS.EndInvoke($Job.Handle)); if ($r.Count -and $null -ne $r[0]) { return $r[0] } else { return [ordered]@{} } }
+    catch { Write-PCLog "live sample: $($_.Exception.Message)"; return [ordered]@{} }
+    finally { try { $Job.PS.Dispose() } catch {} }
 }
 function Show-MonitorDialog {
     param([switch]$SmokeTest, [double]$SimScale = 1.0)
@@ -1884,7 +1887,7 @@ function Show-MonitorDialog {
                 $mon.Job = $null; Update-MonitorMax $max $smp; $live.Text = Get-MonitorText $smp $max
             }
             $mon.Job = Start-LiveSampleJob $mon.Rs
-        } catch { Write-PCLog "monitor: $($_.Exception.Message)" }
+        } catch { Write-PCLog "monitor: $($_.Exception.Message)"; $mon.Job = $null }
     }
     $t = New-Object Windows.Forms.Timer; $t.Interval = 1000; $t.Add_Tick($tick)
     $resetB.Add_Click({ foreach ($k in @($max.Keys)) { $max.Remove($k) } })
