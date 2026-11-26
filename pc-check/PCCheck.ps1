@@ -1796,9 +1796,9 @@ function Show-MonitorDialog {
     $live.Font = $big
     $note = & $mk Windows.Forms.Label 'CPU 온도는 Windows 기본 센서(ACPI)로 읽어 보드에 따라 메인보드 온도로 나오거나 표시되지 않을 수 있습니다. 전압·팬·코어별 온도는 HWiNFO 로 확인하세요.' 16 196 528 64
     $note.ForeColor = [Drawing.Color]::DimGray
-    $resetB = & $mk Windows.Forms.Button '최고값 초기화' 16 270 170 44
-    $hwB = & $mk Windows.Forms.Button 'HWiNFO 열기 (전압·팬)' 196 270 200 44
-    $closeB = & $mk Windows.Forms.Button '닫기' 406 270 138 44
+    $resetB = & $mk Windows.Forms.Button '최고값 초기화' 16 270 150 44
+    $hwB = & $mk Windows.Forms.Button 'HWiNFO 열기 (전압·팬)' 176 270 250 44   # 영어 'Open HWiNFO (voltages/fans)' 가 잘리지 않는 폭
+    $closeB = & $mk Windows.Forms.Button '닫기' 436 270 108 44
     $max = @{}
     $tick = {
         try { $smp = Get-LiveSample; Update-MonitorMax $max $smp; $live.Text = Get-MonitorText $smp $max }

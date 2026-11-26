@@ -1022,6 +1022,12 @@ It '실시간 온도 모니터: CPU·GPU 온도·사용률·전력·VRAM 표시,
         Assert ((Tr $m.Label) -notmatch '[가-힣]' -and (Tr $m.Desc) -notmatch '[가-힣]') '버튼 이름 영어 번역'
         $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1'))
         Assert ($src -match 'Show-MonitorDialog -SmokeTest') 'GUI 자동 검사에서 창 배치 확인'
+        # 111회 CI: 영어 'Open HWiNFO (voltages/fans)' 가 190px 에서 잘림 (198px 필요) — 버튼 폭과 겹침 확인
+        $btn = @([regex]::Matches([regex]::Match($src, '(?s)function Show-MonitorDialog.*?\n\}').Value, "Windows\.Forms\.Button '[^']+' (\d+) (\d+) (\d+) (\d+)") | ForEach-Object { , @([int]$_.Groups[1].Value, [int]$_.Groups[3].Value) })
+        Assert-Eq $btn.Count 3 '버튼 3개'
+        Assert ($btn[1][1] -ge 230) "HWiNFO 버튼 폭 $($btn[1][1])"
+        for ($i = 1; $i -lt $btn.Count; $i++) { Assert ($btn[$i][0] -ge $btn[$i - 1][0] + $btn[$i - 1][1]) "버튼 $i 겹침 없음" }
+        Assert (($btn[-1][0] + $btn[-1][1]) -le 544) '창 안에 들어감'
     } finally { $script:UiLang = $old }
 }
 It 'CPU·메인보드 온도 센서: 관리자 ACPI 우선, 없으면 일반 권한 열 영역 카운터, 이상값 무시' {
