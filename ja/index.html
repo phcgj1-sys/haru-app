@@ -372,15 +372,18 @@ const GLOSS = window.HARU_GLOSS || {}; Object.keys(GLOSS).forEach(k=>{ const n=k
 const SGROUPS = window.HARU_SENTS || [];
 const DIALOGS = window.HARU_DIALOGS || [];
 const WORDS = []; const WMAP = {}; const BYEN = {};
-THEMES.forEach((t,ti)=>{ t.words.forEach((w,wi)=>{ const o={id:t.id+'_'+wi, en:w[0], ko:w[1], ex:w[2]||'', exko:w[3]||'', rd:w[4]||'', exrd:w[5]||'', theme:t.id, themeName:t.name, lv:t.lv, order:ti*1000+wi}; WORDS.push(o); WMAP[o.id]=o; BYEN[o.en]=o; }); });
+THEMES.forEach((t,ti)=>{ t.words.forEach((w,wi)=>{ const o={id:t.id+'_'+wi, en:w[0], ko:w[1], ex:w[2]||'', exko:w[3]||'', rd:w[4]||'', exrd:w[5]||'', theme:t.id, themeName:t.name, lv:t.lv, order:ti*1000+wi}; WORDS.push(o); WMAP[o.id]=o; const pv=BYEN[o.en]; BYEN[o.en]= pv? Object.assign({},pv,{ko:pv.ko+' / '+o.ko}) : o; }); });
 const SENTS = []; const SMAP = {};
-SGROUPS.forEach((g,gi)=>{ g.sents.forEach((s,si)=>{ const tokens=tok(s[0]); const o={id:g.id+'_'+String(si).padStart(2,'0'), en:J(tokens), raw:s[0], ko:s[1], rd:s[2]? disp(s[2]):'', group:g.id, groupName:g.name, lv:g.lv, order:gi*1000+si, tokens}; SENTS.push(o); SMAP[o.id]=o; }); });
+SGROUPS.forEach((g,gi)=>{ g.sents.forEach((s,si)=>{ const tokens=tok(s[0]); const o={id:g.id+'_'+String(si).padStart(2,'0'), en:J(tokens), raw:s[0], ko:s[1], rd:s[2]? disp(s[2]):'', rdt:s[2]? tok(s[2]):[], group:g.id, groupName:g.name, lv:g.lv, order:gi*1000+si, tokens}; SENTS.push(o); SMAP[o.id]=o; }); });
 const LEVELS = LANG.levels || {1:'레벨 1 · 꼭 필요한 기초',2:'레벨 2 · 일상 생활',3:'레벨 3 · 표현 넓히기'};
 const LVKEYS = [...new Set(THEMES.map(t=>t.lv))].sort();
 const SLEVELS = {1:'생존 문장',2:'일상 대화',3:'자연스러운 표현'};
 const DLEVELS = {1:'기본 대화',2:'일상 대화',3:'실전 대화'};
 const INTERVALS = [0,1,3,7,14,30,60,120];
 const DAY = 86400000;
+/* patch_jath3 */
+const dayStart = n => { const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()+(n||0)); return d.getTime(); };
+const APP = 'haru_'+LANG.code;
 
 /* ---------- 상태 ---------- */
 const KEY='haru_'+LANG.code+'_v1';
@@ -403,7 +406,8 @@ const Sync = { ref:null, timer:null, writing:false, dirty:false, status:'local',
   schedule(){ if(!this.ref) return; clearTimeout(this.timer); this.timer=setTimeout(()=>this.push(),1500); },
   async push(){ if(!this.ref) return; if(this.writing){ this.dirty=true; return; } this.writing=true; try{ await this.ref.set(JSON.parse(JSON.stringify(state))); }catch(e){ console.warn('sync push', e); } finally{ this.writing=false; if(this.dirty){ this.dirty=false; this.push(); } } }
 };
-const AI = { fn:null, ready:false, checked:false, async init(){ try{ if(!window.claude || typeof window.claude.use!=='function'){ this.checked=true; return; } this.fn=await window.claude.use('sample'); this.ready=!!this.fn; }catch(e){} this.checked=true; if(ui.view==='dialog') render(); } };
+const AI = { fn:null, ready:false, checked:false, async init(){ try{ if(window.claude && typeof window.claude.use==='function'){ this.fn=await window.claude.use('sample'); this.ready=!!this.fn; } }catch(e){} this.checked=true; if(!S && (ui.view==='dialog'||ui.view==='home')) render(); } };
+const aiOff = () => AI.checked && !AI.ready;
 
 /* ---------- 유틸 ---------- */
 const $ = s => document.querySelector(s);
@@ -416,12 +420,12 @@ let toastT; function toast(m){ const t=$('#toast'); t.textContent=m; t.classList
 const prog = id => state.words[id] || {b:0,d:0,s:0,c:0,w:0};
 const setProg = (id,p) => { state.words[id]=p; };
 const learned = () => WORDS.filter(w=>prog(w.id).b>0);
-const due = () => { const n=Date.now(); return WORDS.filter(w=>{const p=prog(w.id); return p.b>0 && p.d<=n;}).sort((a,b)=>prog(a.id).d-prog(b.id).d); };
+const due = () => { const n=dayStart(1); return WORDS.filter(w=>{const p=prog(w.id); return p.b>0 && p.d<n;}).sort((a,b)=>prog(a.id).d-prog(b.id).d); };
 const unlearned = () => WORDS.filter(w=>prog(w.id).b===0);
 const sprog = id => state.sents[id] || {b:0,d:0,s:0,c:0,w:0};
 const setSprog = (id,p) => { state.sents[id]=p; };
 const sLearned = () => SENTS.filter(s=>sprog(s.id).b>0);
-const sDue = () => { const n=Date.now(); return SENTS.filter(s=>{const p=sprog(s.id); return p.b>0 && p.d<=n;}).sort((a,b)=>sprog(a.id).d-sprog(b.id).d); };
+const sDue = () => { const n=dayStart(1); return SENTS.filter(s=>{const p=sprog(s.id); return p.b>0 && p.d<n;}).sort((a,b)=>sprog(a.id).d-sprog(b.id).d); };
 const sUnlearned = () => SENTS.filter(s=>sprog(s.id).b===0);
 const todayRec = () => Object.assign({n:0,r:0,ok:0,ng:0,sn:0,sr:0,dl:0}, state.daily[today()]||{});
 function bumpDaily(f){ const k=today(); const r=Object.assign({n:0,r:0,ok:0,ng:0,sn:0,sr:0,dl:0}, state.daily[k]||{}); f(r); state.daily[k]=r; }
@@ -433,23 +437,30 @@ const spkIcon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stro
 const chev = '<svg class="chev" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
 const SR = () => state.settings.showReading;
 const rdHtml = (r, cls) => (r && SR())? `<div class="${cls||'reading'}">${esc(r)}</div>` : '';
-function skeleton(tokens){ return tokens.map(t=>{ const chars=[...t]; return chars[0]+'＿'.repeat(Math.max(0, Math.min(chars.length-1, 4))); }).join(' '); }
-function normS(s){ return String(s||'').toLowerCase().replace(/[\s　]+/g,'').replace(/[。、．，！？!?\.\,\-・「」『』()（）"'’‘]/g,''); }
+function skeleton(tokens){ return tokens.map(t=>{ const chars=[...t]; const n=(/^[\u0E40-\u0E44]/.test(t) && chars.length>2)? 2:1; return chars.slice(0,n).join('')+'＿'.repeat(Math.max(0, Math.min(chars.length-n, 4))); }).join(' '); }
+function normS(s){ return String(s||'').toLowerCase().replace(/[\u30A1-\u30F6]/g, c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/[\s　]+/g,'').replace(/[。、．，！？!?\.\,\-・「」『』()（）"'’‘]/g,''); }
 function lev(a,b){ a=[...a]; b=[...b]; const m=a.length,n=b.length; if(!m) return n; if(!n) return m; let prev=Array.from({length:n+1},(_,i)=>i); for(let i=1;i<=m;i++){ const cur=[i]; for(let j=1;j<=n;j++){ cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a[i-1]===b[j-1]?0:1)); } prev=cur; } return prev[n]; }
-function sentScore(typed, target, alt){ const a=normS(typed); if(!a) return 0; const cands=[target, alt].filter(Boolean).map(normS); for(const b of cands){ if(a===b) return 2; } for(const b of cands){ const d=lev(a,b); if(d<=Math.max(1,Math.floor([...b].length/8))) return 1; } return 0; }
+const HANGUL=/[\uAC00-\uD7A3]/;
+const EQ_T=[], EQ_H={}; (LANG.equiv||[]).forEach(g=>{ g.slice(1).forEach(v=>{ if(HANGUL.test(v)) EQ_H[v]=g[0]; else EQ_T.push([v,g[0]]); }); }); EQ_T.sort((a,b)=>b[0].length-a[0].length);
+const EQ_HK=Object.keys(EQ_H).sort((a,b)=>b.length-a.length);
+function normE(s){ let t=String(s||'').split(/(\s+)/).map(w=>{ const m=w.match(/^(.*?)([。、．，！？!?.,]*)$/); return (EQ_H[m[1]]||m[1])+m[2]; }).join(''); t=normS(t); EQ_T.forEach(([v,c])=>{ t=t.split(v).join(c); }); for(const v of EQ_HK){ if(t.length>v.length && t.endsWith(v)){ t=t.slice(0,-v.length)+EQ_H[v]; break; } } return t; }
+function segOK(a, s){ if(!s||!s.rdt||!s.rdt.length||s.rdt.length!==s.tokens.length) return false; let pos=new Set([0]); for(let i=0;i<s.tokens.length;i++){ const al=[...new Set([normE(s.tokens[i]), normE(s.rdt[i])])]; const nx=new Set(); pos.forEach(p=>al.forEach(x=>{ if(a.startsWith(x,p)) nx.add(p+x.length); })); if(!nx.size) return false; pos=nx; } return pos.has(a.length); }
+function sentScore(typed, target, alt, s){ const a=normE(typed); if(!a) return 0; const cands=[target, alt].filter(Boolean).map(normE); for(const b of cands){ if(a===b) return 2; } if(segOK(a, s)) return 2; for(const b of cands){ const d=lev(a,b); if(d<=Math.max(1,Math.floor([...b].length/8))) return 1; } return 0; }
 
 /* ---------- 음성 ---------- */
 const TTS = {
-  voices:[], ok:('speechSynthesis' in window), total:0,
+  voices:[], ok:('speechSynthesis' in window), total:0, gen:0, timer:null, failed:false, t0:Date.now(),
   init(){ if(!this.ok) return; const load=()=>{ const all=speechSynthesis.getVoices(); const before=this.voices.length+'/'+this.total; this.total=all.length; const re=new RegExp('^'+LANG.ttsPrefix+'([-_]|$)','i'); this.voices=all.filter(v=>re.test(v.lang)); if(before!==this.voices.length+'/'+this.total && (ui.view==='home'||ui.view==='more')) render(); }; load(); speechSynthesis.onvoiceschanged=load; },
   noVoice(){ return this.ok && this.total>0 && this.voices.length===0; },
   ranked(){ const want=state.settings.voice.toLowerCase(); let vs=this.voices.filter(v=>v.lang.replace('_','-').toLowerCase()===want); if(!vs.length) vs=this.voices; const score=v=>(/natural|online|google|premium|enhanced|neural/i.test(v.name)?2:0)+(v.localService?0:1); return vs.slice().sort((a,b)=>score(b)-score(a)); },
   pick(idx){ const vs=this.ranked(); if(!vs.length) return null; return vs[Math.min(idx||0, vs.length-1)]; },
-  make(text, o){ o=o||{}; const u=new SpeechSynthesisUtterance(text); const v=this.pick(o.who===1?1:0); if(v) u.voice=v; u.lang=state.settings.voice; u.rate=o.rate||state.settings.rate; if(o.who===1 && this.ranked().length<2) u.pitch=0.8; return u; },
-  speak(text, o){ if(!this.ok){ toast('이 브라우저는 음성 재생을 지원하지 않아요'); return; } try{ speechSynthesis.cancel(); speechSynthesis.speak(this.make(text, typeof o==='number'?{rate:o}:o)); }catch(e){} },
-  seq(list, gap, o){ if(!this.ok||!list.length) return; speechSynthesis.cancel(); let i=0; const next=()=>{ if(i>=list.length) return; const item=list[i++]; const u= typeof item==='string'? this.make(item,o) : this.make(item[1], Object.assign({}, o||{}, {who:item[0]})); u.onend=()=>setTimeout(next, gap||350); speechSynthesis.speak(u); }; next(); },
-  stop(){ if(this.ok) speechSynthesis.cancel(); }
+  make(text, o){ o=o||{}; text=String(text==null?'':text).replace(/\s*[(（][^)）]*[)）]/g,'').trim(); const u=new SpeechSynthesisUtterance(text); u.addEventListener('start', ()=>{ TTS.failed=false; }); u.addEventListener('error', ev=>{ const er=(ev&&ev.error)||''; if(/synthesis-(failed|unavailable)|language-unavailable|voice-unavailable/.test(er) && !TTS.failed){ TTS.failed=true; toast(LANG.name+' 음성을 재생할 수 없어요'); } }); const v=this.pick(o.who===1?1:0); if(v) u.voice=v; u.lang=state.settings.voice; u.rate=o.rate||state.settings.rate; if(o.who===1 && this.ranked().length<2) u.pitch=0.8; return u; },
+  speak(text, o){ if(!this.ok){ toast('이 브라우저는 음성 재생을 지원하지 않아요'); return; } this.stop(); try{ speechSynthesis.speak(this.make(text, typeof o==='number'?{rate:o}:o)); }catch(e){} },
+  seq(list, gap, o){ if(!this.ok){ toast('이 브라우저는 음성 재생을 지원하지 않아요'); return; } if(!list.length) return; this.stop(); const g=this.gen; let i=0; const go=()=>{ if(g!==this.gen) return; clearTimeout(this.timer); this.timer=setTimeout(next, gap||350); }; const next=()=>{ if(g!==this.gen||i>=list.length) return; const item=list[i++]; const u= typeof item==='string'? this.make(item,o) : this.make(item[1], Object.assign({}, o||{}, {who:item[0]})); u.onend=go; u.onerror=ev=>{ const er=ev&&ev.error; if(er==='interrupted'||er==='canceled') return; go(); }; try{ speechSynthesis.speak(u); }catch(err){} }; next(); },
+  stop(){ this.gen++; clearTimeout(this.timer); if(this.ok){ try{ speechSynthesis.cancel(); }catch(e){} } }
 };
+
+const canHear = () => TTS.ok && !TTS.failed && !TTS.noVoice();
 
 /* ---------- 화면 상태 ---------- */
 const ui = {view:'home', lv:LVKEYS[0]||1, theme:null, pattern:null, reading:null, group:null, dialog:null, sub:{sents:'sents', dialog:'role'}, showAll:false, openWord:null, more:'guide', confirmReset:false, importText:'', build:null, slot:null, openSent:null, chat:{topic:'free', level:'easy', msgs:[], turns:[], busy:false, ctl:null, started:false, err:''}};
@@ -467,6 +478,9 @@ function renderNav(){
 
 /* ---- 홈 ---- */
 function voiceNote(){
+  const AND=/Android/i.test(navigator.userAgent||'');
+  if(!TTS.ok&&AND) return `<div class="note warn" style="margin-top:12px"><b>이 화면에서는 소리를 재생할 수 없어요.</b> Chrome 앱을 최신 버전으로 업데이트한 뒤 다시 열어 보세요.</div>`;
+  if(TTS.noVoice()&&AND) return `<div class="note warn" style="margin-top:12px"><b>${esc(LANG.name)} 음성이 설치되어 있지 않아요.</b> 휴대폰 설정 → 일반(또는 시스템) → 언어 및 입력 → 텍스트 음성 변환(TTS)에서 기본 엔진을 'Google 음성 서비스'로 고르고, '음성 데이터 설치'에서 ${esc(LANG.name)}를 내려받으세요. 그다음 이 앱을 다시 열어 주세요.</div>`;
   if(!TTS.ok) return `<div class="note warn" style="margin-top:12px"><b>이 브라우저는 소리 재생을 지원하지 않아요.</b> Edge나 Chrome 브라우저에서 이 링크를 열면 ${esc(LANG.name)} 발음을 들을 수 있어요.</div>`;
   if(TTS.noVoice()) return `<div class="note warn" style="margin-top:12px"><b>${esc(LANG.name)} 음성이 설치되어 있지 않아요.</b> 이 링크를 <b>Edge나 Chrome 브라우저</b>에서 열면 자연스러운 ${esc(LANG.name)} 발음이 나와요. 또는 Windows 설정 → 시간 및 언어 → 음성 → '음성 추가'에서 ${esc(LANG.name)}를 설치하세요.</div>`;
   return '';
@@ -491,7 +505,7 @@ function lrow(o){ return `<li><button class="lrow ${o.done?'done':''}" ${o.attrs
 function pager(list, curId, attr, nameOf){ const i=list.findIndex(x=>x.id===curId); if(i<0) return ''; const p=list[i-1], n=list[i+1]; if(!p&&!n) return ''; return `<nav class="pager" aria-label="이전·다음">${p?`<button class="pg" data-${attr}="${p.id}"><small>‹ 이전</small><span>${esc(nameOf(p))}</span></button>`:''}${n?`<button class="pg next" data-${attr}="${n.id}"><small>다음 ›</small><span>${esc(nameOf(n))}</span></button>`:''}</nav>`; }
 function stageStats(){
   const s1=[learned().length, WORDS.length]; const s2=[sLearned().length, SENTS.length]; const s3=[Object.keys(state.dialogs).length, DIALOGS.length]; const s4=[Object.keys(state.readings).length, READINGS.length]; const s5=[Math.min(state.chatTurns,50), 50];
-  return [{n:1,t:'단어',c:s1,view:'words',hint:'하루 10개'},{n:2,t:'통문장 외우기',c:s2,view:'sents',hint:'하루 5문장'},{n:3,t:'대화 역할극',c:s3,view:'dialog',hint:'하루 1편'},{n:4,t:'읽기',c:s4,view:'reading',hint:'하루 1편'},{n:5,t:'AI와 '+LANG.name+' 대화 (50회)',c:s5,view:'dialog',hint:'하루 5분'}];
+  return [{n:1,t:'단어',c:s1,view:'words',hint:'하루 10개'},{n:2,t:'통문장 외우기',c:s2,view:'sents',hint:'하루 5문장'},{n:3,t:'대화 역할극',c:s3,view:'dialog',hint:'하루 1편'},{n:4,t:'읽기',c:s4,view:'reading',hint:'하루 1편'},{n:5,t:'AI와 '+LANG.name+' 대화 (50회)',c:s5,view:'dialog',hint: aiOff()? '선택 · AI 앱에서 연습':'하루 5분'}];
 }
 function viewHome(){
   const d=due(), nl=unlearned(), rec=todayRec(), L=learned();
@@ -502,8 +516,8 @@ function viewHome(){
   const sd=sDue(), snl=sUnlearned(), sL=sLearned();
   const sNew=Math.max(0, Math.min(state.settings.newSentsPerDay - rec.sn, snl.length));
   const sMins=Math.max(1, Math.round(sd.length*0.5 + sNew*1.5)); const sDone = sNew===0 && sd.length===0;
-  const stages=stageStats(); let curStage=stages.find(s=>s.c[1]&&s.c[0]/s.c[1]<0.8)||stages[4];
-  const road=stages.map(s=>{ const pct=s.c[1]?Math.round(s.c[0]/s.c[1]*100):0; const cls= pct>=80?'done': s===curStage?'on':''; return `<li><button class="tl ${cls}" data-nav="${s.view}" ${s.n===5?'data-sub="ai"':''}><span class="tl-n">${pct>=80?icCheck:s.n}</span><span class="tl-b"><span class="tl-t">${esc(s.t)}</span><span class="tl-s num">${s===curStage?'지금 단계 · ':''}${s.c[0]}/${s.c[1]} · ${esc(s.hint)}</span><span class="bar"><i style="width:${pct}%"></i></span></span>${chev}</button></li>`; }).join('');
+  const stages=stageStats(); const aiOffH=aiOff(); const found=stages.find(s=>s.c[1]&&s.c[0]/s.c[1]<0.8&&!(s.n===5&&aiOffH)); const allDone=!found&&aiOffH; let curStage=found||stages[aiOffH?3:4];
+  const road=stages.map(s=>{ const pct=s.c[1]?Math.round(s.c[0]/s.c[1]*100):0; const cls= pct>=80?'done': s===curStage&&!allDone?'on':''; return `<li><button class="tl ${cls}" data-nav="${s.view}" ${s.n===5?'data-sub="ai"':''}><span class="tl-n">${pct>=80?icCheck:s.n}</span><span class="tl-b"><span class="tl-t">${esc(s.t)}</span><span class="tl-s num">${s===curStage&&!allDone?'지금 단계 · ':''}${s.c[0]}/${s.c[1]} · ${esc(s.hint)}</span><span class="bar"><i style="width:${pct}%"></i></span></span>${chev}</button></li>`; }).join('');
   const nextDlg = DIALOGS.find(x=>!state.dialogs[x.id]); const nextRead = READINGS.find(x=>!state.readings[x.id]);
   const tDone=rec.n+rec.r+rec.sn+rec.sr, tLeft=d.length+newN+sd.length+sNew; const tPct= (tDone+tLeft)? Math.round(tDone/(tDone+tLeft)*100) : 100;
   let h;
@@ -516,7 +530,7 @@ function viewHome(){
     lrow({ic:IC.sents, t:'오늘의 통문장', done:sDone, s: sDone? (snl.length? `오늘 몫 완료 · 새 문장 ${Math.min(state.settings.newSentsPerDay,snl.length)}개 더 외우기`:'오늘 몫 완료') : `복습 ${sd.length} · 새 문장 ${sNew} · 약 ${sMins}분`, attrs:`data-act="start" data-kind="${sDone?'sent-extra':'sent-daily'}"`, disabled: sDone&&!snl.length}),
     lrow({ic:IC.dialog, t:'역할극 1편', s: nextDlg? esc(nextDlg.ko)+' · 내가 말해 보기' : '모든 대화를 끝냈어요', attrs:`data-act="start" data-kind="drole" data-dialog="${nextDlg?nextDlg.id:''}"`, disabled:!nextDlg}),
     lrow({ic:IC.reading, t:'읽기 1편', s: nextRead? esc(nextRead.ko) : '모든 글을 읽었어요', attrs:`data-nav="reading" data-reading="${nextRead?nextRead.id:''}"`, disabled:!nextRead}),
-    lrow({ic:IC.ai, t:`AI와 ${esc(LANG.name)}로 대화`, s: state.chatTurns? '지금까지 '+state.chatTurns+'번 말했어요' : '실전처럼 주고받기', attrs:`data-nav="dialog" data-sub="ai"`}),
+    lrow({ic:IC.ai, t:`AI와 ${esc(LANG.name)}로 대화`, s: state.chatTurns? '지금까지 '+state.chatTurns+'번 말했어요' : (aiOff()? '프롬프트를 복사해 AI 앱에서 연습' : '실전처럼 주고받기'), attrs:`data-nav="dialog" data-sub="ai"`}),
     lrow({ic:IC.recall, t:'문장 떠올리기', s: sL.length>=3?'한국어만 보고 말하기 8개':'문장 3개 이상 외우면 열려요', attrs:`data-act="start" data-kind="sent-recall"`, disabled: sL.length<3})
   ].join('');
   return `
@@ -531,14 +545,14 @@ function viewHome(){
   ${voiceNote()}
   <h2 class="h2">오늘의 학습</h2>
   <ul class="curri">${rows}</ul>
-  <h2 class="h2">학습 로드맵 · 지금은 ${curStage.n}단계</h2>
+  <h2 class="h2">${allDone? '학습 로드맵 · 기본 4단계 완료' : '학습 로드맵 · 지금은 '+curStage.n+'단계'}</h2>
   <ol class="timeline">${road}</ol>
   <h2 class="h2">바로 가기</h2>
   <div class="grid2">
     <button class="item" data-act="start" data-kind="review" ${d.length?'':'disabled'}><div class="body"><div class="t">단어 복습만</div><div class="s">${d.length? d.length+'개 기다리는 중':'지금은 없어요'}</div></div>${chev}</button>
     <button class="item" data-act="start" data-kind="sent-review" ${sd.length?'':'disabled'}><div class="body"><div class="t">문장 복습만</div><div class="s">${sd.length? sd.length+'개 기다리는 중':'지금은 없어요'}</div></div>${chev}</button>
-    <button class="item" data-act="start" data-kind="listen" ${L.length>=4?'':'disabled'}><div class="body"><div class="t">단어 듣기 퀴즈</div><div class="s">${L.length>=4?'배운 단어 10개 듣고 맞히기':'단어 4개 이상 배우면 열려요'}</div></div>${chev}</button>
-    <button class="item" data-act="start" data-kind="sent-dict" ${sL.length>=3?'':'disabled'}><div class="body"><div class="t">문장 듣고 말하기</div><div class="s">${sL.length>=3?'외운 문장 6개 듣고 따라 말하기':'문장 3개 이상 외우면 열려요'}</div></div>${chev}</button>
+    <button class="item" data-act="start" data-kind="listen" ${L.length>=4&&canHear()?'':'disabled'}><div class="body"><div class="t">단어 듣기 퀴즈</div><div class="s">${!canHear()? esc(LANG.name)+' 음성이 없어서 쓸 수 없어요' : L.length>=4?'배운 단어 10개 듣고 맞히기':'단어 4개 이상 배우면 열려요'}</div></div>${chev}</button>
+    <button class="item" data-act="start" data-kind="sent-dict" ${sL.length>=3&&canHear()?'':'disabled'}><div class="body"><div class="t">문장 듣고 말하기</div><div class="s">${!canHear()? esc(LANG.name)+' 음성이 없어서 쓸 수 없어요' : sL.length>=3?'외운 문장 6개 듣고 따라 말하기':'문장 3개 이상 외우면 열려요'}</div></div>${chev}</button>
   </div>`;
 }
 
@@ -653,16 +667,29 @@ Reply ONLY with one JSON object, no other text: {"reply":"...","reply_read":"...
 - fix_read: reading of fix (${LANG.readingHint}) or "". fix_ko: one short Korean sentence explaining the fix in simple words, or "".
 - hint: one short example sentence the learner could say next, in ${LANG.chatLang}. hint_read: its reading. hint_ko: its Korean meaning.
 Keep every field short. Korean fields must be in Korean.`; }
+function chatPrompt(){ const t=TOPICS.find(x=>x[0]===ui.chat.topic)||TOPICS[0];
+  return `You are my ${LANG.chatLang} conversation partner. I am a Korean speaker learning ${LANG.chatLang}.
+Situation: ${t[2]}
+Level: ${LVDESC[ui.chat.level]}
+Rules:
+- Speak only spoken ${LANG.chatLang} in 1-2 short sentences, stay in character, and always end with a question.
+- Under each reply, write how to read it (${LANG.readingHint}) and a natural Korean translation in parentheses.
+- After each of my messages: if I made a mistake or sounded unnatural, first show the natural corrected ${LANG.chatLang} sentence with a one-line explanation in simple Korean, then reply.
+- If I write in Korean, show how to say it in ${LANG.chatLang}, then continue the conversation.
+- If I write "hint", give one short example sentence I could say next, with its reading and Korean meaning.
+Start now: greet me briefly and ask one easy first question.`; }
+function copyText(txt, ok, fail){ const legacy=()=>{ try{ const t=document.createElement('textarea'); t.value=txt; t.setAttribute('readonly',''); t.style.cssText='position:fixed;top:0;left:0;opacity:0'; document.body.appendChild(t); t.select(); const r=document.execCommand('copy'); t.remove(); if(r) ok(); else fail(); }catch(e){ fail(); } }; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(ok, legacy); } else legacy(); }
+function chatCopy(){ copyText(chatPrompt(), ()=>toast('복사했어요. AI 앱에 붙여 넣으세요'), ()=>{ ui.chat.showPrompt=true; render(); const t=$('#chatPromptTa'); if(t){ t.focus(); t.select(); } toast('글을 길게 눌러 직접 복사하세요'); }); }
 function viewChat(){
   const c=ui.chat;
   const topics=TOPICS.map(t=>`<button class="chip ${c.topic===t[0]?'on':''}" data-topic="${t[0]}" ${c.started?'disabled':''}>${esc(t[1])}</button>`).join('');
   const levels=[['easy','쉽게'],['normal','보통'],['real','실전']].map(l=>`<button class="${c.level===l[0]?'on':''}" data-chatlv="${l[0]}" ${c.started?'disabled':''}>${l[1]}</button>`).join('');
-  let avail=''; if(!AI.checked) avail=`<p class="muted small">AI 연결 확인 중...</p>`; else if(!AI.ready) avail=`<div class="note warn">AI 대화 상대는 <b>claude.ai에 로그인한 상태로 이 링크를 열었을 때</b> 쓸 수 있어요. 지금 화면에서는 쓸 수 없어요. 대신 '역할극'으로 연습하세요.</div>`;
+  let avail=''; if(!AI.checked) avail=`<p class="muted small">AI 연결 확인 중...</p>`; else if(!AI.ready) avail=`<div class="note">이 화면에서는 AI와 바로 대화할 수 없어요. 상황과 난이도를 고른 뒤 아래 버튼을 누르면, 연습 안내문을 쓰고 있는 AI 앱(ChatGPT, Claude 등)에 보낼 수 있어요. 그 앱에서 같은 방식으로 ${esc(LANG.name)} 대화를 연습해요.</div><div class="row">${navigator.share? `<button class="btn primary" data-act="chat-share">AI 앱으로 보내기</button>`:''}<button class="btn ${navigator.share?'':'primary'}" data-act="chat-copy">대화 프롬프트 복사</button></div>${c.showPrompt? `<textarea class="ta" id="chatPromptTa" readonly aria-label="대화 프롬프트">${esc(chatPrompt())}</textarea><p class="muted small">글을 길게 눌러 모두 선택한 뒤 복사하세요.</p>`:''}`;
   const msgs=c.msgs.map((m,i)=>{
     if(m.who==='ai') return `<div class="bub ai ${m.show?'show':''}"><span class="en">${esc(m.reply)}</span>${m.reply_read&&SR()? `<div class="rd">${esc(m.reply_read)}</div>`:''}<div class="ko">${esc(m.reply_ko)}</div><div class="tools"><button data-say="${esc(m.reply)}">🔊 듣기</button><button data-act="chat-ko" data-i="${i}">${m.show?'뜻 숨기기':'뜻 보기'}</button>${m.hint? `<button data-act="chat-hint" data-i="${i}">${m.showHint?'힌트 닫기':'뭐라고 말하지?'}</button>`:''}</div></div>`+(m.hint&&m.showHint? `<div class="hint">이렇게 말해 볼 수 있어요: <b>${esc(m.hint)}</b> ${m.hint_read? '('+esc(m.hint_read)+')':''}<br>${esc(m.hint_ko)}</div>`:'');
     return `<div class="bub me">${esc(m.text)}</div>`+(m.fix? `<div class="fix">✏️ 이렇게 말하면 더 자연스러워요<b>${esc(m.fix)}</b>${m.fix_read? '<span class="muted">'+esc(m.fix_read)+'</span><br>':''}${esc(m.fix_ko)}</div>`:'');
   }).join('');
-  return `<div class="card stack"><div class="field"><label>상황</label><div class="chips">${topics}</div></div><div class="field"><label>난이도</label><div class="seg">${levels}</div></div>${avail}${c.started? '' : `<button class="btn primary big" data-act="chat-start" ${AI.ready?'':'disabled'}>대화 시작</button>`}</div>
+  return `<div class="card stack"><div class="field"><label>상황</label><div class="chips">${topics}</div></div><div class="field"><label>난이도</label><div class="seg">${levels}</div></div>${avail}${c.started||aiOff()? '' : `<button class="btn primary big" data-act="chat-start" ${AI.ready?'':'disabled'}>대화 시작</button>`}</div>
   ${c.started? `<div class="card" style="margin-top:12px"><div class="chat">${msgs}${c.busy? `<div class="thinking">생각 중...</div>`:''}${c.err? `<div class="note warn">${esc(c.err)}</div>`:''}</div>
     <div class="chatin"><input id="chatIn" type="text" autocomplete="off" placeholder="${esc(LANG.name)}로 써 보세요 (한국어로 써도 고쳐 줘요)" ${c.busy?'disabled':''}><button class="btn primary" data-act="chat-send" ${c.busy?'disabled':''}>보내기</button></div>
     <div class="row" style="margin-top:10px">${c.busy? `<button class="btn sm ghost" data-act="chat-stop">멈춤</button>`:''}<button class="btn sm ghost" data-act="chat-reset">새 대화</button><span class="muted small">주고받은 횟수 ${state.chatTurns}</span></div></div>` : `<p class="muted small" style="margin:12px 2px">AI가 먼저 말을 걸어요. ${esc(LANG.name)}로 답하면 자연스러운 표현으로 고쳐 주고, 뭐라고 말할지 모르면 힌트를 보여 줘요. 로마자나 한국어로 써도 돼요.</p>`}`;
@@ -736,15 +763,16 @@ function viewMore(){
     <div class="field"><label>하루 새 단어 수</label><div class="seg">${[5,10,15,20].map(n=>`<button class="${s.newPerDay===n?'on':''}" data-set="newPerDay" data-val="${n}">${n}개</button>`).join('')}</div></div>
     <div class="field"><label>하루 새 문장 수</label><div class="seg">${[3,5,8,10].map(n=>`<button class="${s.newSentsPerDay===n?'on':''}" data-set="newSentsPerDay" data-val="${n}">${n}개</button>`).join('')}</div></div>
     <div class="field"><label>음성 속도</label><div class="seg">${[[0.7,'천천히'],[0.85,'보통'],[1,'자연스럽게']].map(([v,l])=>`<button class="${s.rate===v?'on':''}" data-set="rate" data-val="${v}">${l}</button>`).join('')}</div></div>
-    <div class="field"><label>음성</label><div class="seg">${LANG.voices.map(([v,l])=>`<button class="${s.voice===v?'on':''}" data-set="voice" data-val="${v}">${l}</button>`).join('')}</div><p class="muted small">${TTS.ok? (TTS.voices.length? '사용 가능한 '+esc(LANG.name)+' 음성 '+TTS.voices.length+'개 (예: '+esc(TTS.voices[0].name)+')' : TTS.noVoice()? esc(LANG.name)+' 음성이 없어요.' : '음성을 불러오는 중이에요.') : '이 브라우저는 음성 재생을 지원하지 않아요.'}</p></div>
+    <div class="field"><label>음성</label><div class="seg">${LANG.voices.map(([v,l])=>`<button class="${s.voice===v?'on':''}" data-set="voice" data-val="${v}">${l}</button>`).join('')}</div><p class="muted small">${TTS.ok? (TTS.voices.length? '사용 가능한 '+esc(LANG.name)+' 음성 '+TTS.voices.length+'개 (예: '+esc(TTS.voices[0].name)+')' : TTS.noVoice()? esc(LANG.name)+' 음성이 없어요.' : (Date.now()-TTS.t0>3000? '음성 목록을 찾지 못했어요. 들어 보기로 소리가 나는지 확인하세요.' : '음성을 불러오는 중이에요.')) : '이 브라우저는 음성 재생을 지원하지 않아요.'}</p></div>
     ${voiceNote()}
     <div class="field"><label>카드가 나올 때 자동으로 읽기</label><div class="seg"><button class="${s.autoPlay?'on':''}" data-set="autoPlay" data-val="1">켜기</button><button class="${!s.autoPlay?'on':''}" data-set="autoPlay" data-val="0">끄기</button></div></div>
     <div class="field"><label>음성 시험</label><div class="row"><button class="btn sm" data-say="${esc(LANG.testPhrase||'')}">들어 보기</button></div></div>
     <div class="field" style="margin-top:8px"><label>진도 초기화</label>${ui.confirmReset? `<div class="row"><button class="btn danger" data-act="reset-yes">네, 모두 지울게요</button><button class="btn ghost" data-act="reset-no">취소</button></div>` : `<button class="btn ghost" data-act="reset-ask">모든 학습 기록 지우기</button>`}</div></div>`;
-  else body=`<div class="card stack"><div class="field"><label>내보내기</label><textarea class="ta" id="exportTa" aria-label="내보내기" readonly>${esc(JSON.stringify(state))}</textarea><div class="row"><button class="btn sm" data-act="copy-export">복사하기</button></div></div><div class="field" style="margin-top:8px"><label>가져오기</label><textarea class="ta" id="importTa" placeholder="내보내기로 복사해 둔 글을 여기에 붙여 넣으세요">${esc(ui.importText)}</textarea><div class="row"><button class="btn sm primary" data-act="do-import">가져오기 (지금 진도를 덮어써요)</button></div></div></div>`;
+  else body=`<div class="card stack"><div class="field"><label>내보내기</label><textarea class="ta" id="exportTa" aria-label="내보내기" readonly>${esc(exportText())}</textarea><div class="row"><button class="btn sm" data-act="copy-export">복사하기</button></div></div><div class="field" style="margin-top:8px"><label>가져오기</label><textarea class="ta" id="importTa" placeholder="내보내기로 복사해 둔 글을 여기에 붙여 넣으세요">${esc(ui.importText)}</textarea><div class="row"><button class="btn sm primary" data-act="do-import">가져오기 (지금 진도를 덮어써요)</button></div></div></div>`;
   return `<div class="topbar"><div class="brand"><h1>더보기</h1></div><span class="pill ${Sync.status==='cloud'?'ok':''}">${Sync.status==='cloud'?'계정에 저장 중':'이 기기에 저장'}</span></div><div class="tabs" style="margin-bottom:12px">${tabs}</div>${body}`;
 }
 
+const exportText = () => JSON.stringify(Object.assign({app:APP}, state));
 /* ---------- 학습 세션 (공통) ---------- */
 let S=null;
 function endSession(){ S=null; $('#layer').innerHTML=''; TTS.stop(); render(); }
@@ -770,17 +798,18 @@ function viewSummary(){
 }
 
 /* ---------- 단어 세션 ---------- */
-function modeFor(p){ const r=Math.random(); if(p.b<=2) return r<0.6?'ko':'listen'; if(p.b<=4) return r<0.4?'en':r<0.7?'listen':'ko'; return r<0.6?'en':'listen'; }
+function modeFor(p){ const m=modeRaw(p); return (m==='listen'&&!canHear())? 'ko' : m; }
+function modeRaw(p){ const r=Math.random(); if(p.b<=2) return r<0.6?'ko':'listen'; if(p.b<=4) return r<0.4?'en':r<0.7?'listen':'ko'; return r<0.6?'en':'listen'; }
 function startSession(kind, opt){
   if(kind.startsWith('sent')) return startSentSession(kind, opt);
   if(kind==='drole') return startDialogSession(opt);
   opt=opt||{}; const q=[]; let title='학습';
   if(kind==='daily'||kind==='review'||kind==='extra'){ const rec=todayRec();
     if(kind!=='extra'){ due().slice(0,40).forEach(w=>q.push({t:'quiz', w, mode:modeFor(prog(w.id)), rev:true})); }
-    if(kind!=='review'){ const n= kind==='extra'? state.settings.newPerDay : Math.max(0, state.settings.newPerDay-rec.n); const nw=unlearned().slice(0,n); nw.forEach(w=>q.push({t:'learn', w})); shuffle(nw).forEach(w=>q.push({t:'quiz', w, mode:'ko', fresh:true})); shuffle(nw).forEach(w=>q.push({t:'quiz', w, mode:Math.random()<0.5?'en':'listen', fresh:true})); }
+    if(kind!=='review'){ const n= kind==='extra'? state.settings.newPerDay : Math.max(0, state.settings.newPerDay-rec.n); const nw=unlearned().slice(0,n); nw.forEach(w=>q.push({t:'learn', w})); shuffle(nw).forEach(w=>q.push({t:'quiz', w, mode:'ko', fresh:true})); shuffle(nw).forEach(w=>q.push({t:'quiz', w, mode:(Math.random()<0.5||!canHear())?'en':'listen', fresh:true})); }
     title = kind==='review'?'단어 복습':'오늘의 단어'; }
-  else if(kind==='listen'){ pick(learned(),10).forEach(w=>q.push({t:'quiz', w, mode:'listen', free:true})); title='듣기 퀴즈'; }
-  else if(kind==='theme-new'){ const t=THEMES.find(x=>x.id===opt.theme); const nw=t.words.map((w,i)=>WMAP[t.id+'_'+i]).filter(w=>prog(w.id).b===0).slice(0,15); nw.forEach(w=>q.push({t:'learn', w})); shuffle(nw).forEach(w=>q.push({t:'quiz', w, mode:'ko', fresh:true})); shuffle(nw).forEach(w=>q.push({t:'quiz', w, mode:Math.random()<0.5?'en':'listen', fresh:true})); title=t.name; }
+  else if(kind==='listen'){ if(!canHear()){ toast(LANG.name+' 음성이 없어서 듣기 퀴즈를 할 수 없어요'); return; } pick(learned(),10).forEach(w=>q.push({t:'quiz', w, mode:'listen', free:true})); title='듣기 퀴즈'; }
+  else if(kind==='theme-new'){ const t=THEMES.find(x=>x.id===opt.theme); const nw=t.words.map((w,i)=>WMAP[t.id+'_'+i]).filter(w=>prog(w.id).b===0).slice(0,15); nw.forEach(w=>q.push({t:'learn', w})); shuffle(nw).forEach(w=>q.push({t:'quiz', w, mode:'ko', fresh:true})); shuffle(nw).forEach(w=>q.push({t:'quiz', w, mode:(Math.random()<0.5||!canHear())?'en':'listen', fresh:true})); title=t.name; }
   else if(kind==='theme-quiz'){ const t=THEMES.find(x=>x.id===opt.theme); shuffle(t.words.map((w,i)=>WMAP[t.id+'_'+i])).forEach(w=>q.push({t:'quiz', w, mode:Math.random()<0.5?'ko':'en', free:true})); title=t.name+' 퀴즈'; }
   if(!q.length){ toast('지금은 할 게 없어요'); return; }
   S={type:'word', kind, title, q, i:0, ok:0, ng:0, newN:0, revN:0, reask:{}, answered:false, learnedSet:{}}; renderSession();
@@ -805,16 +834,17 @@ function viewQuiz(it){ const w=it.w; const m=it.mode; if(!it.opts) it.opts=optio
 function answer(correct){
   const it=cur(); const w=it.w; const p=Object.assign({b:0,d:0,s:0,c:0,w:0}, prog(w.id)); const now=Date.now();
   S.answered=true; it.correct=correct; p.s++; if(correct) S.ok++; else S.ng++; bumpDaily(r=>{ if(correct) r.ok++; else r.ng++; });
-  if(it.rev){ if(correct){ p.c++; p.b=Math.min(p.b+1, INTERVALS.length-1); p.d=now+INTERVALS[p.b]*DAY; } else { p.w++; p.b=1; p.d=now+600000; } if(!it.re){ S.revN++; bumpDaily(r=>r.r++); } }
-  else if(it.fresh){ if(correct) p.c++; else p.w++; if(p.b===0){ p.b=1; p.d=now+DAY; p.l=now; } if(!S.learnedSet[w.id]){ S.learnedSet[w.id]=1; S.newN++; bumpDaily(r=>r.n++); } }
-  else { if(correct){ p.c++; } else { p.w++; if(p.b>1){ p.b=Math.max(1,p.b-1); p.d=now+INTERVALS[p.b]*DAY; } } }
+  if(it.rev){ if(correct){ p.c++; if(it.re){ p.b=1; p.d=dayStart(1); } else { p.b=Math.min(p.b+1, INTERVALS.length-1); p.d=dayStart(INTERVALS[p.b]); } } else { p.w++; p.b=1; p.d=dayStart(1); } if(!it.re){ S.revN++; bumpDaily(r=>r.r++); } }
+  else if(it.fresh){ if(correct) p.c++; else p.w++; if(p.b===0){ p.b=1; p.d=dayStart(1); p.l=now; } if(!S.learnedSet[w.id]){ S.learnedSet[w.id]=1; S.newN++; bumpDaily(r=>r.n++); } }
+  else { if(correct){ p.c++; } else { p.w++; if(p.b>1){ p.b=Math.max(1,p.b-1); p.d=Math.min(p.d||Infinity, dayStart(INTERVALS[p.b])); } } }
   if(!correct){ const n=(S.reask[w.id]||0); if(n<2){ S.reask[w.id]=n+1; S.q.splice(Math.min(S.q.length, S.i+3+Math.floor(Math.random()*3)), 0, {t:'quiz', w, mode:'ko', re:true, rev:it.rev, fresh:it.fresh, free:it.free}); } }
   setProg(w.id,p); touchStreak(); commit(); renderSession(); if(!correct || it.mode==='en') TTS.speak(w.en);
 }
 
 /* ---------- 통문장 세션 ---------- */
 function contentIdx(s){ const idx=[]; s.tokens.forEach((t,i)=>{ const c=t.replace(/[。、！？!?\.\,]/g,''); if([...c].length>=2 && !STOP.has(c)) idx.push(i); }); return idx; }
-function sModeFor(p, s){ const r=Math.random(); const long=s.tokens.length>=3; const cl=contentIdx(s).length>0; if(p.b<=2) return long? (r<0.6?'order':(cl?'cloze':'recall')) : 'recall'; if(p.b<=4) return (r<0.5 && cl)? 'cloze' : 'dict'; return r<0.6?'recall':'dict'; }
+function sModeFor(p, s){ const m=sModeRaw(p, s); return (m==='dict'&&!canHear())? 'recall' : m; }
+function sModeRaw(p, s){ const r=Math.random(); const long=s.tokens.length>=3; const cl=contentIdx(s).length>0; if(p.b<=2) return long? (r<0.6?'order':(cl?'cloze':'recall')) : 'recall'; if(p.b<=4) return (r<0.5 && cl)? 'cloze' : 'dict'; return r<0.6?'recall':'dict'; }
 function firstQuizMode(s){ return s.tokens.length>=3? 'order' : (contentIdx(s).length? 'cloze':'recall'); }
 function pushLearn(q, s){ q.push({t:'slearn', s, stage:0}); q.push({t:'slearn', s, stage:1}); q.push({t:'slearn', s, stage:2}); }
 function groupSents(g){ return g.sents.map((s,i)=>SMAP[g.id+'_'+String(i).padStart(2,'0')]); }
@@ -824,7 +854,7 @@ function startSentSession(kind, opt){
     if(kind!=='sent-extra'){ sDue().slice(0,30).forEach(s=>q.push({t:'squiz', s, mode:sModeFor(sprog(s.id), s), rev:true})); }
     if(kind!=='sent-review'){ const n= kind==='sent-extra'? state.settings.newSentsPerDay : Math.max(0, state.settings.newSentsPerDay-rec.sn); const ns=sUnlearned().slice(0,n); ns.forEach(s=>pushLearn(q,s)); shuffle(ns).forEach(s=>q.push({t:'squiz', s, mode:firstQuizMode(s), fresh:true})); shuffle(ns).forEach(s=>q.push({t:'squiz', s, mode:'recall', fresh:true})); }
     title = kind==='sent-review'?'문장 복습':'오늘의 통문장'; }
-  else if(kind==='sent-dict'){ pick(sLearned(),6).forEach(s=>q.push({t:'squiz', s, mode:'dict', free:true})); title='문장 듣고 말하기'; }
+  else if(kind==='sent-dict'){ if(!canHear()){ toast(LANG.name+' 음성이 없어서 듣기 연습을 할 수 없어요'); return; } pick(sLearned(),6).forEach(s=>q.push({t:'squiz', s, mode:'dict', free:true})); title='문장 듣고 말하기'; }
   else if(kind==='sent-recall'){ pick(sLearned(),8).forEach(s=>q.push({t:'squiz', s, mode:'recall', free:true})); title='문장 떠올리기'; }
   else if(kind==='sent-group'){ const g=SGROUPS.find(x=>x.id===opt.group); const ns=groupSents(g).filter(s=>sprog(s.id).b===0).slice(0,8); ns.forEach(s=>pushLearn(q,s)); shuffle(ns).forEach(s=>q.push({t:'squiz', s, mode:firstQuizMode(s), fresh:true})); shuffle(ns).forEach(s=>q.push({t:'squiz', s, mode:'recall', fresh:true})); title=g.name; }
   else if(kind==='sent-group-quiz'){ const g=SGROUPS.find(x=>x.id===opt.group); shuffle(groupSents(g)).forEach(s=>q.push({t:'squiz', s, mode: Math.random()<0.5? firstQuizMode(s):'recall', free:true})); title=g.name+' 퀴즈'; }
@@ -861,9 +891,9 @@ function viewSQuiz(it){ const s=it.s; const m=it.mode; const tag = it.rev? '문�
 function answerS(score){
   const it=cur(); const s=it.s; const correct=score>0; const p=Object.assign({b:0,d:0,s:0,c:0,w:0}, sprog(s.id)); const now=Date.now();
   S.answered=true; it.correct=correct; it.score=score; p.s++; if(correct) S.ok++; else S.ng++; bumpDaily(r=>{ if(correct) r.ok++; else r.ng++; });
-  if(it.rev){ if(correct){ p.c++; p.b=Math.min(p.b+1, INTERVALS.length-1); p.d=now+INTERVALS[p.b]*DAY; } else { p.w++; p.b=1; p.d=now+600000; } if(!it.re){ S.revN++; bumpDaily(r=>r.sr++); } }
-  else if(it.fresh){ if(correct) p.c++; else p.w++; if(p.b===0){ p.b=1; p.d=now+DAY; p.l=now; } if(!S.learnedSet[s.id]){ S.learnedSet[s.id]=1; S.newN++; bumpDaily(r=>r.sn++); } }
-  else { if(correct){ p.c++; } else { p.w++; if(p.b>1){ p.b=Math.max(1,p.b-1); p.d=now+INTERVALS[p.b]*DAY; } } }
+  if(it.rev){ if(correct){ p.c++; if(it.re){ p.b=1; p.d=dayStart(1); } else { p.b=Math.min(p.b+1, INTERVALS.length-1); p.d=dayStart(INTERVALS[p.b]); } } else { p.w++; p.b=1; p.d=dayStart(1); } if(!it.re){ S.revN++; bumpDaily(r=>r.sr++); } }
+  else if(it.fresh){ if(correct) p.c++; else p.w++; if(p.b===0){ p.b=1; p.d=dayStart(1); p.l=now; } if(!S.learnedSet[s.id]){ S.learnedSet[s.id]=1; S.newN++; bumpDaily(r=>r.sn++); } }
+  else { if(correct){ p.c++; } else { p.w++; if(p.b>1){ p.b=Math.max(1,p.b-1); p.d=Math.min(p.d||Infinity, dayStart(INTERVALS[p.b])); } } }
   if(!correct){ const n=(S.reask[s.id]||0); if(n<2){ S.reask[s.id]=n+1; const mode= it.mode==='order'? 'recall' : firstQuizMode(s); S.q.splice(Math.min(S.q.length, S.i+3+Math.floor(Math.random()*3)), 0, {t:'squiz', s, mode, re:true, rev:it.rev, fresh:it.fresh, free:it.free}); } }
   setSprog(s.id,p); touchStreak(); commit(); renderSession(); TTS.speak(s.en);
 }
@@ -909,12 +939,12 @@ document.addEventListener('click', e=>{
     case 'start': startSession(d.kind, {theme:d.theme, group:d.group, dialog:d.dialog, role:d.role}); break;
     case 'exit': endSession(); break;
     case 'next': if(!S) return; S.i++; S.answered=false; renderSession(); break;
-    case 'known': { if(!S) return; const it=cur(); const p=Object.assign({b:0,d:0,s:0,c:0,w:0}, prog(it.w.id)); if(p.b===0){ p.b=4; p.d=Date.now()+INTERVALS[4]*DAY; p.l=Date.now(); setProg(it.w.id,p); S.learnedSet[it.w.id]=1; S.newN++; bumpDaily(r=>r.n++); } S.q=S.q.filter((x,i)=> i<=S.i || !x.w || x.w.id!==it.w.id); touchStreak(); commit(); S.i++; S.answered=false; renderSession(); break; }
-    case 's-known': { if(!S) return; const it=cur(); const p=Object.assign({b:0,d:0,s:0,c:0,w:0}, sprog(it.s.id)); if(p.b===0){ p.b=4; p.d=Date.now()+INTERVALS[4]*DAY; p.l=Date.now(); setSprog(it.s.id,p); S.learnedSet[it.s.id]=1; S.newN++; bumpDaily(r=>r.sn++); } S.q=S.q.filter((x,i)=> i<=S.i || !x.s || x.s.id!==it.s.id); touchStreak(); commit(); S.i++; S.answered=false; renderSession(); break; }
+    case 'known': { if(!S) return; const it=cur(); const p=Object.assign({b:0,d:0,s:0,c:0,w:0}, prog(it.w.id)); if(p.b===0){ p.b=4; p.d=dayStart(INTERVALS[4]); p.l=Date.now(); setProg(it.w.id,p); S.learnedSet[it.w.id]=1; S.newN++; bumpDaily(r=>r.n++); } S.q=S.q.filter((x,i)=> i<=S.i || !x.w || x.w.id!==it.w.id); touchStreak(); commit(); S.i++; S.answered=false; renderSession(); break; }
+    case 's-known': { if(!S) return; const it=cur(); const p=Object.assign({b:0,d:0,s:0,c:0,w:0}, sprog(it.s.id)); if(p.b===0){ p.b=4; p.d=dayStart(INTERVALS[4]); p.l=Date.now(); setSprog(it.s.id,p); S.learnedSet[it.s.id]=1; S.newN++; bumpDaily(r=>r.sn++); } S.q=S.q.filter((x,i)=> i<=S.i || !x.s || x.s.id!==it.s.id); touchStreak(); commit(); S.i++; S.answered=false; renderSession(); break; }
     case 's-reveal': { if(!S) return; const it=cur(); it.reveal=true; renderSession(); TTS.speak(it.s.en); break; }
     case 's-show': { if(!S||S.answered) return; const it=cur(); const inp=$('#sentIn'); it.typed=(inp?inp.value:'').trim(); it.revealed=true; renderSession(); TTS.speak(it.s.en); break; }
     case 's-self': { if(!S||S.answered) return; answerS(d.ok==='1'? 2:0); break; }
-    case 's-check-text': { if(!S||S.answered) return; const it=cur(); const inp=$('#sentIn'); const typed=(inp?inp.value:'').trim(); if(!typed){ toast('문장을 쓰거나 정답 보기를 누르세요'); return; } it.typed=typed; answerS(sentScore(typed, it.s.en, it.s.rd)); break; }
+    case 's-check-text': { if(!S||S.answered) return; const it=cur(); const inp=$('#sentIn'); const typed=(inp?inp.value:'').trim(); if(!typed){ toast('문장을 쓰거나 정답 보기를 누르세요'); return; } it.typed=typed; answerS(sentScore(typed, it.s.en, it.s.rd, it.s)); break; }
     case 's-check-order': { if(!S||S.answered) return; const it=cur(); answerS(J(it.bld.picked.map(x=>x.w))===it.s.en? 2:0); break; }
     case 's-reset': { if(!S||S.answered) return; cur().bld.picked=[]; renderSession(); break; }
     case 'd-hint': { if(!S) return; cur().hint=true; renderSession(); break; }
@@ -927,11 +957,13 @@ document.addEventListener('click', e=>{
     case 'chat-reset': { const c=ui.chat; if(c.ctl) c.ctl.abort(); c.started=false; c.msgs=[]; c.turns=[]; c.busy=false; c.err=''; render(); break; }
     case 'chat-ko': { const m=ui.chat.msgs[+d.i]; if(m){ m.show=!m.show; render(); } break; }
     case 'chat-hint': { const m=ui.chat.msgs[+d.i]; if(m){ m.showHint=!m.showHint; render(); } break; }
-    case 'back-words': ui.theme=null; ui.openWord=null; render(); break;
-    case 'back-sents': ui.group=null; ui.openWord=null; TTS.stop(); render(); break;
-    case 'back-patterns': ui.pattern=null; ui.build=null; ui.slot=null; render(); break;
-    case 'back-reading': ui.reading=null; ui.openSent=null; TTS.stop(); render(); break;
-    case 'back-dialog': ui.dialog=null; TTS.stop(); render(); break;
+    case 'chat-copy': chatCopy(); break;
+    case 'chat-share': { if(!navigator.share){ chatCopy(); break; } navigator.share({title:LANG.title+' 대화 연습', text:chatPrompt()}).catch(err=>{ if(err&&err.name==='AbortError') return; chatCopy(); }); break; }
+    case 'back-words': ui.theme=null; ui.openWord=null; $('#sheet').innerHTML=''; TTS.stop(); render(); break;
+    case 'back-sents': ui.group=null; ui.openWord=null; $('#sheet').innerHTML=''; TTS.stop(); render(); break;
+    case 'back-patterns': ui.pattern=null; ui.build=null; ui.slot=null; $('#sheet').innerHTML=''; TTS.stop(); render(); break;
+    case 'back-reading': ui.reading=null; ui.openSent=null; $('#sheet').innerHTML=''; TTS.stop(); render(); break;
+    case 'back-dialog': ui.dialog=null; $('#sheet').innerHTML=''; TTS.stop(); render(); break;
     case 'shadow': { const g=SGROUPS.find(x=>x.id===d.group); if(g){ const list=[]; groupSents(g).forEach(s=>{ list.push(s.en); list.push(s.en); }); TTS.seq(list, 1200); toast('각 문장을 두 번씩 읽어 줘요. 따라 말하세요.'); } break; }
     case 'build-start': { const p=PATTERNS.find(x=>x.id===d.pattern); if(p) startBuild(p); render(); break; }
     case 'build-check': { const bld=ui.build; if(!bld) return; bld.result = J(bld.picked.map(x=>x.w))===bld.en? 'ok':'bad'; render(); TTS.speak(bld.en); break; }
@@ -948,11 +980,19 @@ document.addEventListener('click', e=>{
     case 'reset-ask': ui.confirmReset=true; render(); break;
     case 'reset-no': ui.confirmReset=false; render(); break;
     case 'reset-yes': { const s=state.settings; state=defaults(); state.settings=s; ui.confirmReset=false; commit(); toast('기록을 모두 지웠어요'); render(); break; }
-    case 'copy-export': { const txt=JSON.stringify(state); const ta=$('#exportTa'); const fallback=()=>{ if(ta){ ta.focus(); ta.select(); } toast('글을 길게 눌러 직접 복사하세요'); }; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast('복사했어요'), fallback); } else fallback(); break; }
-    case 'do-import': { const ta=$('#importTa'); const txt=(ta?ta.value:'').trim(); try{ const o=JSON.parse(txt); if(!o||typeof o!=='object'||!o.words) throw 0; state=migrate(o); commit(); ui.importText=''; toast('진도를 가져왔어요'); render(); }catch(err){ ui.importText=txt; toast('형식이 맞지 않아요'); render(); } break; }
+    case 'copy-export': { const txt=exportText(); const ta=$('#exportTa'); const fallback=()=>{ if(ta){ ta.focus(); ta.select(); } toast('글을 길게 눌러 직접 복사하세요'); }; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(txt).then(()=>toast('복사했어요'), fallback); } else fallback(); break; }
+    case 'do-import': { const ta=$('#importTa'); const txt=(ta?ta.value:'').trim(); let o=null; try{ o=JSON.parse(txt); }catch(err){}
+      if(!o||typeof o!=='object'||!o.words||typeof o.words!=='object'){ ui.importText=txt; toast('형식이 맞지 않아요'); render(); break; }
+      const vRe=new RegExp('^'+LANG.ttsPrefix+'([-_]|$)','i'); const wk=Object.keys(o.words);
+      const foreign=(o.app && o.app!==APP) || (o.settings && typeof o.settings.voice==='string' && !vRe.test(o.settings.voice)) || (wk.length>0 && wk.filter(k=>WMAP[k]).length < wk.length/2);
+      if(foreign){ ui.importText=txt; toast('다른 앱의 백업이에요. '+LANG.title+' 백업을 붙여 넣으세요'); render(); break; }
+      const nNew=Object.values(o.words).filter(p=>p&&p.b>0).length;
+      if(!confirm('외운 단어가 '+learned().length+'개에서 '+nNew+'개로 바뀌어요. 가져올까요?')){ ui.importText=txt; render(); break; }
+      delete o.app; state=migrate(o); commit(); ui.importText=''; toast('진도를 가져왔어요'); render(); break; }
   }
 });
 document.addEventListener('keydown', e=>{
+  if(e.isComposing||e.keyCode===229) return;
   if(e.key==='Enter' && document.activeElement && document.activeElement.id==='chatIn'){ e.preventDefault(); document.querySelector('[data-act="chat-send"]')?.click(); return; }
   if(!S) return; const it=cur(); if(!it) return;
   if(e.key==='Enter'){ e.preventDefault();
@@ -992,6 +1032,15 @@ window.addEventListener('pagehide', ()=>{ const s=hState(); if(s){ try{ history.
 { const _r0=render; render=function(){ const y=Math.round(window.scrollY); _r0(); syncHistory(y); };
   const _s0=renderSession; renderSession=function(){ const y=Math.round(window.scrollY); _s0(); syncHistory(y); }; }
 try{ if('scrollRestoration' in history) history.scrollRestoration='manual'; }catch(e){}
+/* 다시 열었을 때·날짜가 바뀌었을 때 화면 새로 그리기 */
+let lastDay=today();
+function idleRefresh(){ if(S||document.hidden) return; const a=document.activeElement; if(a&&/^(INPUT|TEXTAREA)$/.test(a.tagName)) return; if(ui.view==='more') return; if(ui.view==='dialog'&&ui.chat.started) return; render(); }
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ lastDay=today(); idleRefresh(); } });
+setInterval(()=>{ if(document.hidden) return; const t=today(); if(t!==lastDay){ lastDay=t; idleRefresh(); } }, 60000);
+/* 일본어·태국어 글자에 lang 표시 (글꼴·화면 읽기용) */
+const RDL=LANG.rdLang||LANG.code;
+function tagLang(){ document.querySelectorAll('.en:not([lang]),.sent-en:not([lang]),.skel:not([lang]),.tk:not([lang])').forEach(x=>x.setAttribute('lang',LANG.code)); document.querySelectorAll('.rd:not([lang]),.reading:not([lang])').forEach(x=>x.setAttribute('lang',RDL)); }
+try{ new MutationObserver(tagLang).observe(document.body,{childList:true,subtree:true}); }catch(e){}
 loadLocal(); applySkin(); TTS.init();
 { const hs=hState(); if(hs&&hs.r){ applyRoute(Object.assign({},hs.r,{rv:0})); } render(); if(hs&&hs.y) window.scrollTo(0,hs.y); }
 Sync.init(); AI.init();

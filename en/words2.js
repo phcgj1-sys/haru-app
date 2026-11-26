@@ -52,7 +52,7 @@ const MORE = [
 ["report","보도; 보고서","I read the report.","보고서를 읽었어요."],
 ["article","기사","Did you read this article?","이 기사 읽었어요?"],
 ["headline","머리기사 제목","The headline was shocking.","기사 제목이 충격적이었어요."],
-["public","대중의, 공공의","This is a public park.","여기는 공원이에요 (공공)."],
+["public","대중의, 공공의","This is a public park.","여기는 공공 공원이에요."],
 ["local","지역의","I like local food.","나는 지역 음식을 좋아해요."]
 ]},
 {id:"t37",lv:4,name:"기술·인터넷",words:[
@@ -352,7 +352,7 @@ const MORE = [
 ["otherwise","그렇지 않으면","Hurry, otherwise we'll be late.","서둘러, 안 그러면 늦어."],
 ["rarely","드물게","I rarely drink.","술을 거의 안 마셔요."],
 ["recently","최근에","I recently moved.","최근에 이사했어요."],
-["therefore","그러므로","It rained, therefore we stayed in.","비가 와서 집에 있었어요."],
+["therefore","그러므로","It rained. Therefore, we stayed in.","비가 왔어요. 그래서 집에 있었어요."],
 ["although","비록 ~이지만","Although it's small, I like it.","작지만 마음에 들어요."],
 ["unless","~하지 않으면","I'll go unless it rains.","비가 안 오면 갈게요."],
 ["whether","~인지 아닌지","I don't know whether he'll come.","그가 올지 모르겠어요."],
@@ -376,7 +376,7 @@ const MORE = [
 ["totally","완전히","Totally agree.","완전 동의."],
 ["literally","말 그대로, 진짜로","I literally just got here.","진짜 방금 왔어."],
 ["freak out","기겁하다, 놀라다","Don't freak out.","놀라지 마."],
-["hang on","잠깐 기다려","Hang on a second.","잠깐만 기다려."],
+["hang on","잠깐만 (기다려 봐)","Hang on a second.","잠깐만 기다려."],
 ["chill","느긋하게 쉬다; 진정해","Let's just chill tonight.","오늘 밤은 그냥 쉬자."],
 ["no big deal","별일 아니야","It's no big deal.","별일 아니야."],
 ["screw up","망치다","I screwed up.","내가 망쳤어."],
@@ -396,7 +396,7 @@ const MORE = [
 ["catch up","밀린 이야기를 하다, 따라잡다","Let's catch up soon.","조만간 밀린 얘기 하자."],
 ["mess up","망치다, 엉망으로 만들다","I messed up the order.","주문을 망쳤어."],
 ["cheer up","기운 내","Cheer up! It's okay.","기운 내! 괜찮아."],
-["hold on","잠깐 기다려","Hold on, I'm coming.","잠깐, 가고 있어."],
+["hold on","잠깐 기다려, 꽉 잡아","Hold on, I'm coming.","잠깐, 가고 있어."],
 ["what's up","무슨 일이야? / 안녕","Hey, what's up?","야, 무슨 일이야?"],
 ["you bet","물론이지","You bet!","물론이지!"],
 ["my bad","내 잘못이야","Oh, my bad.","아, 내 잘못."]

@@ -139,7 +139,7 @@ window.HARU_WORDS = [
 ["one","1, 하나","I have one brother.","나는 형이 한 명 있어요."],
 ["two","2, 둘","Two coffees, please.","커피 두 잔 주세요."],
 ["three","3, 셋","I have three cats.","나는 고양이가 세 마리 있어요."],
-["four","4, 넷","We are four people.","우리는 네 명이에요."],
+["four","4, 넷","There are four of us.","우리는 네 명이에요."],
 ["five","5, 다섯","It's five o'clock.","5시예요."],
 ["six","6, 여섯","I get up at six.","나는 6시에 일어나요."],
 ["seven","7, 일곱","Seven days a week.","일주일에 7일."],
@@ -327,7 +327,7 @@ window.HARU_WORDS = [
 ["many","많은 (셀 수 있는)","I have many friends.","나는 친구가 많아요."],
 ["much","많은 (셀 수 없는)","I don't have much time.","시간이 많지 않아요."],
 ["a little","조금","I speak a little English.","나는 영어를 조금 해요."],
-["a lot","많이","Thank you a lot.","정말 고마워요."],
+["a lot","많이","I like it a lot.","그거 정말 좋아요."],
 ["together","함께","Let's eat together.","같이 먹자."]
 ]},
 {id:"t14",lv:2,name:"음식·음료",words:[
@@ -628,7 +628,7 @@ window.HARU_WORDS = [
 ["scared","무서워하는","I'm scared.","무서워요."],
 ["surprised","놀란","I was surprised.","놀랐어요."],
 ["worried","걱정하는","Don't be worried.","걱정하지 마."],
-["bored","지루한","I'm bored.","심심해요."],
+["bored","지루해하는, 심심한","I'm bored.","심심해요."],
 ["excited","신난","I'm excited about the trip.","여행 때문에 신나요."],
 ["nervous","긴장한","I'm nervous about the test.","시험 때문에 긴장돼요."],
 ["lonely","외로운","I feel lonely.","외로워요."],
@@ -753,7 +753,7 @@ window.HARU_WORDS = [
 {id:"t32",lv:3,name:"형용사 확장",words:[
 ["important","중요한","This is important.","이건 중요해요."],
 ["interesting","흥미로운","The book is interesting.","그 책은 흥미로워요."],
-["boring","지루한","The movie was boring.","영화가 지루했어요."],
+["boring","지루한, 재미없는","The movie was boring.","영화가 지루했어요."],
 ["difficult","어려운","English is difficult.","영어는 어려워요."],
 ["simple","간단한","It's simple.","간단해요."],
 ["possible","가능한","Is it possible?","가능해요?"],

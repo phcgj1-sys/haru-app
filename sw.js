@@ -1,5 +1,5 @@
 // 하루 학습 — 오프라인용 서비스 워커. 파일을 바꾸면 VERSION을 올리세요(scratchpad gen_sw.py가 올려 줘요).
-const VERSION = 'haru-v68';
+const VERSION = 'haru-v69';
 // 한 번 연 앱 파일은 이 캐시에 두고, 버전이 바뀌어도 지우지 않아요. 열 때마다 뒤에서 새 파일을 받아 바꿔 둬요.
 const APPCACHE = 'haru-app';
 const FONTCACHE = 'haru-fonts';
