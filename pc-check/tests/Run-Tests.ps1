@@ -566,6 +566,17 @@ It '디스크 종류·연결 방식: 숫자(BusType 7·9·17, MediaType 3·4)로
     $d = New-Scenario @{ Disks = @([ordered]@{ Name = 'v'; Media = (Format-DiskMedia 0); Bus = (Format-DiskBus 9); SizeGB = 100; Health = 'Healthy' }, [ordered]@{ Name = 'u'; Media = (Format-DiskMedia 0); Bus = (Format-DiskBus 7); SizeGB = 16; Health = 'Healthy' }) }
     Assert (Test-Diskless $d) '숫자로 온 iSCSI + USB 도 노하드'
 }
+It '디스크 숫자 값(이전 버전 JSON): -FromJson 재분석에서도 USB·iSCSI·HDD 판정과 보고서 표시가 이름으로' {
+    $d = New-Scenario @{ Disks = @([ordered]@{ Name = 'v'; Media = '0'; Bus = '9'; SizeGB = 100; Health = 'Healthy' }, [ordered]@{ Name = 'u'; Media = '0'; Bus = '7'; SizeGB = 16; Health = 'Unhealthy' }) }
+    $j = RoundTrip $d
+    Assert (Test-Diskless $j) '노하드 (iSCSI 9 + USB 7)'
+    $dx = Get-Diagnosis -Data $j
+    Assert (-not (@($dx.Causes) | Where-Object { $_.Key -eq 'DISK' })) 'USB(7) 고장은 디스크 원인 아님'
+    $h = New-HtmlReport -Data $j -Dx $dx
+    Assert ($h -match 'iSCSI' -and $h -match 'USB') '보고서에 이름으로 표시'
+    $hd = New-Scenario @{ Disks = @([ordered]@{ Name = 'h'; Media = '3'; Bus = '11'; SizeGB = 1000; Health = '0'; TempC = 58 }) }
+    Assert (@((Get-Diagnosis -Data (RoundTrip $hd)).Findings) | Where-Object { $_.Title -match '^HDD 온도 높음' }) 'HDD(3) 온도 기준'
+}
 It '디스크 온도: HDD 는 55°C 부터 HDD 안내(NVMe 방열판 아님), SSD 는 70°C 부터 (영어 번역)' {
     $hdd = [ordered]@{ Name = 'WDC WD20EZAZ'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 2000; Health = 'Healthy'; TempC = 58 }
     $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($hdd)

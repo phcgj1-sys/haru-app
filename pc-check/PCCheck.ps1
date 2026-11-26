@@ -608,7 +608,7 @@ function Split-DiskEvents($Data) {
     # USB·SD 카드(리더) 디스크의 오류는 PC 내부 디스크 문제와 따로 셈 (빈 카드 리더·불량 USB 메모리 때문에 오판하지 않도록)
     # 내부 디스크 번호 목록. 이벤트의 디스크 번호가 여기 없으면(USB·빈 카드 리더는 목록에 없는 경우가 많음) 외부 장치로 봄
     $inner = @{}
-    foreach ($d in @(Get-Arr (Get-Prop $Data 'Disks'))) { if ([string](Get-Prop $d 'Bus') -notmatch '(?i)^(USB|SD|MMC)$' -and "$(Get-Prop $d 'DeviceId')" -ne '') { $inner["$(Get-Prop $d 'DeviceId')"] = 1 } }
+    foreach ($d in @(Get-Arr (Get-Prop $Data 'Disks'))) { if ((Format-DiskBus (Get-Prop $d 'Bus')) -notmatch '(?i)^(USB|SD|MMC)$' -and "$(Get-Prop $d 'DeviceId')" -ne '') { $inner["$(Get-Prop $d 'DeviceId')"] = 1 } }
     $int = @(); $usb = @()
     foreach ($e in @(Get-Arr (Get-Prop $Data 'DiskEvents'))) { $n = Get-Prop $e 'DiskNum'; if ($null -ne $n -and $inner.Count -and -not $inner.ContainsKey("$n")) { $usb += $e } else { $int += $e } }
     return [pscustomobject]@{ Internal = $int; External = $usb }
@@ -626,7 +626,7 @@ function Test-Diskless($Data) {
     # 노하드(네트워크 부팅): 디스크가 iSCSI·가상(파일) 디스크뿐 (가상 머신 제외)
     if ([bool](Get-Prop (Get-Prop $Data 'System') 'IsVM')) { return $false }
     # USB 메모리·외장 SSD·카드 리더는 빼고 봄 (노하드에서 블랙박스용 USB 를 꽂으면 노하드로 인식하지 못하던 문제)
-    $busList = @(@(Get-Arr (Get-Prop $Data 'Disks')) | ForEach-Object { [string](Get-Prop $_ 'Bus') } | Where-Object { $_ -notmatch '(?i)^(USB|SD|MMC)$' })
+    $busList = @(@(Get-Arr (Get-Prop $Data 'Disks')) | ForEach-Object { (Format-DiskBus (Get-Prop $_ 'Bus')) } | Where-Object { $_ -notmatch '(?i)^(USB|SD|MMC)$' })
     return ($busList.Count -gt 0 -and @($busList | Where-Object { $_ -notmatch '(?i)iSCSI|File Backed Virtual|Virtual' }).Count -eq 0)
 }
 function Get-ReportDir($Data, [string]$OutDir, [bool]$IsDefault, [string]$UsbRoot) {
@@ -948,7 +948,7 @@ function Get-Diagnosis {
     foreach ($dk in $disks) {
         $h = [string](Get-Prop $dk 'Health')
         # USB 메모리·외장 SSD·카드는 PC 꺼짐·블루스크린의 원인이 아니므로 디스크 원인 점수 없이 안내만 (자료 보호용)
-        if ([string](Get-Prop $dk 'Bus') -match '(?i)^(USB|SD|MMC)$') {
+        if ((Format-DiskBus (Get-Prop $dk 'Bus')) -match '(?i)^(USB|SD|MMC)$') {
             if ($h -and $h -notmatch '^(Healthy|0|Unknown|5)$') { & $find 'warn' 'DISK' "외장 저장장치 상태 이상: $(Get-Prop $dk 'Name')" "상태: $h — USB·카드 장치라 PC 문제의 원인은 아니지만, 안의 자료를 백업하고 교체하세요." 0 }
             continue
         }
@@ -966,7 +966,7 @@ function Get-Diagnosis {
         if ($null -ne $re -and [int64]$re -gt 0) { & $add 'DISK' 15 "복구 불가 읽기 오류 $re"; & $find 'warn' 'DISK' "디스크 읽기 오류 ($(Get-Prop $dk 'Name'))" "복구되지 않은 읽기 오류 $re 회." 8 }
         $tc = Get-Prop $dk 'TempC'
         # HDD 는 55°C 이상이면 수명이 크게 줄어듦 (SSD 는 70°C) — HDD 에 'NVMe 방열판' 안내를 하지 않도록 구분
-        if ([string](Get-Prop $dk 'Media') -match '(?i)^HDD$') { if ($null -ne $tc -and [int]$tc -ge 55) { & $add 'THERMAL' 6 'HDD 고온'; & $find 'warn' 'DISK' "HDD 온도 높음 ($tc °C)" '하드디스크 앞쪽 케이스 팬·공기 흐름을 확인하세요.' 3 } }
+        if ((Format-DiskMedia (Get-Prop $dk 'Media')) -match '(?i)^HDD$') { if ($null -ne $tc -and [int]$tc -ge 55) { & $add 'THERMAL' 6 'HDD 고온'; & $find 'warn' 'DISK' "HDD 온도 높음 ($tc °C)" '하드디스크 앞쪽 케이스 팬·공기 흐름을 확인하세요.' 3 } }
         elseif ($null -ne $tc -and [int]$tc -ge 70) { & $add 'THERMAL' 6 'SSD 고온'; & $find 'warn' 'DISK' "SSD 온도 높음 ($tc °C)" 'NVMe 방열판/공기 흐름을 확인하세요.' 3 }
     }
     if ($extDiskEv.Count) {
@@ -1307,7 +1307,7 @@ function New-HtmlReport {
     $bugRows = @(Get-Arr (Get-Prop $Data 'BugChecks') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); C = (Get-Prop $_ 'Code'); N = $bi.N; D = $bi.D } })
     $dumpRows = @(Get-Arr (Get-Prop $Data 'Dumps') | ForEach-Object { $bi = Get-BugInfo (Get-Prop $_ 'Code'); [ordered]@{ T = (Get-Prop $_ 'T'); Name = (Get-Prop $_ 'Name'); C = (Get-Prop $_ 'Code'); N = $(if (Get-Prop $_ 'Code') { $bi.N } else { '' }); KB = "$(Get-Prop $_ 'SizeKB') KB" } })
     $dimmRows = @(Get-Arr (Get-Prop $Data 'Dimms') | ForEach-Object { [ordered]@{ Slot = (Get-Prop $_ 'Slot'); Sz = "$(Get-Prop $_ 'SizeGB') GB"; Ddr = (Get-Prop $_ 'DDR'); Sp = "$(Get-Prop $_ 'ConfiguredMHz') / $(Get-Prop $_ 'RatedMHz')"; Mk = (Get-Prop $_ 'Maker'); Pt = (Get-Prop $_ 'Part') } })
-    $diskRows = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { [ordered]@{ Name = (Get-Prop $_ 'Name'); Ty = "$(Get-Prop $_ 'Media') $(Get-Prop $_ 'Bus')"; Sz = "$(Get-Prop $_ 'SizeGB') GB"; He = (Get-Prop $_ 'Health'); Tc = $(if ($null -ne (Get-Prop $_ 'TempC')) { "$(Get-Prop $_ 'TempC') °C" }); We = $(if ($null -ne (Get-Prop $_ 'WearPct')) { "$(Get-Prop $_ 'WearPct') %" }); Re = (Get-Prop $_ 'ReadErr'); Ph = (Get-Prop $_ 'PowerOnHours') } })
+    $diskRows = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { [ordered]@{ Name = (Get-Prop $_ 'Name'); Ty = "$(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus'))"; Sz = "$(Get-Prop $_ 'SizeGB') GB"; He = (Get-Prop $_ 'Health'); Tc = $(if ($null -ne (Get-Prop $_ 'TempC')) { "$(Get-Prop $_ 'TempC') °C" }); We = $(if ($null -ne (Get-Prop $_ 'WearPct')) { "$(Get-Prop $_ 'WearPct') %" }); Re = (Get-Prop $_ 'ReadErr'); Ph = (Get-Prop $_ 'PowerOnHours') } })
     $memD = @(Get-Arr (Get-Prop $Data 'MemDiag'))
     $summary = Get-SummaryText $Data $Dx
     $c = $Dx.Counts
