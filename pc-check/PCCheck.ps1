@@ -679,6 +679,29 @@ function Get-BatteryWearPct($Battery) {
     if ($null -eq $des -or $null -eq $full -or $des -le 0 -or $full -le 0) { return $null }
     return [math]::Max(0.0, [math]::Round(100 - 100 * $full / $des, 0))
 }
+function Get-PartsSummary($Data) {
+    # AIDA64 요약처럼 부품을 한눈에 (보고서 위쪽 표) — 항목·내용 쌍
+    $s = Get-Prop $Data 'System'; $rows = @()
+    $cpu = [string](Get-Prop $s 'CPU'); if ($cpu) { $rows += , @('CPU', "$cpu$(if (Get-Prop $s 'Cores') { " ($(Get-Prop $s 'Cores')C/$(Get-Prop $s 'Threads')T)" })") }
+    $mb = [string](Get-Prop $s 'Board'); if ($mb) { $rows += , @('메인보드', "$mb$(if (Get-Prop $s 'BIOS') { " · BIOS $(Get-Prop $s 'BIOS')" })") }
+    $dm = @(Get-Arr (Get-Prop $Data 'Dimms'))
+    if ($dm.Count) {
+        $tot = 0; foreach ($m in $dm) { $tot += [int](Get-Num (Get-Prop $m 'SizeGB')) }
+        $sizes = (@($dm | ForEach-Object { "$([int](Get-Num (Get-Prop $_ 'SizeGB')))" }) -join '+')
+        $ty = [string](Get-Prop $dm[0] 'DDR'); $sp = [int](Get-Num (Get-Prop $dm[0] 'ConfiguredMHz'))
+        $rows += , @('RAM', "$tot GB ($sizes GB$(if ($ty) { ", $ty" })$(if ($sp -gt 0) { "-$sp" }))")
+    } elseif (Get-Num (Get-Prop $s 'RamGB')) { $rows += , @('RAM', "$(Get-Prop $s 'RamGB') GB") }
+    $gp = @(Get-Arr (Get-Prop $Data 'Gpus') | ForEach-Object { "$(Get-Prop $_ 'Name')$(if (Get-Num (Get-Prop $_ 'VramGB')) { " ($(Get-Prop $_ 'VramGB') GB)" })" })
+    if ($gp.Count) { $rows += , @('그래픽카드', ($gp -join ' / ')) }
+    $dk = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { "$(Get-Prop $_ 'Name') $(Get-Prop $_ 'SizeGB') GB ($(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus')))" })
+    if ($dk.Count) { $rows += , @('저장장치', ($dk -join ' / ')) }
+    if (Test-Laptop $Data) {
+        $w = $null; foreach ($bt in @(Get-Arr (Get-Prop $Data 'Batteries'))) { $x = Get-BatteryWearPct $bt; if ($null -ne $x) { $w = $x } }
+        $rows += , @('전원', $(if ($null -ne $w) { "노트북 (배터리 마모 $w%)" } else { '노트북' }))
+    } else { $pe = Get-PsuEstimate $Data; if ($pe.GpuW -gt 0 -and $pe.RecommendW -gt 0) { $rows += , @('전원', "권장 파워 $($pe.RecommendW) W 이상") } }
+    $os = [string](Get-Prop $s 'OS'); if ($os) { $rows += , @('Windows', "$os$(if (Get-Prop $s 'Build') { " ($(Get-Prop $s 'Build'))" })") }
+    return $rows
+}
 function Test-Laptop($Data) {
     # 노트북: Windows 가 'Mobile' 로 알려 주거나, 그래픽카드 이름에 Laptop·Mobile·Max-Q
     if ([bool](Get-Prop (Get-Prop $Data 'System') 'IsLaptop')) { return $true }
@@ -1472,6 +1495,7 @@ function openAll(v){document.querySelectorAll('details').forEach(function(d){d.o
  <div class="stat$(if ($c.Disk) { ' hot' })"><b>$($c.Disk)</b><span>디스크 오류</span></div>
 </div>
 
+$(if (($parts = @(Get-PartsSummary $Data)).Count) { "<h2>부품 요약</h2><div class='card'><table class='kv'>" + (($parts | ForEach-Object { "<tr><td>$(HtmlEnc $_[0])</td><td>$(HtmlEnc $_[1])</td></tr>" }) -join '') + '</table></div>' })
 $cmpHtml
 <h2>가장 의심되는 원인</h2>
 $causeHtml
@@ -3496,6 +3520,7 @@ $script:EnPairs = @(
     @('RE:배터리 마모 (\d+)%', 'Battery wear $1%'),
     @('배터리만으로 쓰면 고부하에서 갑자기 꺼질 수 있습니다. 배터리 교체를 권장합니다.', 'On battery power it may shut off under heavy load. Replacing the battery is recommended.'),
     @('사용 시간이 줄었을 수 있습니다. 마모가 40% 를 넘으면 교체를 고려하세요.', 'Battery life may be shorter. Consider replacing it once wear exceeds 40%.'),
+    @('부품 요약', 'Parts summary'), @('전원', 'Power'), @('노트북', 'Laptop'), @('RE:노트북 \(배터리 마모 (\d+)%\)', 'Laptop (battery wear $1%)'), @('RE:권장 파워 (\d+) W 이상', 'Recommended PSU $1 W or more'),
     @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
     @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),
     @('배터리 상태 확인: 명령 프롬프트에서 powercfg /batteryreport (마모가 심하면 배터리 교체)', 'Check battery health: run powercfg /batteryreport in a command prompt (replace the battery if heavily worn)'),

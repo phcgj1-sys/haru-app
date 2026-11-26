@@ -743,6 +743,23 @@ It '노트북 배터리 마모 (BatteryInfoView 방식): 설계 대비 40% 이�
     $old = $script:UiLang; $script:UiLang = 'en'
     try { $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($h, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } finally { $script:UiLang = $old }
 }
+It '부품 요약 (AIDA64 방식): CPU·메인보드·RAM·그래픽카드·저장장치·전원·Windows 를 보고서 위쪽 표로 (노트북은 배터리, 영어)' {
+    $d = New-Scenario @{}
+    $rows = @(Get-PartsSummary $d)
+    $m = @{}; foreach ($r in $rows) { $m[$r[0]] = $r[1] }
+    Assert ($m['CPU'] -match 'Ryzen 7 7800X3D') 'CPU'; Assert ($m['메인보드'] -match 'ASUS TUF B650 · BIOS 2613') '메인보드'
+    Assert-Eq $m['RAM'] '32 GB (16+16 GB, DDR5-4800)' 'RAM'
+    Assert-Eq $m['그래픽카드'] 'NVIDIA GeForce RTX 4070 (12 GB)' 'GPU'
+    Assert ($m['저장장치'] -match 'Samsung SSD 980 PRO 1000 GB \(SSD NVMe\)') "디스크 $($m['저장장치'])"
+    Assert ($m['전원'] -match '^권장 파워 \d+ W 이상$') "전원 $($m['전원'])"
+    $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d)
+    Assert ($h.IndexOf('부품 요약') -gt 0 -and $h.IndexOf('부품 요약') -lt $h.IndexOf('가장 의심되는 원인')) '원인보다 위'
+    $lap = New-Scenario @{}; $lap.System.IsLaptop = $true; $lap.Batteries = @([ordered]@{ DesignmWh = 50000; FullmWh = 40000 })
+    Assert-Eq (@(Get-PartsSummary $lap) | Where-Object { $_[0] -eq '전원' })[1] '노트북 (배터리 마모 20%)' '노트북 전원'
+    Assert-Eq @(Get-PartsSummary (New-EmptyData)).Count 0 '빈 자료면 표 없음'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { foreach ($x in $d, $lap) { $he = New-HtmlReport -Data $x -Dx (Get-Diagnosis -Data $x); $ko = @([regex]::Matches($he, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } } finally { $script:UiLang = $old }
+}
 It '권장 파워 용량: 노트북 그래픽카드(Laptop GPU·Max-Q)는 데스크톱 파워를 권하지 않음' {
     foreach ($nm in 'NVIDIA GeForce RTX 4090 Laptop GPU', 'NVIDIA GeForce RTX 2080 with Max-Q Design', 'AMD Radeon RX 6800M Mobile') {
         $d = New-Scenario @{}; $d.Gpus = @([ordered]@{ Name = $nm; Vendor = 'NVIDIA'; VramGB = 16; Driver = '1'; DriverDate = (T 10); Status = 'OK' })
