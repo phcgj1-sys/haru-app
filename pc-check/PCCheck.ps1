@@ -1873,7 +1873,8 @@ function Get-LiveSample {
             $s.GpuThrottle = ConvertFrom-NvThrottle $th.Trim()
         } catch {}
     }
-    if ($null -eq $s.GpuTempC) { $g = @(Get-GpuSensors) | Select-Object -First 1; if ($g) { $s.GpuTempC = $g.TempC } }
+    # 내장+외장 그래픽처럼 센서가 여럿이면 가장 뜨거운 값 (첫 번째가 덜 뜨거운 내장 그래픽이면 과열 보호가 늦게 작동)
+    if ($null -eq $s.GpuTempC) { foreach ($g in @(Get-GpuSensors)) { if ($null -ne $g.TempC -and ($null -eq $s.GpuTempC -or [double]$g.TempC -gt [double]$s.GpuTempC)) { $s.GpuTempC = $g.TempC } } }
     return $s
 }
 

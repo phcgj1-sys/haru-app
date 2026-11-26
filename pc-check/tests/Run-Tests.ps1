@@ -1098,6 +1098,14 @@ It '보고서 온도 수집: 관리자 권한이 없어(ACPI 거부) 도 열 영
         Assert ($src -match '\$D\.Thermal = @\(Get-ThermalReadings\)') '수집 단계에서 사용'
     } finally { Remove-Item Function:\Get-CimInstance -ErrorAction SilentlyContinue; $script:FakeAcpi = $null }
 }
+It '실시간 측정: GPU 센서가 여럿(내장+외장)이면 가장 뜨거운 값으로 (과열 보호가 늦지 않게)' {
+    function Get-GpuSensors { return @([ordered]@{ Index = 0; TempC = 41.0; FanRPM = $null }, [ordered]@{ Index = 1; TempC = 93.5; FanRPM = 2100 }) }
+    try {
+        $smp = Get-LiveSample
+        Assert-Eq $smp.GpuTempC 93.5 '가장 뜨거운 그래픽카드'
+        $st = @{ Hot = 0 }; foreach ($i in 1..3) { $r = Test-OverheatGuard $st 96 }; Assert $r '과열 보호 동작'
+    } finally { Remove-Item Function:\Get-GpuSensors -ErrorAction SilentlyContinue }
+}
 It '온도 모니터: CPU 를 많이 써도 보드 온도가 전혀 변하지 않으면(고정값 센서) 실제 CPU 온도가 아닐 수 있다고 표시' {
     $old = $script:UiLang
     try {
