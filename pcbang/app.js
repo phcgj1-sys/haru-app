@@ -1203,14 +1203,15 @@ function problems(st) {
   else if (nat.ramXmpOff) add('xmp', 'warn', '램이 정격 속도보다 느리게 동작 (XMP/EXPO 꺼짐 의심)', 'BIOS에서 XMP(인텔)/EXPO(AMD) 프로필을 켜면 CPU 병목 게임(롤·발로란트·서든)의 프레임이 올라요.', 'XMP 꺼짐');
   // DDR5 기본 속도(4800 이하)인데 그래픽이 강하면 CPU 병목 게임(배그 교전·롤·발로란트)에서 램 속도가 1% 최저 프레임을 깎음
   else if (nat.ramSpeed >= 4000 && nat.ramSpeed <= 4800 && sp.gpu && sp.gpu.score >= 20000) add('ram48', 'info', '램이 DDR5-' + nat.ramSpeed + '(기본 속도)로 동작', '그래픽이 강한 PC는 교전처럼 CPU 부담이 큰 장면에서 램 속도가 1% 최저 프레임을 깎아요. 램이 6000 지원이면 BIOS에서 XMP를 켜고, 4800 램이면 DDR5-6000 CL30~32로 바꾸는 걸 검토하세요.', 'DDR5 기본 속도');
-  if (nat.rebootPending) add('reboot', 'warn', '재부팅 대기 중인 업데이트가 있음', '영업 전 재부팅하세요. 게임 중 업데이트 재시작을 막을 수 있어요.', '재부팅 필요');
+  if (nat.rebootPending) add('reboot', nat.diskless ? 'info' : 'warn', '재부팅 대기 중인 업데이트가 있음', nat.diskless ? '노하드 PC는 재부팅하면 서버 이미지로 돌아가 이 표시가 계속 남을 수 있어요. 업데이트는 서버 이미지(수퍼 PC)에서 적용·재부팅하세요.' : '영업 전 재부팅하세요. 게임 중 업데이트 재시작을 막을 수 있어요.', '재부팅 필요');
   var now = Date.now();
   // 드라이버 날짜는 실제로 게임에 쓰는 주 그래픽(점수가 가장 높은 실물 그래픽)만 봄 — 안 쓰는 내장 그래픽 드라이버는 무시
   var mainG = (nat.gpus || []).filter(function (g) { return !g.virtual; }).map(function (g) { return { g: g, m: matchGpu(g.name) }; }).sort(function (a, b) { return ((b.m && b.m.score) || 0) - ((a.m && a.m.score) || 0); })[0];
   if (mainG && mainG.g.driverDate) { var age = (now - Date.parse(mainG.g.driverDate)) / 864e5; if (age > 365) add('drv', 'warn', '그래픽 드라이버가 오래됨 (' + mainG.g.driverDate + ')', '최신 게임 패치는 새 드라이버를 기준으로 맞춰요. NVIDIA 앱/AMD Adrenalin으로 업데이트하세요.', '드라이버 오래됨'); }
   var temp = nat.gpuLive ? nat.gpuLive.tempC : null;
   if (temp != null && temp >= 85) add('hot', 'bad', '그래픽카드 온도 ' + temp + '°C', '먼지 청소, 케이스 팬 동작, 그래픽카드 팬을 확인하세요. 계속 높으면 서멀 그리스를 다시 바르세요.', 'GPU 과열');
-  (nat.disks || []).forEach(function (d) { if (d.size && d.free != null && d.free / d.size < 0.1) add('disk', 'warn', d.name + ' 드라이브 여유 공간 ' + d.free + 'GB (' + Math.round(d.free / d.size * 100) + '%)', '게임 패치가 실패할 수 있어요. 필요 없는 파일과 게임을 정리하세요.', '디스크 부족'); });
+  // 노하드 PC의 C:·D: 는 서버 이미지·공유 게임 디스크라 좌석에서 고칠 수 없음 → 참고로, 서버에서 정리하라고 안내
+  (nat.disks || []).forEach(function (d) { if (d.size && d.free != null && d.free / d.size < 0.1) add('disk', nat.diskless ? 'info' : 'warn', d.name + ' 드라이브 여유 공간 ' + d.free + 'GB (' + Math.round(d.free / d.size * 100) + '%)', (nat.diskless ? '노하드 PC의 드라이브는 서버 이미지·게임 디스크예요. 좌석에서 지우지 말고 노하드 서버에서 정리·용량을 늘리세요. ' : '') + '게임 패치가 실패할 수 있어요. 필요 없는 파일과 게임을 정리하세요.', '디스크 부족'); });
   if (nat.memUsedPct >= 85) add('mem', 'warn', '메모리 사용량 ' + nat.memUsedPct + '% (점검 시점)', '백그라운드 프로그램을 확인하세요. 게임 중 끊김의 원인이 돼요.' + (nat.topProcs && nat.topProcs.length ? ' CPU를 많이 쓰는 프로그램: ' + nat.topProcs.slice(0, 3).map(function (t) { return t.name; }).join(', ') : ''), '메모리 부족');
   if (nat.topProcs && nat.topProcs.length && nat.topProcs[0].pct >= 25) add('bgcpu', 'warn', '백그라운드 프로그램이 CPU를 많이 씀: ' + nat.topProcs[0].name + ' ' + Math.round(nat.topProcs[0].pct) + '%', '모르는 프로그램이면 채굴·광고 프로그램일 수 있어요. 작업 관리자에서 확인하고 이미지에서 지우세요.', '백그라운드 CPU');
   if (/켜짐/.test(nat.hvci || '')) add('hvci', 'info', '메모리 무결성(HVCI) 켜짐', '보안 기능이지만 게임 성능이 몇 % 떨어질 수 있어요. Windows 보안 → 장치 보안 → 코어 격리에서 바꿀 수 있어요(발로란트 등은 꺼도 실행돼요).', 'HVCI 켜짐');

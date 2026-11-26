@@ -361,6 +361,12 @@ const ok = (cond, msg) => { console.log((cond ? 'ok   ' : 'FAIL ') + msg); if (!
     ok(gg.join('/') === 'info/info/bad/bad', '게이트웨이 핑: 1번 손실·한 번 튐 참고, 2번 손실·계속 느림 고칠 것 (' + gg.join('/') + ')');
   }
 
+  // 노하드 PC: 디스크 여유 공간·재부팅 대기는 참고(서버 이미지에서), 일반 PC 는 경고
+  {
+    const dk = await page.evaluate(() => { const P = window.__pcbang; const run = dl => P.problems({ det: {}, dev: {}, bench: {}, manual: {}, opt: P.S.opt, native: { diskless: dl, rebootPending: true, disks: [{ name: 'C:', size: 100, free: 5 }] } }).filter(x => /^(disk|reboot)$/.test(x.id)).map(x => x.lv).join(); return [run(false), run(true)]; });
+    ok(dk.join('/') === 'warn,warn/info,info', '노하드: 디스크·재부팅 대기는 참고, 일반 PC 는 경고 (' + dk.join('/') + ')');
+  }
+
   // 10. 웹 인터넷 측정: 전부 503(차단 페이지)이면 '좋아요'가 아님, 1.1.1.1 하나만 막혀도 '불안정'이 아님
   for (const [label, handler, expectOk] of [
     ['503', r => r.fulfill({ status: 503, headers: { 'access-control-allow-origin': '*' }, body: 'blocked' }), false],

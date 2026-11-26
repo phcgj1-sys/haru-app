@@ -488,10 +488,13 @@ foreach ($dk in $disks) { Say ("      드라이브 {0} {1}GB 중 {2}GB 남음" -
 try {
   $why = @()
   if (@($physDisks | Where-Object { $_.bus -eq 'iSCSI' }).Count) { $why += 'iSCSI 디스크' }
-  if (@($physDisks | Where-Object { $_.name -match 'CCBoot|iCafe|Diskless|NxD|iSCSI' }).Count) { $why += '원격 디스크 이름' }
+  if (@($physDisks | Where-Object { $_.name -match 'CCBoot|iCafe|Diskless|NxD|iSCSI|NetDisk|VDisk' }).Count) { $why += '원격 디스크 이름' }
   $sysAny = Get-CimInstance Win32_LogicalDisk -Filter ("DeviceID='{0}'" -f $sysDrv) | Select-Object -First 1
   if ($sysAny -and [int]$sysAny.DriveType -eq 4) { $why += '시스템 드라이브가 네트워크 드라이브' }
-  if ($pdOk -and $physDisks.Count -eq 0 -and $why.Count) { $why += '로컬 디스크 없음' }
+  # 실물 로컬 디스크(SATA·NVMe·SAS·USB 아닌 iSCSI·가상 디스크만)가 하나도 없으면 네트워크·가상 디스크로 부팅한 것
+  $local = @($physDisks | Where-Object { $_.bus -notmatch 'iSCSI|File Backed Virtual|Virtual' -and $_.name -notmatch 'Virtual Disk|VDisk|NetDisk' })
+  if ($pdOk -and $physDisks.Count -gt 0 -and $local.Count -eq 0) { $why += '로컬 디스크 없음(가상·원격 디스크만)' }
+  elseif ($pdOk -and $physDisks.Count -eq 0) { $why += '로컬 디스크 없음' }
   $result.diskless = ($why.Count -gt 0)
   if ($why.Count) { $result.disklessWhy = ($why -join ', '); Say ("      디스크리스(네트워크 부팅) 추정: {0}" -f $result.disklessWhy) }
 } catch {}
