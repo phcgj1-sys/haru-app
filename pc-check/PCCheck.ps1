@@ -653,6 +653,12 @@ function Get-UsbRoot {
     $u = @(Get-UsbDriveRoots 50MB) | Select-Object -First 1
     if ($u) { return $u } else { return '' }
 }
+function Get-Num($v) {
+    # 숫자로 읽을 수 있으면 숫자, 아니면 $null ('[N/A]'·빈 값·손으로 고친 JSON 하나 때문에 진단 전체가 멈추지 않게)
+    if ($null -eq $v -or $v -is [bool]) { return $null }
+    $d = 0.0; if ([double]::TryParse([string]$v, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $d }
+    return $null
+}
 function Test-Laptop($Data) {
     # 노트북: Windows 가 'Mobile' 로 알려 주거나, 그래픽카드 이름에 Laptop·Mobile·Max-Q
     if ([bool](Get-Prop (Get-Prop $Data 'System') 'IsLaptop')) { return $true }
@@ -671,7 +677,7 @@ function Get-PsuEstimate($Data) {
     # 노트북(그래픽카드 이름에 Laptop·Mobile·Max-Q)은 교체용 파워가 없으므로 권장 용량을 내지 않음 (데스크톱 표로 750W 를 권하던 오판 방지)
     if (Test-Laptop $Data) { return [pscustomobject]@{ GpuW = 0; GpuSource = ''; CpuW = 0; OtherW = 0; PeakW = 0; RecommendW = 0; IsLaptop = $true } }
     # 그래픽카드가 여러 장이면 합계 (가장 큰 한 장만 보면 파워를 작게 권함)
-    $plSum = 0.0; foreach ($n in @(Get-Arr (Get-Prop $Data 'NvSmi'))) { $pl = Get-Prop $n 'PowerLimitW'; if ($null -ne $pl -and [double]$pl -gt 0) { $plSum += [double]$pl } }
+    $plSum = 0.0; foreach ($n in @(Get-Arr (Get-Prop $Data 'NvSmi'))) { $pl = Get-Num (Get-Prop $n 'PowerLimitW'); if ($null -ne $pl -and $pl -gt 0) { $plSum += [double]$pl } }
     if ($plSum -gt 0) { $gpuW = $plSum; $gpuSrc = '전력 제한값' }
     foreach ($b in @(Get-Arr (Get-Prop $Data 'Blackbox'))) { $m = Get-Prop $b 'MaxGpuPowerW'; if ($null -ne $m -and [double]$m -gt $gpuW) { $gpuW = [double]$m; $gpuSrc = '블랙박스 측정' } }
     if ($gpuW -le 0) {
@@ -923,7 +929,7 @@ function Get-Diagnosis {
     # DDR5 기본(JEDEC) 최고 속도: Core Ultra 200S 는 6400, 그 외 5600 — 기본 속도를 XMP 로 오판하지 않도록
     $ddr5Std = $(if ([string](Get-Prop $sys 'CPU') -match 'Ultra [579] 2\d{2}') { 6400 } else { 5600 })
     foreach ($m in $dimms) {
-        $cfg = [int](Get-Prop $m 'ConfiguredMHz'); $ddr = [string](Get-Prop $m 'DDR')
+        $cfg = [int](Get-Num (Get-Prop $m 'ConfiguredMHz')); $ddr = [string](Get-Prop $m 'DDR')
         if ($ddr -match '^LPDDR') { continue }   # 온보드 저전력 메모리는 XMP 가 없음 (LPDDR4X-4266 을 오버클럭으로 오판하지 않게)
         if (($ddr -eq 'DDR4' -and $cfg -gt 3200) -or ($ddr -eq 'DDR5' -and $cfg -gt $ddr5Std) -or ($ddr -eq '' -and $cfg -gt 3200 -and $cfg -lt 4400)) { $xmp = $true }
     }
@@ -932,7 +938,7 @@ function Get-Diagnosis {
         if ($memish) { & $add 'RAM' 10 'XMP/EXPO(메모리 오버클럭) 사용 중 + 메모리 관련 오류' }
         & $find 'info' 'RAM' 'XMP/EXPO(메모리 오버클럭) 사용 중으로 보임' '대부분 문제없지만, 불안정하면 BIOS 에서 XMP/EXPO 를 끄고 테스트해 보세요.' 0
     }
-    $sizes = @($dimms | ForEach-Object { [int](Get-Prop $_ 'SizeGB') } | Sort-Object -Unique)
+    $sizes = @($dimms | ForEach-Object { [int](Get-Num (Get-Prop $_ 'SizeGB')) } | Sort-Object -Unique)
     $parts = @($dimms | ForEach-Object { [string](Get-Prop $_ 'Part') } | Where-Object { $_ } | Sort-Object -Unique)
     # 블루스크린 기록이 남을 수 있는 설정인지 (꺼져 있으면 '문제 없음'으로 오판 가능)
     $cd = Get-Prop $sys 'CrashDump'
@@ -974,11 +980,11 @@ function Get-Diagnosis {
             & $add 'DISK' 50 "디스크 상태 이상: $(Get-Prop $dk 'Name')"
             & $find 'bad' 'DISK' "디스크 상태 이상: $(Get-Prop $dk 'Name')" "상태: $h — 즉시 백업하세요." 30
         }
-        $we = Get-Prop $dk 'WearPct'
+        $we = Get-Num (Get-Prop $dk 'WearPct')
         if ($null -ne $we -and [int]$we -ge 90) { & $add 'DISK' 15 'SSD 수명 거의 소진'; & $find 'warn' 'DISK' "SSD 수명 소진 ($(Get-Prop $dk 'Name') $we%)" '교체를 준비하세요.' 10 }
-        $re = Get-Prop $dk 'ReadErr'
+        $re = Get-Num (Get-Prop $dk 'ReadErr')
         if ($null -ne $re -and [int64]$re -gt 0) { & $add 'DISK' 15 "복구 불가 읽기 오류 $re"; & $find 'warn' 'DISK' "디스크 읽기 오류 ($(Get-Prop $dk 'Name'))" "복구되지 않은 읽기 오류 $re 회." 8 }
-        $tc = Get-Prop $dk 'TempC'
+        $tc = Get-Num (Get-Prop $dk 'TempC')
         # HDD 는 55°C 이상이면 수명이 크게 줄어듦 (SSD 는 70°C) — HDD 에 'NVMe 방열판' 안내를 하지 않도록 구분
         if ((Format-DiskMedia (Get-Prop $dk 'Media')) -match '(?i)^HDD$') { if ($null -ne $tc -and [int]$tc -ge 55) { & $add 'THERMAL' 6 'HDD 고온'; & $find 'warn' 'DISK' "HDD 온도 높음 ($tc °C)" '하드디스크 앞쪽 케이스 팬·공기 흐름을 확인하세요.' 3 } }
         elseif ($null -ne $tc -and [int]$tc -ge 70) { & $add 'THERMAL' 6 'SSD 고온'; & $find 'warn' 'DISK' "SSD 온도 높음 ($tc °C)" 'NVMe 방열판/공기 흐름을 확인하세요.' 3 }
@@ -993,7 +999,7 @@ function Get-Diagnosis {
 
     # ---- 10) 온도
     foreach ($g in $nv) {
-        $t = Get-Prop $g 'Temp'; $u = Get-Prop $g 'Util'
+        $t = Get-Num (Get-Prop $g 'Temp'); $u = Get-Num (Get-Prop $g 'Util')
         if ($null -ne $t -and [double]$t -ge 83) {
             $idle = ($null -ne $u -and [double]$u -lt 30)
             & $add 'THERMAL' $(if ($idle) { 30 } else { 12 }) "그래픽카드 $t °C$(if ($idle) { ' (저부하인데 높음)' })"
@@ -1003,14 +1009,14 @@ function Get-Diagnosis {
     if ($nv.Count -eq 0) {
         # NVIDIA 외 (AMD/Intel): Windows 공통 센서 — 부하 정보가 없으므로 높은 기준만 적용
         $gs = @(Get-Arr (Get-Prop $Data 'GpuSensors'))
-        $hot = @($gs | Where-Object { [double](Get-Prop $_ 'TempC') -ge 88 } | Sort-Object { - [double](Get-Prop $_ 'TempC') }) | Select-Object -First 1
+        $hot = @($gs | Where-Object { (Get-Num (Get-Prop $_ 'TempC')) -ge 88 } | Sort-Object { - [double](Get-Num (Get-Prop $_ 'TempC')) }) | Select-Object -First 1
         if ($hot) {
             $tc = Get-Prop $hot 'TempC'
             & $add 'THERMAL' 14 "그래픽카드 $tc °C (Windows 센서)"
             & $find 'warn' 'THERMAL' "그래픽카드 온도 높음: $tc °C" '검사 시점의 온도입니다. 부하가 거의 없는데도 이 정도라면 팬·먼지·써멀을 점검하세요.' 5
         }
     }
-    foreach ($t in $therm) { if ([double]$t -ge 90) { & $add 'THERMAL' 15 "메인보드 온도 센서 $t °C"; & $find 'warn' 'THERMAL' "메인보드 온도 센서 $t °C" 'HWiNFO 로 CPU 온도를 확인하세요.' 8; break } }
+    foreach ($t in $therm) { if ((Get-Num $t) -ge 90) { & $add 'THERMAL' 15 "메인보드 온도 센서 $t °C"; & $find 'warn' 'THERMAL' "메인보드 온도 센서 $t °C" 'HWiNFO 로 CPU 온도를 확인하세요.' 8; break } }
 
     # ---- 11) 오버클럭 도구, 오래된 드라이버
     if ($oc.Count -and ($crashes.Count + $plCount + $gpuCount) -gt 0) {

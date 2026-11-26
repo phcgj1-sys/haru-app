@@ -587,6 +587,21 @@ It '디스크 숫자 값(이전 버전 JSON): -FromJson 재분석에서도 USB·
     $hd = New-Scenario @{ Disks = @([ordered]@{ Name = 'h'; Media = '3'; Bus = '11'; SizeGB = 1000; Health = '0'; TempC = 58 }) }
     Assert (@((Get-Diagnosis -Data (RoundTrip $hd)).Findings) | Where-Object { $_.Title -match '^HDD 온도 높음' }) 'HDD(3) 온도 기준'
 }
+It '견고성: 숫자 칸에 [N/A]·문자·빈 값이 있어도(손으로 고친·다른 도구 JSON) 진단·보고서·요약이 멈추지 않음' {
+    $fails = @()
+    $fields = @{ Disks = @('Health', 'WearPct', 'ReadErr', 'TempC', 'SizeGB'); Dimms = @('SizeGB', 'ConfiguredMHz'); NvSmi = @('Temp', 'Util', 'PowerLimitW'); GpuSensors = @('TempC') }
+    foreach ($arr in $fields.Keys) { foreach ($f in $fields[$arr]) { foreach ($v in @('[N/A]', 'abc', '', $null)) {
+        $d = New-Scenario @{}
+        $o = [ordered]@{ T = (T 1); Name = 'X'; Vendor = 'NVIDIA'; Health = 'Healthy'; Bus = 'SATA'; Media = 'SSD'; SizeGB = 8; ConfiguredMHz = 3200; DDR = 'DDR4'; Temp = 50; TempC = 50 }
+        $o[$f] = $v; $d[$arr] = @($o)
+        try { $dx = Get-Diagnosis -Data $d; $null = New-HtmlReport -Data $d -Dx $dx; $null = Get-SummaryText $d $dx } catch { $fails += "$arr.$f='$v': $($_.Exception.Message)" }
+    } } }
+    foreach ($v in '[N/A]', 'abc') { $d = New-Scenario @{}; $d.Thermal = @($v); try { $null = Get-Diagnosis -Data $d } catch { $fails += "Thermal='$v'" } }
+    Assert-Eq $fails.Count 0 ($fails -join ' / ')
+    Assert-Eq (Get-Num '12.5') 12.5 '숫자'; Assert ($null -eq (Get-Num '[N/A]')) '숫자 아님'; Assert ($null -eq (Get-Num $true)) 'bool 은 숫자 아님'
+    $d = New-Scenario @{}; $d.Disks[0].WearPct = '95'
+    Assert (@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match 'SSD 수명 소진' }) '문자 숫자 95 는 그대로 판정'
+}
 It '디스크 온도: HDD 는 55°C 부터 HDD 안내(NVMe 방열판 아님), SSD 는 70°C 부터 (영어 번역)' {
     $hdd = [ordered]@{ Name = 'WDC WD20EZAZ'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 2000; Health = 'Healthy'; TempC = 58 }
     $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($hdd)
