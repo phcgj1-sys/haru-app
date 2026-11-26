@@ -241,7 +241,7 @@ function New-EmptyData {
     return [ordered]@{
         Meta = [ordered]@{ App = $script:AppName; Version = $script:AppVersion; Created = (Format-T (Get-Date)); Computer = $env:COMPUTERNAME; Days = 30; IsAdmin = $false; PS = "$($PSVersionTable.PSVersion)" }
         System = [ordered]@{}
-        Gpus = @(); NvSmi = @(); Dimms = @()
+        Gpus = @(); NvSmi = @(); Dimms = @(); Batteries = @()
         Shutdowns = @(); Unexpected = @(); BugChecks = @(); Dumps = @()
         GpuEvents = @(); Whea = @(); DiskEvents = @(); Disks = @(); MemDiag = @()
         DriverInstalls = @(); AppCrashes = @(); OcTools = @(); Thermal = @(); GpuSensors = @(); Blackbox = @()
@@ -393,6 +393,7 @@ function Invoke-Collect {
                 IsLaptop = [bool]($cs.PCSystemType -eq 2)   # 2 = Mobile (노트북)
                 IsVM = [bool]($cs.HypervisorPresent -and ("$($cs.Manufacturer) $($cs.Model)" -match 'Virtual|VMware|QEMU|KVM|Xen|Parallels|VirtualBox|Hyper-V|Amazon EC2|Google Compute'))
             }
+            $D.Batteries = @(Get-BatteryInfo)
         } }
         @{ Name = '그래픽카드';             Run = {
             $reg = @{}
@@ -658,6 +659,25 @@ function Get-Num($v) {
     if ($null -eq $v -or $v -is [bool]) { return $null }
     $d = 0.0; if ([double]::TryParse([string]$v, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $d }
     return $null
+}
+function Get-BatteryInfo {
+    # 노트북 배터리 설계 용량 대비 완충 용량 (BatteryInfoView·powercfg /batteryreport 와 같은 출처, 읽기만)
+    $out = @()
+    try {
+        $st = @(Get-CimInstance -Namespace root/wmi -ClassName BatteryStaticData -ErrorAction Stop)
+        $fc = @(Get-CimInstance -Namespace root/wmi -ClassName BatteryFullChargedCapacity -ErrorAction Stop)
+        for ($i = 0; $i -lt $st.Count; $i++) {
+            $des = Get-Num $st[$i].DesignedCapacity; $full = $(if ($i -lt $fc.Count) { Get-Num $fc[$i].FullChargedCapacity } else { $null })
+            $out += [ordered]@{ Name = ([string]$st[$i].DeviceName).Trim(); DesignmWh = $des; FullmWh = $full; Cycles = $(try { Get-Num (@(Get-CimInstance -Namespace root/wmi -ClassName BatteryCycleCount -ErrorAction Stop)[$i].CycleCount) } catch { $null }) }
+        }
+    } catch {}
+    return $out
+}
+function Get-BatteryWearPct($Battery) {
+    # 마모율 = 100 - 완충 용량 / 설계 용량 (값이 없거나 이상하면 $null)
+    $des = Get-Num (Get-Prop $Battery 'DesignmWh'); $full = Get-Num (Get-Prop $Battery 'FullmWh')
+    if ($null -eq $des -or $null -eq $full -or $des -le 0 -or $full -le 0) { return $null }
+    return [math]::Max(0.0, [math]::Round(100 - 100 * $full / $des, 0))
 }
 function Test-Laptop($Data) {
     # 노트북: Windows 가 'Mobile' 로 알려 주거나, 그래픽카드 이름에 Laptop·Mobile·Max-Q
@@ -1090,6 +1110,18 @@ function Get-Diagnosis {
         $txt = "최대 소비전력 약 $($psuE.PeakW)W (그래픽카드 $($psuE.GpuW)W·$($psuE.GpuSource) + CPU $($psuE.CpuW)W + 기타 $($psuE.OtherW)W). 순간 전력 급증을 고려해 정격 $($psuE.RecommendW)W 이상, 80 PLUS 인증 제품을 권장합니다. 파워 라벨의 정격 출력과 비교해 보세요."
         $psuSuspect = [double]$score['PSU'] -ge 30
         & $find $(if ($psuSuspect) { 'warn' } else { 'info' }) 'PSU' "권장 파워 용량: $($psuE.RecommendW)W 이상" $txt 0
+    }
+
+    # ---- 노트북 배터리 마모 (BatteryInfoView 방식) — 마모가 심하면 부하 중 갑자기 꺼질 수 있음
+    foreach ($bt in @(Get-Arr (Get-Prop $Data 'Batteries'))) {
+        $w = Get-BatteryWearPct $bt; if ($null -eq $w) { continue }
+        $cy = Get-Num (Get-Prop $bt 'Cycles'); $cyTxt = $(if ($null -ne $cy -and $cy -gt 0) { " · 충전 $([int]$cy) 회" } else { '' })
+        if ($w -ge 40) {
+            if ([int]$plCount -gt 0) { & $add 'PSU' 15 "배터리 마모 $w%" }
+            & $find 'warn' 'PSU' "배터리 마모 심함 (설계 대비 $w% 감소$cyTxt)" '배터리만으로 쓰면 고부하에서 갑자기 꺼질 수 있습니다. 배터리 교체를 권장합니다.' 5
+        } elseif ($w -ge 20) {
+            & $find 'info' 'PSU' "배터리 마모 (설계 대비 $w% 감소$cyTxt)" '사용 시간이 줄었을 수 있습니다. 마모가 40% 를 넘으면 교체를 고려하세요.' 0
+        }
     }
 
     # ---- 결과 정리
@@ -3425,6 +3457,11 @@ $script:EnPairs = @(
     @('그래픽카드 메모리 검사(memtest_vulkan)에서 오류가 나왔습니다. 오버클럭을 끄고 다시 시험해도 나오면 그래픽카드 A/S 대상입니다.', 'The graphics memory test (memtest_vulkan) found errors. If they persist with overclocking disabled, the card needs warranty service.'),
     @('그래픽카드 연결 끊김 (ERROR_DEVICE_LOST)', 'Graphics card connection lost (ERROR_DEVICE_LOST)'),
     @(' (노트북: 파워 대신 전원 어댑터·배터리를 점검하세요.)', ' (Laptop: check the power adapter and battery instead of a PSU.)'),
+    @('RE:배터리 마모 심함 \(설계 대비 (\d+)% 감소(?: · 충전 (\d+) 회)?\)', 'Battery heavily worn ($1% below design$2)'),
+    @('RE:배터리 마모 \(설계 대비 (\d+)% 감소(?: · 충전 (\d+) 회)?\)', 'Battery wear ($1% below design$2)'),
+    @('RE:배터리 마모 (\d+)%', 'Battery wear $1%'),
+    @('배터리만으로 쓰면 고부하에서 갑자기 꺼질 수 있습니다. 배터리 교체를 권장합니다.', 'On battery power it may shut off under heavy load. Replacing the battery is recommended.'),
+    @('사용 시간이 줄었을 수 있습니다. 마모가 40% 를 넘으면 교체를 고려하세요.', 'Battery life may be shorter. Consider replacing it once wear exceeds 40%.'),
     @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
     @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),
     @('배터리 상태 확인: 명령 프롬프트에서 powercfg /batteryreport (마모가 심하면 배터리 교체)', 'Check battery health: run powercfg /batteryreport in a command prompt (replace the battery if heavily worn)'),

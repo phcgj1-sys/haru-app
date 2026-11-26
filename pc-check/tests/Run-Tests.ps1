@@ -726,6 +726,23 @@ It '노트북: 갑자기 꺼짐이 파워 원인이면 데스크톱 파워 교�
     $old = $script:UiLang; $script:UiLang = 'en'
     try { $h = New-HtmlReport -Data (& $mk $true) -Dx $dx; $ko = @([regex]::Matches($h, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } finally { $script:UiLang = $old }
 }
+It '노트북 배터리 마모 (BatteryInfoView 방식): 설계 대비 40% 이상이면 경고·꺼짐 원인 가산, 20% 이상 안내, 값 없으면 무시 (영어)' {
+    Assert-Eq (Get-BatteryWearPct ([ordered]@{ DesignmWh = 50000; FullmWh = 27500 })) 45 '45%'
+    Assert ($null -eq (Get-BatteryWearPct ([ordered]@{ DesignmWh = 0; FullmWh = 1 }))) '설계 용량 0 → 무시'
+    Assert-Eq (Get-BatteryWearPct ([ordered]@{ DesignmWh = 50000; FullmWh = 52000 })) 0 '새 배터리(설계보다 큼) → 0'
+    $d = New-Scenario @{ Shutdowns = @(1..3 | ForEach-Object { [ordered]@{ T = (T $_); Code = ''; PowerButton = $false } }) }; $d.System.IsLaptop = $true
+    $d.Batteries = @([ordered]@{ Name = 'BAT0'; DesignmWh = 50000; FullmWh = 27500; Cycles = 812 })
+    $dx = Get-Diagnosis -Data $d
+    $f = @($dx.Findings) | Where-Object { $_.Title -match '배터리 마모 심함' }
+    Assert ($f -and $f.Title -match '45% 감소 · 충전 812 회') "경고: $($f.Title)"
+    $p = @($dx.Causes) | Where-Object { $_.Key -eq 'PSU' }; Assert ((@($p.Reasons) -join ' ') -match '배터리 마모 45%') '꺼짐 원인 근거'
+    $d.Batteries = @([ordered]@{ Name = 'BAT0'; DesignmWh = 50000; FullmWh = 40000 })
+    Assert (@((Get-Diagnosis -Data $d).Findings) | Where-Object { $_.Title -match '^배터리 마모 \(설계 대비 20% 감소\)' -and $_.Level -eq 'info' }) '20% 안내'
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1')); Assert ($src -match '\$D\.Batteries = @\(Get-BatteryInfo\)') '수집'
+    $d.Batteries = @([ordered]@{ Name = 'BAT0'; DesignmWh = 50000; FullmWh = 27500; Cycles = 812 })
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { $h = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($h, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } finally { $script:UiLang = $old }
+}
 It '권장 파워 용량: 노트북 그래픽카드(Laptop GPU·Max-Q)는 데스크톱 파워를 권하지 않음' {
     foreach ($nm in 'NVIDIA GeForce RTX 4090 Laptop GPU', 'NVIDIA GeForce RTX 2080 with Max-Q Design', 'AMD Radeon RX 6800M Mobile') {
         $d = New-Scenario @{}; $d.Gpus = @([ordered]@{ Name = $nm; Vendor = 'NVIDIA'; VramGB = 16; Driver = '1'; DriverDate = (T 10); Status = 'OK' })
