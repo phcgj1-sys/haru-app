@@ -641,7 +641,7 @@ function Get-UsbDriveRoots([long]$MinFree = 0) {
     if (-not $script:UsbRootsCache -or ($now - $script:UsbRootsCache.T).TotalSeconds -gt 15) {
         $r = @()
         try { $r += @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=2' -ErrorAction Stop | ForEach-Object { $_.DeviceID + '\' }) } catch {}
-        try { $r += @(Get-Disk -ErrorAction Stop | Where-Object { [string]$_.BusType -eq 'USB' } | Get-Partition -ErrorAction SilentlyContinue | Where-Object { [string]$_.DriveLetter -match '^[A-Za-z]$' } | ForEach-Object { ([string]$_.DriveLetter).ToUpperInvariant() + ':\' }) } catch {}
+        try { $r += @(Get-Disk -ErrorAction Stop | Where-Object { (Format-DiskBus $_.BusType) -eq 'USB' } | Get-Partition -ErrorAction SilentlyContinue | Where-Object { [string]$_.DriveLetter -match '^[A-Za-z]$' } | ForEach-Object { ([string]$_.DriveLetter).ToUpperInvariant() + ':\' }) } catch {}
         $script:UsbRootsCache = @{ T = $now; Roots = @($r | Where-Object { $_ } | Select-Object -Unique) }
     }
     $roots = @($script:UsbRootsCache.Roots)

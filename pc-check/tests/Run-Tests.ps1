@@ -1092,12 +1092,15 @@ It 'shop.txt: 메모장 ANSI(CP949)·UTF-8(BOM 유무)·UTF-16 으로 저장해�
 It 'USB 드라이브: 이동식 디스크뿐 아니라 USB 외장 SSD(로컬 디스크로 보임)도 찾음, 내부 디스크는 제외' {
     $oldWin = $script:IsWin; $script:UsbRootsCache = $null
     function Get-CimInstance { param($ClassName, $Filter, $ErrorAction) return @([pscustomobject]@{ DeviceID = 'E:' }) }
-    function Get-Disk { param($ErrorAction) return @([pscustomobject]@{ Number = 0; BusType = 'NVMe' }, [pscustomobject]@{ Number = 1; BusType = 'USB' }) }
+    function Get-Disk { param($ErrorAction) return @([pscustomobject]@{ Number = 0; BusType = 17 }, [pscustomobject]@{ Number = 1; BusType = $script:FakeUsbBus }) }
     function Get-Partition { [CmdletBinding()] param([Parameter(ValueFromPipeline = $true)]$InputObject) process { if ($InputObject.Number -eq 0) { [pscustomobject]@{ DriveLetter = 'C' } } else { [pscustomobject]@{ DriveLetter = [char]0 }; [pscustomobject]@{ DriveLetter = 'f' } } } }
     try {
         $script:IsWin = $true
-        $r = @(Get-UsbDriveRoots)
-        Assert-Eq ($r -join ',') 'E:\,F:\' "USB 드라이브 ($($r -join ','))"
+        foreach ($bus in 'USB', 7) {
+            $script:FakeUsbBus = $bus; $script:UsbRootsCache = $null
+            $r = @(Get-UsbDriveRoots)
+            Assert-Eq ($r -join ',') 'E:\,F:\' "USB 드라이브 BusType=$bus ($($r -join ','))"
+        }
         $script:ExtraHistoryDirs = $null
         Assert (@(Get-HistoryPaths).Count -ge 1) '이력 경로 계산 오류 없음'
     } finally {
