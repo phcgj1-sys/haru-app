@@ -629,6 +629,23 @@ It '디스크 SMART 확장 (CrystalDiskInfo 방식): 쓰기 오류·오래 쓴 H
     $old = $script:UiLang; $script:UiLang = 'en'
     try { $he = New-HtmlReport -Data $d -Dx (Get-Diagnosis -Data $d); $ko = @([regex]::Matches($he, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } finally { $script:UiLang = $old }
 }
+It '디스크 읽기 속도 (CrystalDiskMark 대신, 읽기 전용): 기존 파일을 시간·양 제한으로 읽어 MB/s, 매우 느리면 경고, 파일은 그대로 (영어)' {
+    [void][IO.Directory]::CreateDirectory($OutDir); $f = Join-Path $OutDir 'readspeed.bin'
+    $fs = [IO.File]::Create($f); $fs.SetLength(40MB); $fs.Dispose(); $before = (Get-Item -LiteralPath $f).LastWriteTimeUtc
+    $r = Measure-FileReadSpeed $f 32 2
+    Assert ($r -and $r.MBps -gt 0 -and $r.MB -eq 32) "측정: $($r.MB) MB, $($r.MBps) MB/s"
+    Assert-Eq (Get-Item -LiteralPath $f).Length 40MB '파일 크기 그대로'; Assert-Eq (Get-Item -LiteralPath $f).LastWriteTimeUtc $before '파일 수정 안 함'
+    Assert ($null -eq (Measure-FileReadSpeed (Join-Path $OutDir 'none.bin'))) '없는 파일 → 빈 값'
+    $d = New-Scenario @{ DiskRead = [ordered]@{ File = 'x.dll'; MB = 64; MBps = 12.5 } }
+    $dx = Get-Diagnosis -Data $d
+    Assert (@($dx.Findings) | Where-Object { $_.Title -eq '시스템 디스크 읽기가 매우 느림 (12.5 MB/s)' }) '느림 경고'
+    $ok = New-Scenario @{ DiskRead = [ordered]@{ File = 'x.dll'; MB = 128; MBps = 2100 } }
+    Assert (-not (@((Get-Diagnosis -Data $ok).Findings) | Where-Object { $_.Title -match '느림' })) '빠르면 경고 없음'
+    Assert ((@(Get-PartsSummary $ok) | Where-Object { $_[0] -eq '저장장치' })[1] -match '읽기 2100 MB/s') '부품 요약에 속도'
+    $src = [IO.File]::ReadAllText((Join-Path $root 'PCCheck.ps1')); Assert ($src -match '\$D\.DiskRead = Measure-SystemDiskRead') '수집'
+    $old = $script:UiLang; $script:UiLang = 'en'
+    try { foreach ($x in $d, $ok) { $h = New-HtmlReport -Data $x -Dx (Get-Diagnosis -Data $x); $ko = @([regex]::Matches($h, '[^<>"]{0,15}[가-힣]+[^<>"]{0,15}') | ForEach-Object { $_.Value }); Assert-Eq $ko.Count 0 "영어: $($ko -join ' | ')" } } finally { $script:UiLang = $old }
+}
 It '디스크 온도: HDD 는 55°C 부터 HDD 안내(NVMe 방열판 아님), SSD 는 70°C 부터 (영어 번역)' {
     $hdd = [ordered]@{ Name = 'WDC WD20EZAZ'; Media = 'HDD'; Bus = 'SATA'; SizeGB = 2000; Health = 'Healthy'; TempC = 58 }
     $d = New-Scenario @{}; $d.Disks = @($d.Disks) + @($hdd)

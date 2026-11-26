@@ -529,6 +529,7 @@ function Invoke-Collect {
                 $r = $_ | Get-StorageReliabilityCounter -ErrorAction SilentlyContinue
                 [ordered]@{ Name = $_.FriendlyName; DeviceId = [string]$_.DeviceId; Media = (Format-DiskMedia $_.MediaType); Bus = (Format-DiskBus $_.BusType); SizeGB = [math]::Round($_.Size / 1GB); Health = [string]$_.HealthStatus; TempC = $r.Temperature; WearPct = $r.Wear; ReadErr = $r.ReadErrorsUncorrected; WriteErr = $r.WriteErrorsUncorrected; TempMaxC = $r.TemperatureMax; PowerOnHours = $r.PowerOnHours }   # CrystalDiskInfo 처럼 쓰기 오류·기록상 최고 온도·사용 시간
             })
+            $D.DiskRead = Measure-SystemDiskRead
         } }
         @{ Name = '메모리 진단 결과';        Run = {
             $D.MemDiag = @(Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Microsoft-Windows-MemoryDiagnostics-Results' } -MaxEvents 5 -ErrorAction SilentlyContinue | ForEach-Object {
@@ -699,6 +700,27 @@ function Get-Num($v) {
     $d = 0.0; if ([double]::TryParse([string]$v, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$d)) { return $d }
     return $null
 }
+function Measure-FileReadSpeed([string]$Path, [int]$MaxMB = 128, [double]$MaxSec = 2.0) {
+    # 순차 읽기 속도 (MB/s) — 읽기만 함 (파일을 만들거나 지우지 않음). 캐시 때문에 높게 나올 수는 있어도 낮게 나오지는 않음
+    try {
+        $fs = New-Object IO.FileStream($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite, 1MB, [IO.FileOptions]::SequentialScan)
+        try {
+            $buf = New-Object byte[] (1MB); $tot = 0L; $sw = [Diagnostics.Stopwatch]::StartNew()
+            while ($tot -lt [long]$MaxMB * 1MB -and $sw.Elapsed.TotalSeconds -lt $MaxSec) { $n = $fs.Read($buf, 0, $buf.Length); if ($n -le 0) { break }; $tot += $n }
+            $sec = $sw.Elapsed.TotalSeconds
+        } finally { $fs.Dispose() }
+        if ($tot -lt 8MB -or $sec -le 0) { return $null }
+        return [ordered]@{ File = [IO.Path]::GetFileName($Path); MB = [math]::Round($tot / 1MB); MBps = [math]::Round($tot / 1MB / $sec, 1) }
+    } catch { return $null }
+}
+function Measure-SystemDiskRead {
+    # Windows 폴더의 큰 기존 파일 하나로 시스템 디스크 읽기 속도 (CrystalDiskMark 대신 간단히, 안전하게)
+    try {
+        $f = @(Get-ChildItem -LiteralPath (Join-Path $env:SystemRoot 'System32') -File -ErrorAction Stop | Where-Object { $_.Length -ge 32MB } | Sort-Object Length -Descending | Select-Object -First 1)
+        if ($f.Count) { return (Measure-FileReadSpeed $f[0].FullName) }
+    } catch {}
+    return $null
+}
 function Get-BatteryInfo {
     # 노트북 배터리 설계 용량 대비 완충 용량 (BatteryInfoView·powercfg /batteryreport 와 같은 출처, 읽기만)
     $out = @()
@@ -733,7 +755,8 @@ function Get-PartsSummary($Data) {
     $gp = @(Get-Arr (Get-Prop $Data 'Gpus') | ForEach-Object { "$(Get-Prop $_ 'Name')$(if (Get-Num (Get-Prop $_ 'VramGB')) { " ($(Get-Prop $_ 'VramGB') GB)" })" })
     if ($gp.Count) { $rows += , @('그래픽카드', ($gp -join ' / ')) }
     $dk = @(Get-Arr (Get-Prop $Data 'Disks') | ForEach-Object { "$(Get-Prop $_ 'Name') $(Get-Prop $_ 'SizeGB') GB ($(Format-DiskMedia (Get-Prop $_ 'Media')) $(Format-DiskBus (Get-Prop $_ 'Bus')))" })
-    if ($dk.Count) { $rows += , @('저장장치', ($dk -join ' / ')) }
+    $rd = Get-Num (Get-Prop (Get-Prop $Data 'DiskRead') 'MBps')
+    if ($dk.Count) { $rows += , @('저장장치', (($dk -join ' / ') + $(if ($null -ne $rd) { " · 읽기 $rd MB/s" } else { '' }))) }
     if (Test-Laptop $Data) {
         $w = $null; foreach ($bt in @(Get-Arr (Get-Prop $Data 'Batteries'))) { $x = Get-BatteryWearPct $bt; if ($null -ne $x) { $w = $x } }
         $rows += , @('전원', $(if ($null -ne $w) { "노트북 (배터리 마모 $w%)" } else { '노트북' }))
@@ -1172,6 +1195,13 @@ function Get-Diagnosis {
         $txt = "최대 소비전력 약 $($psuE.PeakW)W (그래픽카드 $($psuE.GpuW)W·$($psuE.GpuSource) + CPU $($psuE.CpuW)W + 기타 $($psuE.OtherW)W). 순간 전력 급증을 고려해 정격 $($psuE.RecommendW)W 이상, 80 PLUS 인증 제품을 권장합니다. 파워 라벨의 정격 출력과 비교해 보세요."
         $psuSuspect = [double]$score['PSU'] -ge 30
         & $find $(if ($psuSuspect) { 'warn' } else { 'info' }) 'PSU' "권장 파워 용량: $($psuE.RecommendW)W 이상" $txt 0
+    }
+
+    # ---- 시스템 디스크 읽기 속도 (CrystalDiskMark 방식, 읽기 전용) — 캐시로 높게 나올 수는 있어도 낮게는 안 나오므로 '느림'만 판정
+    $dr = Get-Prop $Data 'DiskRead'; $mbps = Get-Num (Get-Prop $dr 'MBps')
+    if ($null -ne $mbps -and $mbps -lt 30) {
+        & $add 'DISK' 10 "디스크 읽기 $mbps MB/s"
+        & $find 'warn' 'DISK' "시스템 디스크 읽기가 매우 느림 ($mbps MB/s)" '정상 SSD 는 수백 MB/s 이상, 하드디스크도 100 MB/s 안팎입니다. 다른 작업(업데이트·백신 검사)이 없을 때 다시 검사해도 느리면 디스크 노후·불량을 의심하세요.' 5
     }
 
     # ---- 노트북 배터리 마모 (BatteryInfoView 방식) — 마모가 심하면 부하 중 갑자기 꺼질 수 있음
@@ -3572,6 +3602,9 @@ $script:EnPairs = @(
     @('잘못된 메모리 주소 참조 — 드라이버 또는 RAM', 'Invalid memory address reference — driver or RAM'),
     @('잘못된 메모리 접근(Access violation) — 드라이버 또는 RAM', 'Invalid memory access (access violation) — driver or RAM'),
     @('디버그 중단점 — 드라이버 오류', 'Debug breakpoint — driver error'),
+    @('RE:시스템 디스크 읽기가 매우 느림 \(([\d\.]+) MB/s\)', 'System disk reads very slowly ($1 MB/s)'), @('RE:디스크 읽기 ([\d\.]+) MB/s', 'Disk read $1 MB/s'),
+    @('정상 SSD 는 수백 MB/s 이상, 하드디스크도 100 MB/s 안팎입니다. 다른 작업(업데이트·백신 검사)이 없을 때 다시 검사해도 느리면 디스크 노후·불량을 의심하세요.', 'A healthy SSD reads hundreds of MB/s and even a hard disk about 100 MB/s. If it is still slow when nothing else is running (updates, antivirus scans), suspect an aging or failing disk.'),
+    @('RE: · 읽기 ([\d\.]+) MB/s', ' · read $1 MB/s'),
     @('부품 요약', 'Parts summary'), @('전원', 'Power'), @('노트북', 'Laptop'), @('RE:노트북 \(배터리 마모 (\d+)%\)', 'Laptop (battery wear $1%)'), @('RE:권장 파워 (\d+) W 이상', 'Recommended PSU $1 W or more'),
     @('전원(어댑터·배터리)', 'Power (adapter/battery)'),
     @('정품(같은 와트 수) 전원 어댑터로 연결해 보기 — 와트 수가 낮은 충전기는 고부하에서 꺼짐', 'Try the original (same-wattage) power adapter — lower-wattage chargers cut out under heavy load'),
