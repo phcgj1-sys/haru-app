@@ -1022,6 +1022,11 @@ It '블랙박스: 직접 고른 폴더에 기록해도 다음 검사에서 찾�
         foreach ($i in 1..12) { Add-BlackboxDirMemory "X$i" }; Assert-Eq @(Get-BlackboxDirMemory).Count 10 '최근 10개만'
     } finally { $script:WorkDir = $oldWd }
 }
+It '블랙박스 실시간 오류 감시: USB 를 뽑을 때의 disk 157(갑자기 제거됨)은 디스크 오류로 세지 않음' {
+    function Get-WinEvent { param($FilterHashtable, $MaxEvents, $ErrorAction) return @([pscustomobject]@{ ProviderName = 'disk'; Id = 157; Message = 'Disk 2 has been surprise removed.' }, [pscustomobject]@{ ProviderName = 'disk'; Id = 7; Message = 'bad block' }, [pscustomobject]@{ ProviderName = 'Microsoft-Windows-WHEA-Logger'; Id = 18; Message = 'x' }) }
+    try { Assert-Eq ((Get-RecentHwEvents (Get-Date).AddMinutes(-1)) -join ',') 'DISK 7,WHEA 18' '157 제외, 다른 오류는 그대로' }
+    finally { Remove-Item Function:\Get-WinEvent -ErrorAction SilentlyContinue }
+}
 It '블랙박스: 도구 실패 표시(GPUFAIL·RAMFAIL)만 있으면 디스크·파워 탓으로 보지 않고, RAM 검사가 안 돌면 전 단계 통과 아님' {
     $stages = @('idle', 'cpu', 'ram', 'gpu', 'full', 'pulse')
     $mkRows = { param($ev, $evStage) $rows = @(); foreach ($st in $stages) { $rows += (Rep 3 @($st, 50, 99, 60, 50, 150, '', 0, '')) }; $i = [array]::IndexOf($stages, $evStage) * 3; $rows[$i] = @($evStage, 50, 99, 60, 50, 150, '', 0, $ev); , $rows }

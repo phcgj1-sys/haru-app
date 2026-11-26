@@ -1912,6 +1912,8 @@ function Get-RecentHwEvents([datetime]$Since) {
     try {
         $ev = @(Get-WinEvent -FilterHashtable (Get-HwEventFilter $Since) -MaxEvents 20 -ErrorAction Stop)
         foreach ($e in $ev) {
+            # disk 157 '장치가 갑자기 제거됨' 은 USB 를 뽑을 때 생기는 경고 — 디스크 오류로 세면 블랙박스가 디스크 탓으로 오판
+            if ($e.ProviderName -eq 'disk' -and $e.Id -eq 157) { continue }
             $code = switch ($e.ProviderName) {
                 'Microsoft-Windows-WHEA-Logger' { "WHEA $($e.Id)" }
                 'Display' { 'TDR' }
