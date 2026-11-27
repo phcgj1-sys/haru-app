@@ -1,0 +1,142 @@
+name: pc-check
+
+on:
+  push:
+    paths:
+      - 'pc-check/**'
+      - '.github/workflows/pc-check.yml'
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish a GitHub release (tag pc-check-v<version>) after the tests pass'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+# Inline scripts stay ASCII-only: the runner writes them without a BOM and
+# Windows PowerShell 5.1 would misread Korean text. Korean lives in the .ps1 files.
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: pc-check
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Unit and scenario tests (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tests/Run-Tests.ps1
+
+      - name: Unit and scenario tests (PowerShell 7)
+        if: success() || failure()
+        shell: pwsh
+        run: ./tests/Run-Tests.ps1
+
+      - name: PSScriptAnalyzer (errors + 5.1 compatibility)
+        if: success() || failure()
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Force -Scope CurrentUser
+          $settings = @{ Rules = @{
+              PSUseCompatibleSyntax  = @{ Enable = $true; TargetVersions = @('5.1', '7.0') }
+              PSUseCompatibleCmdlets = @{ Compatibility = @('desktop-5.1.14393.206-windows') } } }
+          $all = @(Invoke-ScriptAnalyzer -Path ./PCCheck.ps1 -Settings $settings) + @(Invoke-ScriptAnalyzer -Path ./PCCheck.ps1 -Severity Error)
+          $bad = @($all | Where-Object { $_.Severity -eq 'Error' -or $_.RuleName -like 'PSUseCompatible*' })
+          $bad | Format-Table Severity, Line, RuleName, Message -AutoSize -Wrap | Out-String -Width 220 | Write-Host
+          if ($bad.Count) { throw "analyzer findings: $($bad.Count)" }
+
+      - name: Real scan on this machine (Windows PowerShell 5.1)
+        if: success() || failure()
+        shell: powershell
+        run: ./tests/CI-Run.ps1
+
+      - name: Real scan on this machine (PowerShell 7)
+        if: success() || failure()
+        shell: pwsh
+        run: ./tests/CI-Run.ps1
+
+      - name: GUI layout + real "Start scan" click flow (ko/en)
+        if: success() || failure()
+        shell: powershell
+        run: |
+          $env:PCCHECK_SHOT = Join-Path $env:RUNNER_TEMP 'gui.png'
+          $env:PCCHECK_GUI_E2E = '1'
+          powershell -NoProfile -STA -File ./PCCheck.ps1 -Mode Gui -GuiSmokeTest -OutDir "$env:RUNNER_TEMP\gui-e2e"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+
+
+
+      - name: External tool download and integrity
+        if: success() || failure()
+        shell: powershell
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./tests/CI-Run.ps1 -ToolCheck
+
+
+      - name: Build EXE
+        timeout-minutes: 6
+        shell: powershell
+        run: ./build/Build-Exe.ps1 -OutDir "$env:RUNNER_TEMP\PCCheck"
+
+      - name: Package ZIP
+        shell: pwsh
+        run: |
+          $pkg = Join-Path $env:RUNNER_TEMP 'PCCheck'
+          Copy-Item ./PCCheck.ps1, ./*.bat, ./README.md, ./THIRD-PARTY.md, ./CHANGELOG.md -Destination $pkg
+          # Readable manual for buyers who open files in a browser instead of a Markdown viewer
+          $body = (ConvertFrom-Markdown -Path ./README.md).Html
+          $css = 'body{font-family:"Malgun Gothic",sans-serif;max-width:860px;margin:24px auto;padding:0 16px;line-height:1.6}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}code{background:#f3f3f3;padding:1px 4px}'
+          $html = "<!doctype html><html><head><meta charset=`"utf-8`"><title>PC One-Click Check</title><style>$css</style></head><body>$body</body></html>"
+          [IO.File]::WriteAllText((Join-Path $pkg 'README.html'), $html, (New-Object System.Text.UTF8Encoding($true)))
+          if (-not (Test-Path (Join-Path $pkg 'README.html'))) { throw 'README.html missing' }
+          Compress-Archive -Path "$pkg/*" -DestinationPath (Join-Path $env:RUNNER_TEMP 'PCCheck.zip') -Force
+          Get-ChildItem $pkg | Format-Table Name, Length | Out-String | Write-Host
+
+      - uses: actions/upload-artifact@v6
+        if: success() || failure()
+        with:
+          name: PCCheck
+          if-no-files-found: ignore
+          path: |
+            ${{ runner.temp }}/PCCheck.zip
+            ${{ runner.temp }}/report-*/*.html
+            ${{ runner.temp }}/gui.png
+
+  # Publish the tested ZIP as a GitHub release: push a tag like pc-check-v2.6.0,
+  # or run the workflow manually with release=true (the tag is created from the version in PCCheck.ps1).
+  # Write access is limited to this job; the test job keeps read-only permissions.
+  release:
+    needs: windows
+    if: startsWith(github.ref, 'refs/tags/pc-check-v') || (github.event_name == 'workflow_dispatch' && inputs.release)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Create release with the tested ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" == refs/tags/pc-check-v* ]]; then
+            ver="${GITHUB_REF_NAME#pc-check-v}"
+          else
+            ver="$(sed -n "s/^\$script:AppVersion = '\([0-9.]*\)'.*/\1/p" pc-check/PCCheck.ps1 | head -1)"
+          fi
+          test -n "$ver"
+          tag="pc-check-v${ver}"
+          gh run download "$GITHUB_RUN_ID" -n PCCheck -D art
+          test -f art/PCCheck.zip
+          cp art/PCCheck.zip "PCCheck-v${ver}.zip"
+          awk -v v="## ${ver}" '{sub(/\r$/,"")} $0==v{f=1;next} /^## /{if(f)exit} f' pc-check/CHANGELOG.md > notes.md
+          test -s notes.md
+          gh release create "$tag" "PCCheck-v${ver}.zip" --target "$GITHUB_SHA" --title "PC One-Click Check v${ver}" --notes-file notes.md
